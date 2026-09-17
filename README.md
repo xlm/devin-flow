@@ -47,6 +47,16 @@ pnpm build
 uv run pre-commit run --all-files
 ```
 
+## API types
+
+The frontend gets its API types from the backend's OpenAPI schema.
+`pnpm generate:api` runs `python -m devin_flow.openapi` to dump the
+schema to `frontend/openapi.json`, then `openapi-typescript` turns it
+into `frontend/src/api/schema.d.ts`, which `src/api/client.ts` consumes
+via `openapi-fetch`. Both generated files are committed; CI regenerates
+them and fails on drift, so re-run `pnpm generate:api` whenever backend
+routes or response models change.
+
 ## Docker
 
 ```sh
