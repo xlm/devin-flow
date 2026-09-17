@@ -2,7 +2,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from devin_flow_backend.main import create_app
+from devin_flow.main import create_app
 
 
 def make_client(tmp_path: Path) -> TestClient:

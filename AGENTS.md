@@ -2,8 +2,8 @@
 
 ## Layout
 
-- `backend/` - Python package `devin_flow_backend` (src layout). FastAPI app
-  factory in `src/devin_flow_backend/main.py`; serves `frontend/dist` when it
+- `backend/` - Python package `devin_flow` (src layout). FastAPI app
+  factory in `src/devin_flow/main.py`; serves `frontend/dist` when it
   exists (or `STATIC_DIR`). Unknown `/api/*` paths must stay 404.
 - `backend/tests/` - pytest tests; test files mirror `src`.
 - `frontend/` - Vite + Vue 3 + TypeScript + Tailwind 4 + shadcn-vue.

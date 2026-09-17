@@ -22,4 +22,4 @@ COPY --from=frontend /app/frontend/dist /app/static
 ENV STATIC_DIR=/app/static PATH=/app/.venv/bin:$PATH
 USER appuser
 EXPOSE 8000
-CMD ["uvicorn", "devin_flow_backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "devin_flow.main:app", "--host", "0.0.0.0", "--port", "8000"]

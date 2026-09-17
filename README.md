@@ -20,7 +20,7 @@ uv run pre-commit install
 
 ```sh
 # backend on :8000
-uv run fastapi dev backend/src/devin_flow_backend/main.py
+uv run fastapi dev backend/src/devin_flow/main.py
 
 # frontend on :5173, proxies /api to :8000
 pnpm dev
