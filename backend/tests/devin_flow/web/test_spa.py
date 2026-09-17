@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+from starlette.routing import Mount
 
 from devin_flow.app import create_app
 
@@ -36,6 +37,37 @@ def test_nested_file_served(tmp_path: Path) -> None:
     response = client.get("/nested/file.txt")
     assert response.status_code == 200
     assert response.text == "nested content"
+
+
+def test_api_prefixed_non_api_path_serves_index(tmp_path: Path) -> None:
+    client = make_client(tmp_path)
+    response = client.get("/apiary")
+    assert response.status_code == 200
+    assert response.text == "<html>spa</html>"
+
+
+def test_directory_path_falls_back_to_index(tmp_path: Path) -> None:
+    (tmp_path / "nested").mkdir()
+    (tmp_path / "nested" / "file.txt").write_text("nested content")
+    client = make_client(tmp_path)
+    for path in ["/nested", "/nested/"]:
+        response = client.get(path)
+        assert response.status_code == 200, path
+        assert response.text == "<html>spa</html>", path
+
+
+def test_assets_file_served_by_fallback_without_assets_mount(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "index.html").write_text("<html>spa</html>")
+    app = create_app(static_dir=tmp_path)
+    assert not any(isinstance(route, Mount) for route in app.routes)
+    # created after mount time, so only the catch-all fallback can serve it
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "assets" / "app.js").write_text("console.log(1)")
+    response = TestClient(app).get("/assets/app.js")
+    assert response.status_code == 200
+    assert response.text == "console.log(1)"
 
 
 def make_escape_client(tmp_path: Path) -> TestClient:
