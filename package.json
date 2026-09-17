@@ -1,0 +1,15 @@
+{
+  "name": "devin-flow",
+  "private": true,
+  "packageManager": "pnpm@11.21.0",
+  "scripts": {
+    "dev": "pnpm --filter frontend dev",
+    "build": "pnpm --filter frontend build",
+    "lint": "pnpm --filter frontend lint",
+    "lint:fix": "pnpm --filter frontend lint:fix",
+    "format": "pnpm --filter frontend format",
+    "format:check": "pnpm --filter frontend format:check",
+    "typecheck": "pnpm --filter frontend typecheck",
+    "test": "pnpm --filter frontend test"
+  }
+}
