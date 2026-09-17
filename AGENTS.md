@@ -2,10 +2,13 @@
 
 ## Layout
 
-- `backend/` - Python package `devin_flow` (src layout). FastAPI app
-  factory in `src/devin_flow/main.py`; serves `frontend/dist` when it
-  exists (or `STATIC_DIR`). Unknown `/api/*` paths must stay 404.
-- `backend/tests/` - pytest tests; test files mirror `src`.
+- `backend/` - Python package `devin_flow` (src layout). `main.py` is the
+  ASGI entrypoint; the app factory lives in `app.py`, API routes in
+  `api/` (under `/api`), and static file serving in `web/spa.py`. Serves
+  `frontend/dist` when it exists (or `STATIC_DIR`). Unknown `/api/*`
+  paths must stay 404.
+- `backend/tests/` - pytest tests; test files mirror `src` under
+  `tests/devin_flow/` (pytest runs with `--import-mode=importlib`).
 - `frontend/` - Vite + Vue 3 + TypeScript + Tailwind 4 + shadcn-vue.
   `@/*` maps to `src/*`. Generated shadcn code in `src/components/ui` is
   excluded from lint and formatting.
