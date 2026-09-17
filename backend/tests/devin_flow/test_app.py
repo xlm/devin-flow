@@ -27,4 +27,13 @@ def test_no_spa_fallback_without_index_html(tmp_path: Path) -> None:
 def test_unknown_api_route_is_404(tmp_path: Path) -> None:
     (tmp_path / "index.html").write_text("<html>spa</html>")
     client = TestClient(create_app(static_dir=tmp_path))
-    assert client.get("/api/nope").status_code == 404
+    for method in ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]:
+        for path in ["/api/nope", "/api"]:
+            response = client.request(method, path)
+            assert response.status_code == 404, (method, path)
+
+
+def test_existing_api_route_keeps_405_for_wrong_method(tmp_path: Path) -> None:
+    (tmp_path / "index.html").write_text("<html>spa</html>")
+    client = TestClient(create_app(static_dir=tmp_path))
+    assert client.post("/api/health").status_code == 405

@@ -69,3 +69,15 @@ def test_symlink_escape_blocked(tmp_path: Path) -> None:
     client = make_escape_client(tmp_path)
     (tmp_path / "dist" / "leak.txt").symlink_to(tmp_path / "secret.txt")
     assert_secret_not_served(client, "/leak.txt")
+
+
+def test_head_serves_index(tmp_path: Path) -> None:
+    client = make_client(tmp_path)
+    assert client.head("/").status_code == 200
+
+
+def test_non_get_on_spa_path_is_405(tmp_path: Path) -> None:
+    client = make_client(tmp_path)
+    response = client.post("/some/route")
+    assert response.status_code == 405
+    assert "<html>spa</html>" not in response.text
