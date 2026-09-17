@@ -1,8 +1,36 @@
+import importlib
+from collections.abc import Iterator
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
+import devin_flow.app
 from devin_flow.app import create_app
+
+
+@pytest.fixture
+def reload_app_module() -> Iterator[None]:
+    yield
+    importlib.reload(devin_flow.app)
+
+
+@pytest.mark.usefixtures("reload_app_module")
+def test_static_dir_env_var_overrides_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("STATIC_DIR", str(tmp_path))
+    module = importlib.reload(devin_flow.app)
+    assert tmp_path == module.STATIC_DIR
+
+
+@pytest.mark.usefixtures("reload_app_module")
+def test_static_dir_defaults_to_frontend_dist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("STATIC_DIR", raising=False)
+    module = importlib.reload(devin_flow.app)
+    assert module.STATIC_DIR.parts[-2:] == ("frontend", "dist")
 
 
 def test_root_is_404_without_static_dir(tmp_path: Path) -> None:
