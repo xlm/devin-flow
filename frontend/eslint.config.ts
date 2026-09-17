@@ -7,7 +7,7 @@ import skipFormatting from '@vue/eslint-config-prettier/skip-formatting'
 
 export default defineConfigWithVueTs(
   {
-    ignores: ['dist/**', 'src/components/ui/**'],
+    ignores: ['dist/**', 'coverage/**', 'src/components/ui/**'],
   },
   pluginVue.configs['flat/essential'],
   vueTsConfigs.recommended,
