@@ -11,6 +11,7 @@
     "format:check": "pnpm --filter frontend format:check",
     "typecheck": "pnpm --filter frontend typecheck",
     "test": "pnpm --filter frontend test",
-    "test:coverage": "pnpm --filter frontend test:coverage"
+    "test:coverage": "pnpm --filter frontend test:coverage",
+    "generate:api": "uv run python -m devin_flow.openapi > frontend/openapi.json && pnpm --filter frontend generate:api"
   }
 }
