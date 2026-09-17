@@ -11,7 +11,8 @@
   `tests/devin_flow/` (pytest runs with `--import-mode=importlib`).
 - `frontend/` - Vite + Vue 3 + TypeScript + Tailwind 4 + shadcn-vue.
   `@/*` maps to `src/*`. Generated shadcn code in `src/components/ui` is
-  excluded from lint and formatting.
+  excluded from lint and formatting. `src/api/schema.d.ts` is generated
+  from the backend OpenAPI schema and also excluded from lint/format.
 - `pyproject.toml` - uv workspace root plus shared ruff, mypy (strict,
   pydantic plugin) and pytest config.
 - `package.json` / `pnpm-workspace.yaml` - pnpm workspace; root scripts
@@ -28,6 +29,7 @@ uv run ruff format --check .   # python format check
 uv run mypy                    # strict type check
 pnpm lint && pnpm format:check && pnpm typecheck && pnpm test
 pnpm test:coverage             # frontend tests with 100% coverage gate (CI)
+pnpm generate:api              # regenerate openapi.json + schema.d.ts
 pnpm build                     # emits frontend/dist
 uv run pre-commit run --all-files
 docker build -t devin-flow .
