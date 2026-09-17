@@ -33,13 +33,14 @@ pnpm dev
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy
-uv run pytest
+uv run pytest            # includes coverage report, fails under 100%
 
 # frontend
 pnpm lint
 pnpm format:check
 pnpm typecheck
-pnpm test
+pnpm test                # fast, no coverage
+pnpm test:coverage       # what CI runs, fails under 100%
 pnpm build
 
 # everything (pre-commit)
