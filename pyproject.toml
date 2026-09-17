@@ -34,3 +34,4 @@ files = ["backend/src", "backend/tests"]
 
 [tool.pytest.ini_options]
 testpaths = ["backend/tests"]
+addopts = "--import-mode=importlib"
