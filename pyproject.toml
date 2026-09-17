@@ -13,6 +13,7 @@ devin-flow-backend = { workspace = true }
 [dependency-groups]
 dev = [
     "pytest",
+    "pytest-cov",
     "httpx",
     "ruff",
     "mypy",
@@ -34,4 +35,10 @@ files = ["backend/src", "backend/tests"]
 
 [tool.pytest.ini_options]
 testpaths = ["backend/tests"]
-addopts = "--import-mode=importlib"
+addopts = "--import-mode=importlib --cov=devin_flow --cov-report=term-missing --cov-fail-under=100"
+
+[tool.coverage.run]
+source = ["backend/src"]
+
+[tool.coverage.report]
+show_missing = true
