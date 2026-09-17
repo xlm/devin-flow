@@ -1,3 +1,6 @@
+# shadcn-vue puts generated helpers in src/lib
+!src/lib/
+
 # Logs
 logs
 *.log
