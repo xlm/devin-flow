@@ -2,9 +2,13 @@
 name = "devin-flow"
 version = "0.1.0"
 requires-python = ">=3.13"
+dependencies = ["devin-flow-backend"]
 
 [tool.uv.workspace]
 members = ["backend"]
+
+[tool.uv.sources]
+devin-flow-backend = { workspace = true }
 
 [dependency-groups]
 dev = [
