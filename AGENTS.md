@@ -22,11 +22,12 @@
 ```sh
 uv sync                        # python env + lockfile
 pnpm install                   # node deps
-uv run pytest                  # backend tests
+uv run pytest                  # backend tests, fails under 100% coverage
 uv run ruff check .            # python lint
 uv run ruff format --check .   # python format check
 uv run mypy                    # strict type check
 pnpm lint && pnpm format:check && pnpm typecheck && pnpm test
+pnpm test:coverage             # frontend tests with 100% coverage gate (CI)
 pnpm build                     # emits frontend/dist
 uv run pre-commit run --all-files
 docker build -t devin-flow .
