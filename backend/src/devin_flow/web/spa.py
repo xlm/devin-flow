@@ -1,13 +1,26 @@
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.requests import Request
-from starlette.responses import Response
-from starlette.routing import Match
+from starlette.routing import Match, Route
+from starlette.types import Scope
 
-API_METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+
+def is_api_path(path: str) -> bool:
+    return path == "api" or path.startswith("api/")
+
+
+class SpaRoute(Route):
+    # never match /api/* so unknown api paths fall through to Starlette's 404
+    def matches(self, scope: Scope) -> tuple[Match, Scope]:
+        match, child_scope = super().matches(scope)
+        if match is not Match.NONE and is_api_path(
+            child_scope["path_params"]["full_path"]
+        ):
+            return Match.NONE, {}
+        return match, child_scope
 
 
 def mount_spa(app: FastAPI, static_dir: Path) -> None:
@@ -21,34 +34,19 @@ def mount_spa(app: FastAPI, static_dir: Path) -> None:
     if (static_dir / "index.html").is_file():
         root = static_dir.resolve()
 
-        def api_path_owned(request: Request) -> bool:
-            # a sibling route matches the path but not this method -> 405
-            for route in request.app.routes:
-                if getattr(route, "endpoint", None) is spa:
-                    continue
-                match, _ = route.matches(request.scope)
-                if match is not Match.NONE:
-                    return True
-            return False
-
-        async def spa(request: Request) -> Response:
+        async def spa(request: Request) -> FileResponse:
             full_path: str = request.path_params["full_path"]
-            # keep unknown /api/* paths as 404 instead of index.html
-            if full_path == "api" or full_path.startswith("api/"):
-                raise HTTPException(status_code=405 if api_path_owned(request) else 404)
-            if request.method not in {"GET", "HEAD"}:
-                raise HTTPException(status_code=405)
             # every file served by the fallback must resolve inside static_dir
             candidate = (root / full_path).resolve()
             if full_path and candidate.is_relative_to(root) and candidate.is_file():
                 return FileResponse(candidate)
             return FileResponse(root / "index.html")
 
-        # methods=None would default to GET only; list all so /api/* never
-        # partial-matches into a 405
-        app.add_route(
-            "/{full_path:path}",
-            spa,
-            methods=API_METHODS,
-            include_in_schema=False,
+        app.router.routes.append(
+            SpaRoute(
+                "/{full_path:path}",
+                spa,
+                methods=["GET", "HEAD"],
+                include_in_schema=False,
+            )
         )
