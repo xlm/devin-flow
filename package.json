@@ -10,6 +10,7 @@
     "format": "pnpm --filter frontend format",
     "format:check": "pnpm --filter frontend format:check",
     "typecheck": "pnpm --filter frontend typecheck",
-    "test": "pnpm --filter frontend test"
+    "test": "pnpm --filter frontend test",
+    "test:coverage": "pnpm --filter frontend test:coverage"
   }
 }
