@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { Button } from '@/components/ui/button'
+import { client } from '@/api/client'
 
 const status = ref<'loading' | 'ok' | 'error'>('loading')
 
 onMounted(async () => {
   try {
-    const response = await fetch('/api/health')
-    status.value = response.ok ? 'ok' : 'error'
+    const { data } = await client.GET('/api/health')
+    status.value = data?.status === 'ok' ? 'ok' : 'error'
   } catch {
     status.value = 'error'
   }

@@ -1,4 +1,6 @@
 dist
 coverage
 pnpm-lock.yaml
+openapi.json
+src/api/schema.d.ts
 src/components/ui
