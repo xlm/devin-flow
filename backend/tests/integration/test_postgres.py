@@ -31,6 +31,12 @@ def test_items_endpoints(client: TestClient) -> None:
     assert created.status_code == 201
     assert client.get("/api/items").json() == [created.json()]
     assert client.post("/api/items", json={"name": "widget"}).status_code == 409
+    assert client.get("/api/items").json() == [created.json()]
+    assert client.post("/api/items", json={"name": "gadget"}).status_code == 201
+    assert [item["name"] for item in client.get("/api/items").json()] == [
+        "widget",
+        "gadget",
+    ]
 
 
 def test_seeded_session_has_seed_items(seeded_session: Session) -> None:
