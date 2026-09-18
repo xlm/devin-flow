@@ -76,6 +76,8 @@ def test_create_client_accepts_tls_or_loopback(base_url: str) -> None:
         "http://localhost.evil.com/v1",
         "http://127.0.0.1.nip.io/v1",
         "ftp://api.devin.ai/v1",
+        "ftp://localhost/v1",
+        "ws://127.0.0.1:8099/v1",
         "api.devin.ai/v1",
     ],
 )
