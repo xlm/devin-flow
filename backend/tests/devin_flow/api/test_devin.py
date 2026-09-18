@@ -129,6 +129,16 @@ def test_missing_token_returns_503(tmp_path: Path) -> None:
     assert response.json() == {"detail": "DEVIN_API_TOKEN is not set"}
 
 
+def test_non_tls_remote_base_url_returns_503(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("DEVIN_API_TOKEN", "secret")
+    monkeypatch.setenv("DEVIN_API_BASE_URL", "http://api.devin.ai/v1")
+    response = TestClient(create_app(static_dir=tmp_path)).get("/api/devin/sessions")
+    assert response.status_code == 503
+    assert response.json() == {"detail": "DEVIN_API_BASE_URL must use https"}
+
+
 @pytest.mark.parametrize("limit", [0, 101])
 def test_limit_validation_returns_422(tmp_path: Path, limit: int) -> None:
     client, upstream = make_client(
