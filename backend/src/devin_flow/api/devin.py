@@ -8,7 +8,6 @@ from devin_flow.devin.client import (
     DevinSession,
     DevinUpstreamError,
     SessionCreate,
-    SessionCreated,
 )
 
 router = APIRouter()
@@ -31,12 +30,12 @@ def upstream_error(exc: DevinUpstreamError) -> HTTPException:
         502: {"model": ErrorResponse, "description": "Devin API failure"},
         503: {
             "model": ErrorResponse,
-            "description": "DEVIN_API_TOKEN not configured",
+            "description": "Devin configuration not configured",
         },
     },
 )
 def list_sessions(
-    client: DevinClientDep, limit: int = Query(20, ge=1, le=100)
+    client: DevinClientDep, limit: int = Query(100, ge=1, le=200)
 ) -> list[DevinSession]:
     try:
         return client.list_sessions(limit=limit)
@@ -46,17 +45,17 @@ def list_sessions(
 
 @router.post(
     "/devin/sessions",
-    response_model=SessionCreated,
+    response_model=DevinSession,
     status_code=201,
     responses={
         502: {"model": ErrorResponse, "description": "Devin API failure"},
         503: {
             "model": ErrorResponse,
-            "description": "DEVIN_API_TOKEN not configured",
+            "description": "Devin configuration not configured",
         },
     },
 )
-def create_session(payload: SessionCreate, client: DevinClientDep) -> SessionCreated:
+def create_session(payload: SessionCreate, client: DevinClientDep) -> DevinSession:
     try:
         return client.create_session(payload)
     except DevinUpstreamError as exc:

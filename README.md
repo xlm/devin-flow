@@ -41,7 +41,9 @@ directory, see `backend/src/devin_flow/config.py`. `.env.example` lists
 them with their defaults; copy it to `.env` to override locally.
 `DEVIN_API_TOKEN` is an optional server-side service token for the
 `/api/devin/*` proxy and is never sent to the frontend. `DEVIN_API_BASE_URL`
-configures the Devin API endpoint.
+configures the Devin API v3 endpoint, and `DEVIN_ORG_ID` selects the
+organization from Settings -> Service Users. Live Devin tests are opt-in with
+`uv run pytest -m live` and require both Devin environment variables.
 
 ### Database
 

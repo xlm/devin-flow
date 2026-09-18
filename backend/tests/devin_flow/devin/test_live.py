@@ -7,8 +7,8 @@ from devin_flow.devin import get_devin_client
 pytestmark = [
     pytest.mark.live,
     pytest.mark.skipif(
-        not os.environ.get("DEVIN_API_TOKEN"),
-        reason="DEVIN_API_TOKEN is not set",
+        not os.environ.get("DEVIN_API_TOKEN") or not os.environ.get("DEVIN_ORG_ID"),
+        reason="DEVIN_API_TOKEN or DEVIN_ORG_ID is not set",
     ),
 ]
 

@@ -1,6 +1,7 @@
 from collections.abc import Iterator
 from contextlib import contextmanager
 from functools import lru_cache
+from typing import Literal
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
@@ -12,17 +13,11 @@ class DevinSession(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     session_id: str
-    status: str
+    status: Literal[
+        "new", "claimed", "running", "exit", "error", "suspended", "resuming"
+    ]
     title: str | None = None
     url: str | None = None
-
-
-class SessionCreated(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-
-    session_id: str
-    url: str | None = None
-    is_new_session: bool | None = None
 
 
 class SessionCreate(BaseModel):
@@ -56,28 +51,37 @@ def _upstream_errors() -> Iterator[None]:
 
 
 class DevinClient:
-    def __init__(self, http: httpx.Client) -> None:
+    def __init__(self, http: httpx.Client, org_id: str) -> None:
         self.http = http
+        self.org_id = org_id
 
-    def list_sessions(self, limit: int = 20) -> list[DevinSession]:
+    def list_sessions(self, limit: int = 100) -> list[DevinSession]:
         with _upstream_errors():
-            response = self.http.get("/sessions", params={"limit": limit})
+            response = self.http.get(
+                f"/organizations/{self.org_id}/sessions",
+                params={"first": limit},
+            )
             response.raise_for_status()
             return [
                 DevinSession.model_validate(session)
-                for session in response.json()["sessions"]
+                for session in response.json()["items"]
             ]
 
-    def create_session(self, payload: SessionCreate) -> SessionCreated:
+    def create_session(self, payload: SessionCreate) -> DevinSession:
         with _upstream_errors():
-            response = self.http.post("/sessions", json=payload.model_dump())
+            response = self.http.post(
+                f"/organizations/{self.org_id}/sessions",
+                json=payload.model_dump(),
+            )
             response.raise_for_status()
-            return SessionCreated.model_validate(response.json())
+            return DevinSession.model_validate(response.json())
 
 
 def create_client(settings: Settings) -> DevinClient:
     if not settings.devin_api_token:
         raise DevinNotConfiguredError("DEVIN_API_TOKEN is not set")
+    if not settings.devin_org_id:
+        raise DevinNotConfiguredError("DEVIN_ORG_ID is not set")
     url = httpx.URL(settings.devin_api_base_url)
     if url.scheme != "https" and not (
         url.scheme == "http" and url.host in {"localhost", "127.0.0.1", "::1"}
@@ -88,7 +92,7 @@ def create_client(settings: Settings) -> DevinClient:
         headers={"Authorization": f"Bearer {settings.devin_api_token}"},
         timeout=30,
     )
-    return DevinClient(http)
+    return DevinClient(http, settings.devin_org_id)
 
 
 @lru_cache

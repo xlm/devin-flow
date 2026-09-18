@@ -15,6 +15,7 @@ from devin_flow.devin.client import DevinClient
 def clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[None]:
     monkeypatch.delenv("DEVIN_API_TOKEN", raising=False)
     monkeypatch.delenv("DEVIN_API_BASE_URL", raising=False)
+    monkeypatch.delenv("DEVIN_ORG_ID", raising=False)
     monkeypatch.chdir(tmp_path)
     get_settings.cache_clear()
     get_devin_client.cache_clear()
@@ -28,7 +29,8 @@ def make_client(
     handler: httpx.BaseTransport,
 ) -> tuple[TestClient, DevinClient]:
     upstream = DevinClient(
-        httpx.Client(transport=handler, base_url="https://devin.example/v1")
+        httpx.Client(transport=handler, base_url="https://devin.example"),
+        "org-test",
     )
     app = create_app(static_dir=tmp_path)
     app.dependency_overrides[get_devin_client] = lambda: upstream
@@ -37,15 +39,15 @@ def make_client(
 
 def test_list_sessions_proxies_response_and_limit(tmp_path: Path) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
-        assert request.url.path == "/v1/sessions"
-        assert request.url.params["limit"] == "4"
+        assert request.url.path == "/organizations/org-test/sessions"
+        assert request.url.params["first"] == "4"
         return httpx.Response(
             200,
             json={
-                "sessions": [
+                "items": [
                     {
                         "session_id": "session-1",
-                        "status": "working",
+                        "status": "running",
                         "title": "Title",
                     }
                 ]
@@ -56,7 +58,7 @@ def test_list_sessions_proxies_response_and_limit(tmp_path: Path) -> None:
     response = client.get("/api/devin/sessions?limit=4")
     assert response.status_code == 200
     assert response.json() == [
-        {"session_id": "session-1", "status": "working", "title": "Title", "url": None}
+        {"session_id": "session-1", "status": "running", "title": "Title", "url": None}
     ]
     upstream.http.close()
 
@@ -64,14 +66,15 @@ def test_list_sessions_proxies_response_and_limit(tmp_path: Path) -> None:
 def test_create_session_proxies_response(tmp_path: Path) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "POST"
-        assert request.url.path == "/v1/sessions"
+        assert request.url.path == "/organizations/org-test/sessions"
         assert request.read() == b'{"prompt":"Build it"}'
         return httpx.Response(
             200,
             json={
                 "session_id": "session-2",
                 "url": "https://devin.example/session-2",
-                "is_new_session": True,
+                "status": "running",
+                "title": "Title",
             },
         )
 
@@ -81,7 +84,8 @@ def test_create_session_proxies_response(tmp_path: Path) -> None:
     assert response.json() == {
         "session_id": "session-2",
         "url": "https://devin.example/session-2",
-        "is_new_session": True,
+        "status": "running",
+        "title": "Title",
     }
     upstream.http.close()
 
@@ -133,17 +137,32 @@ def test_non_tls_remote_base_url_returns_503(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("DEVIN_API_TOKEN", "secret")
-    monkeypatch.setenv("DEVIN_API_BASE_URL", "http://api.devin.ai/v1")
+    monkeypatch.setenv("DEVIN_API_BASE_URL", "http://api.devin.ai/v3")
+    monkeypatch.setenv("DEVIN_ORG_ID", "org-test")
     response = TestClient(create_app(static_dir=tmp_path)).get("/api/devin/sessions")
     assert response.status_code == 503
     assert response.json() == {"detail": "DEVIN_API_BASE_URL must use https"}
 
 
-@pytest.mark.parametrize("limit", [0, 101])
+@pytest.mark.parametrize("org_id", [None, ""])
+def test_missing_org_id_returns_503(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, org_id: str | None
+) -> None:
+    monkeypatch.setenv("DEVIN_API_TOKEN", "secret")
+    if org_id is None:
+        monkeypatch.delenv("DEVIN_ORG_ID", raising=False)
+    else:
+        monkeypatch.setenv("DEVIN_ORG_ID", org_id)
+    response = TestClient(create_app(static_dir=tmp_path)).get("/api/devin/sessions")
+    assert response.status_code == 503
+    assert response.json() == {"detail": "DEVIN_ORG_ID is not set"}
+
+
+@pytest.mark.parametrize("limit", [0, 201])
 def test_limit_validation_returns_422(tmp_path: Path, limit: int) -> None:
     client, upstream = make_client(
         tmp_path,
-        httpx.MockTransport(lambda request: httpx.Response(200, json={"sessions": []})),
+        httpx.MockTransport(lambda request: httpx.Response(200, json={"items": []})),
     )
     response = client.get(f"/api/devin/sessions?limit={limit}")
     assert response.status_code == 422
