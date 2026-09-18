@@ -76,7 +76,7 @@ class DevinClient:
 
 
 def create_client(settings: Settings) -> DevinClient:
-    if settings.devin_api_token is None:
+    if not settings.devin_api_token:
         raise DevinNotConfiguredError("DEVIN_API_TOKEN is not set")
     http = httpx.Client(
         base_url=settings.devin_api_base_url,
