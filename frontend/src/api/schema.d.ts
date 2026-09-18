@@ -70,11 +70,8 @@ export interface components {
         DevinSession: {
             /** Session Id */
             session_id: string;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "new" | "claimed" | "running" | "exit" | "error" | "suspended" | "resuming";
+            /** Status */
+            status: string;
             /** Title */
             title?: string | null;
             /** Url */
@@ -175,7 +172,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Devin configuration not configured */
+            /** @description Devin API not configured */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -226,7 +223,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description Devin configuration not configured */
+            /** @description Devin API not configured */
             503: {
                 headers: {
                     [name: string]: unknown;

@@ -21,15 +21,6 @@
             "type": "string"
           },
           "status": {
-            "enum": [
-              "new",
-              "claimed",
-              "running",
-              "exit",
-              "error",
-              "suspended",
-              "resuming"
-            ],
             "title": "Status",
             "type": "string"
           },
@@ -260,7 +251,7 @@
                 }
               }
             },
-            "description": "Devin configuration not configured"
+            "description": "Devin API not configured"
           }
         },
         "summary": "List Sessions"
@@ -316,7 +307,7 @@
                 }
               }
             },
-            "description": "Devin configuration not configured"
+            "description": "Devin API not configured"
           }
         },
         "summary": "Create Session"
