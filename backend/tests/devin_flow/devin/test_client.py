@@ -4,7 +4,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from devin_flow.config import get_settings
+from devin_flow.config import Settings, get_settings
 from devin_flow.devin import DevinClient, get_devin_client
 from devin_flow.devin.client import (
     DevinNotConfiguredError,
@@ -47,6 +47,47 @@ def test_create_client_configures_base_url_and_authorization() -> None:
     assert client.http.base_url == httpx.URL("https://devin.example/v1/")
     assert client.http.headers["Authorization"] == "Bearer secret"
     client.http.close()
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "https://api.devin.ai/v1",
+        "http://localhost:8099/v1",
+        "http://127.0.0.1:8099/v1",
+        "http://[::1]:8099/v1",
+        "HTTPS://api.devin.ai/v1",
+    ],
+)
+def test_create_client_accepts_tls_or_loopback(base_url: str) -> None:
+    settings = Settings(
+        devin_api_token="secret",
+        devin_api_base_url=base_url,
+    )
+    client = create_client(settings)
+    assert client.http.base_url.host == httpx.URL(base_url).host
+    client.http.close()
+
+
+@pytest.mark.parametrize(
+    "base_url",
+    [
+        "http://api.devin.ai/v1",
+        "http://localhost.evil.com/v1",
+        "http://127.0.0.1.nip.io/v1",
+        "ftp://api.devin.ai/v1",
+        "api.devin.ai/v1",
+    ],
+)
+def test_create_client_rejects_non_tls_remote_urls(base_url: str) -> None:
+    settings = Settings(
+        devin_api_token="secret",
+        devin_api_base_url=base_url,
+    )
+    with pytest.raises(
+        DevinNotConfiguredError, match="DEVIN_API_BASE_URL must use https"
+    ):
+        create_client(settings)
 
 
 def make_client(
