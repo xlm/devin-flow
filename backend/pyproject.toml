@@ -4,7 +4,14 @@ version = "0.1.0"
 requires-python = ">=3.13"
 dependencies = [
     "fastapi[standard]",
+    "sqlmodel",
+    "psycopg[binary]",
+    "pydantic-settings",
+    "alembic",
 ]
+
+[project.scripts]
+seed = "devin_flow.seed:main"
 
 [build-system]
 requires = ["hatchling"]
