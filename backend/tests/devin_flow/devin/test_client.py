@@ -11,6 +11,7 @@ from devin_flow.devin.client import (
     DevinSession,
     DevinUpstreamError,
     SessionCreate,
+    SessionCreated,
     create_client,
 )
 
@@ -92,13 +93,18 @@ def test_create_session_posts_prompt() -> None:
         assert request.read() == b'{"prompt":"Build it"}'
         return httpx.Response(
             201,
-            json={"session_id": "session-2", "status": "queued"},
+            json={
+                "session_id": "session-2",
+                "url": "https://devin.example/session-2",
+                "is_new_session": True,
+            },
         )
 
     client = make_client(httpx.MockTransport(handler))
-    assert client.create_session(SessionCreate(prompt="Build it")) == DevinSession(
+    assert client.create_session(SessionCreate(prompt="Build it")) == SessionCreated(
         session_id="session-2",
-        status="queued",
+        url="https://devin.example/session-2",
+        is_new_session=True,
     )
     client.http.close()
 
@@ -149,6 +155,58 @@ def test_create_session_transport_error_has_no_status() -> None:
         client.create_session(SessionCreate(prompt="Build it"))
     assert error.value.status_code is None
     assert error.value.detail == "connection refused"
+    client.http.close()
+
+
+@pytest.mark.parametrize(
+    ("response", "detail"),
+    [
+        (
+            httpx.Response(200, text="not json"),
+            "malformed devin response: Expecting value: line 1 column 1 (char 0)",
+        ),
+        (
+            httpx.Response(200, json={"unexpected": []}),
+            "malformed devin response: 'sessions'",
+        ),
+        (
+            httpx.Response(200, json={"sessions": [{}]}),
+            "malformed devin response: 2 validation errors for DevinSession",
+        ),
+    ],
+)
+def test_list_sessions_rejects_malformed_success(
+    response: httpx.Response, detail: str
+) -> None:
+    client = make_client(httpx.MockTransport(lambda request: response))
+    with pytest.raises(DevinUpstreamError) as error:
+        client.list_sessions()
+    assert error.value.status_code is None
+    assert error.value.detail.startswith(detail)
+    client.http.close()
+
+
+@pytest.mark.parametrize(
+    ("response", "detail"),
+    [
+        (
+            httpx.Response(200, text="not json"),
+            "malformed devin response: Expecting value: line 1 column 1 (char 0)",
+        ),
+        (
+            httpx.Response(200, json={"unexpected": []}),
+            "malformed devin response: 1 validation error for SessionCreated",
+        ),
+    ],
+)
+def test_create_session_rejects_malformed_success(
+    response: httpx.Response, detail: str
+) -> None:
+    client = make_client(httpx.MockTransport(lambda request: response))
+    with pytest.raises(DevinUpstreamError) as error:
+        client.create_session(SessionCreate(prompt="Build it"))
+    assert error.value.status_code is None
+    assert error.value.detail.startswith(detail)
     client.http.close()
 
 

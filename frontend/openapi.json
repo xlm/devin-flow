@@ -131,6 +131,7 @@
       "SessionCreate": {
         "properties": {
           "prompt": {
+            "maxLength": 20000,
             "minLength": 1,
             "title": "Prompt",
             "type": "string"
@@ -140,6 +141,41 @@
           "prompt"
         ],
         "title": "SessionCreate",
+        "type": "object"
+      },
+      "SessionCreated": {
+        "properties": {
+          "is_new_session": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is New Session"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "required": [
+          "session_id"
+        ],
+        "title": "SessionCreated",
         "type": "object"
       },
       "ValidationError": {
@@ -272,7 +308,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DevinSession"
+                  "$ref": "#/components/schemas/SessionCreated"
                 }
               }
             },

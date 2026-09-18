@@ -17,8 +17,16 @@ class DevinSession(BaseModel):
     url: str | None = None
 
 
+class SessionCreated(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    session_id: str
+    url: str | None = None
+    is_new_session: bool | None = None
+
+
 class SessionCreate(BaseModel):
-    prompt: str = Field(min_length=1)
+    prompt: str = Field(min_length=1, max_length=20_000)
 
 
 class DevinNotConfiguredError(RuntimeError):
@@ -40,6 +48,8 @@ def _upstream_errors() -> Iterator[None]:
         raise DevinUpstreamError(exc.response.status_code, exc.response.text) from exc
     except httpx.TransportError as exc:
         raise DevinUpstreamError(None, str(exc)) from exc
+    except (ValueError, KeyError, TypeError) as exc:
+        raise DevinUpstreamError(None, f"malformed devin response: {exc}") from exc
 
 
 class DevinClient:
@@ -55,11 +65,11 @@ class DevinClient:
                 for session in response.json()["sessions"]
             ]
 
-    def create_session(self, payload: SessionCreate) -> DevinSession:
+    def create_session(self, payload: SessionCreate) -> SessionCreated:
         with _upstream_errors():
             response = self.http.post("/sessions", json=payload.model_dump())
             response.raise_for_status()
-            return DevinSession.model_validate(response.json())
+            return SessionCreated.model_validate(response.json())
 
 
 def create_client(settings: Settings) -> DevinClient:

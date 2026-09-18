@@ -112,6 +112,15 @@ export interface components {
             /** Prompt */
             prompt: string;
         };
+        /** SessionCreated */
+        SessionCreated: {
+            /** Is New Session */
+            is_new_session?: boolean | null;
+            /** Session Id */
+            session_id: string;
+            /** Url */
+            url?: string | null;
+        };
         /** ValidationError */
         ValidationError: {
             /** Context */
@@ -202,7 +211,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["DevinSession"];
+                    "application/json": components["schemas"]["SessionCreated"];
                 };
             };
             /** @description Validation Error */
