@@ -45,11 +45,14 @@ def _upstream_errors() -> Iterator[None]:
     try:
         yield
     except httpx.HTTPStatusError as exc:
-        raise DevinUpstreamError(exc.response.status_code, exc.response.text) from exc
+        status_code = exc.response.status_code
+        raise DevinUpstreamError(
+            status_code, f"devin api returned HTTP {status_code}"
+        ) from exc
     except httpx.TransportError as exc:
-        raise DevinUpstreamError(None, str(exc)) from exc
+        raise DevinUpstreamError(None, "devin api unreachable") from exc
     except (ValueError, KeyError, TypeError) as exc:
-        raise DevinUpstreamError(None, f"malformed devin response: {exc}") from exc
+        raise DevinUpstreamError(None, "malformed devin response") from exc
 
 
 class DevinClient:
