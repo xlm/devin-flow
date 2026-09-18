@@ -44,6 +44,9 @@
       "ItemCreate": {
         "properties": {
           "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "pattern": "^[^\\x00]*$",
             "title": "Name",
             "type": "string"
           }

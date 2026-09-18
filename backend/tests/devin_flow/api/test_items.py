@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 
 
@@ -24,3 +25,9 @@ def test_create_duplicate_is_409(unit_client: TestClient) -> None:
 
 def test_create_requires_name(unit_client: TestClient) -> None:
     assert unit_client.post("/api/items", json={}).status_code == 422
+
+
+@pytest.mark.parametrize("name", ["", "a" * 256, "bad\x00name"])
+def test_create_rejects_unstorable_names(unit_client: TestClient, name: str) -> None:
+    assert unit_client.post("/api/items", json={"name": name}).status_code == 422
+    assert unit_client.get("/api/items").json() == []
