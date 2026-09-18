@@ -11,6 +11,13 @@ def test_dump_openapi_includes_health_endpoint() -> None:
     assert spec["components"]["schemas"]["HealthResponse"]
 
 
+def test_dump_openapi_includes_items_endpoints() -> None:
+    spec = json.loads(dump_openapi())
+    assert set(spec["paths"]["/api/items"]) == {"get", "post"}
+    assert spec["components"]["schemas"]["ItemCreate"]
+    assert spec["components"]["schemas"]["ItemRead"]
+
+
 def test_dump_openapi_is_deterministic() -> None:
     assert dump_openapi() == dump_openapi()
 

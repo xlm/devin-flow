@@ -18,6 +18,7 @@ dev = [
     "ruff",
     "mypy",
     "pre-commit",
+    "testcontainers[postgres]",
 ]
 
 [tool.ruff]
@@ -35,7 +36,8 @@ files = ["backend/src", "backend/tests"]
 
 [tool.pytest.ini_options]
 testpaths = ["backend/tests"]
-addopts = "--import-mode=importlib --cov=devin_flow --cov-report=term-missing --cov-fail-under=100"
+addopts = "--import-mode=importlib --strict-markers --cov=devin_flow --cov-report=term-missing --cov-fail-under=100"
+markers = ["docker: needs a Docker daemon (testcontainers Postgres)"]
 
 [tool.coverage.run]
 source = ["backend/src"]

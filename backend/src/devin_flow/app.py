@@ -1,15 +1,11 @@
-import os
 from pathlib import Path
 
 from fastapi import FastAPI
 
 from devin_flow import api, web
+from devin_flow.config import Settings
 
-STATIC_DIR = Path(
-    os.environ.get(
-        "STATIC_DIR", Path(__file__).resolve().parents[3] / "frontend" / "dist"
-    )
-)
+STATIC_DIR = Settings().static_dir
 
 
 def create_app(static_dir: Path = STATIC_DIR) -> FastAPI:
