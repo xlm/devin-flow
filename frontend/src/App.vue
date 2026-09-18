@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { Button } from '@/components/ui/button'
+import FlowCanvas from '@/components/FlowCanvas.vue'
 import { client } from '@/api/client'
 
 const status = ref<'loading' | 'ok' | 'error'>('loading')
@@ -16,9 +16,12 @@ onMounted(async () => {
 </script>
 
 <template>
-  <main class="flex min-h-screen flex-col items-center justify-center gap-4">
-    <h1 class="text-2xl font-semibold">devin-flow</h1>
-    <Button>Get started</Button>
-    <p>API: {{ status }}</p>
+  <main class="relative">
+    <FlowCanvas />
+    <p
+      class="bg-card text-muted-foreground pointer-events-none absolute top-4 right-4 z-10 rounded-md border px-2 py-1 text-xs"
+    >
+      API: {{ status }}
+    </p>
   </main>
 </template>
