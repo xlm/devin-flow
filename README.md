@@ -37,7 +37,8 @@ pnpm dev
 The backend reads `DATABASE_URL` (default
 `postgresql+psycopg://devin:devin@localhost:5432/devin_flow`) and
 `STATIC_DIR` from the environment or a `.env` file in the working
-directory, see `backend/src/devin_flow/config.py`.
+directory, see `backend/src/devin_flow/config.py`. `.env.example` lists
+them with their defaults; copy it to `.env` to override locally.
 
 ### Database
 
@@ -96,7 +97,9 @@ against a throwaway `postgres:18` container started by testcontainers,
 migrated with `alembic upgrade head`. Each test runs inside a transaction
 that is rolled back afterwards. The plain `uv run pytest` runs everything
 and enforces 100% coverage, which is what CI does (`ubuntu-latest`
-provides Docker, so no extra services are configured).
+provides Docker, so no extra services are configured). Any environment
+expected to pass the coverage gate, CI or a Devin session, needs a
+running Docker daemon.
 
 `uv run pytest -m "not docker" --no-cov` skips the container-backed tests
 and the coverage gate for fast iteration without Docker. It is not
