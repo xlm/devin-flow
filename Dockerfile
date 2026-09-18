@@ -18,8 +18,12 @@ FROM python:3.13-slim
 RUN useradd --create-home appuser
 WORKDIR /app
 COPY --from=backend /app/.venv /app/.venv
+COPY --from=backend /app/backend/alembic.ini /app/backend/alembic.ini
+COPY --from=backend /app/backend/alembic /app/backend/alembic
+COPY --from=backend /app/backend/entrypoint.sh /app/backend/entrypoint.sh
 COPY --from=frontend /app/frontend/dist /app/static
 ENV STATIC_DIR=/app/static PATH=/app/.venv/bin:$PATH
 USER appuser
 EXPOSE 8000
-CMD ["uvicorn", "devin_flow.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# DATABASE_URL must point at a reachable Postgres; migrations run on start
+ENTRYPOINT ["/app/backend/entrypoint.sh"]
