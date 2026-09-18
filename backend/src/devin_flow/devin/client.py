@@ -1,3 +1,5 @@
+from collections.abc import Iterator
+from contextlib import contextmanager
 from functools import lru_cache
 
 import httpx
@@ -30,36 +32,34 @@ class DevinUpstreamError(RuntimeError):
         super().__init__(detail)
 
 
+@contextmanager
+def _upstream_errors() -> Iterator[None]:
+    try:
+        yield
+    except httpx.HTTPStatusError as exc:
+        raise DevinUpstreamError(exc.response.status_code, exc.response.text) from exc
+    except httpx.TransportError as exc:
+        raise DevinUpstreamError(None, str(exc)) from exc
+
+
 class DevinClient:
     def __init__(self, http: httpx.Client) -> None:
         self.http = http
 
     def list_sessions(self, limit: int = 20) -> list[DevinSession]:
-        try:
+        with _upstream_errors():
             response = self.http.get("/sessions", params={"limit": limit})
             response.raise_for_status()
             return [
                 DevinSession.model_validate(session)
                 for session in response.json()["sessions"]
             ]
-        except httpx.HTTPStatusError as exc:
-            raise DevinUpstreamError(
-                exc.response.status_code, exc.response.text
-            ) from exc
-        except httpx.TransportError as exc:
-            raise DevinUpstreamError(None, str(exc)) from exc
 
     def create_session(self, payload: SessionCreate) -> DevinSession:
-        try:
+        with _upstream_errors():
             response = self.http.post("/sessions", json=payload.model_dump())
             response.raise_for_status()
             return DevinSession.model_validate(response.json())
-        except httpx.HTTPStatusError as exc:
-            raise DevinUpstreamError(
-                exc.response.status_code, exc.response.text
-            ) from exc
-        except httpx.TransportError as exc:
-            raise DevinUpstreamError(None, str(exc)) from exc
 
 
 def create_client(settings: Settings) -> DevinClient:
