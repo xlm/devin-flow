@@ -7,7 +7,7 @@ DEFAULT_STATIC_DIR = Path(__file__).resolve().parents[3] / "frontend" / "dist"
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env")
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     database_url: str = "postgresql+psycopg://devin:devin@localhost:5432/devin_flow"
     static_dir: Path = DEFAULT_STATIC_DIR
