@@ -39,6 +39,9 @@ The backend reads `DATABASE_URL` (default
 `STATIC_DIR` from the environment or a `.env` file in the working
 directory, see `backend/src/devin_flow/config.py`. `.env.example` lists
 them with their defaults; copy it to `.env` to override locally.
+`DEVIN_API_TOKEN` is an optional server-side service token for the
+`/api/devin/*` proxy and is never sent to the frontend. `DEVIN_API_BASE_URL`
+configures the Devin API endpoint.
 
 ### Database
 
