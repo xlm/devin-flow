@@ -30,7 +30,7 @@ def upstream_error(exc: DevinUpstreamError) -> HTTPException:
         502: {"model": ErrorResponse, "description": "Devin API failure"},
         503: {
             "model": ErrorResponse,
-            "description": "Devin configuration not configured",
+            "description": "Devin API not configured",
         },
     },
 )
@@ -51,7 +51,7 @@ def list_sessions(
         502: {"model": ErrorResponse, "description": "Devin API failure"},
         503: {
             "model": ErrorResponse,
-            "description": "Devin configuration not configured",
+            "description": "Devin API not configured",
         },
     },
 )

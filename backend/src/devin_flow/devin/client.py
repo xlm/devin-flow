@@ -1,7 +1,6 @@
 from collections.abc import Iterator
 from contextlib import contextmanager
 from functools import lru_cache
-from typing import Literal
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
@@ -13,9 +12,7 @@ class DevinSession(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     session_id: str
-    status: Literal[
-        "new", "claimed", "running", "exit", "error", "suspended", "resuming"
-    ]
+    status: str
     title: str | None = None
     url: str | None = None
 
