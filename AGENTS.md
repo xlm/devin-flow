@@ -23,7 +23,8 @@
   testcontainers, per-test transaction rollback). Tests using the
   Postgres fixtures must carry `@pytest.mark.docker` (markers are
   strict); they live in `tests/integration/`.
-- `docker-compose.yml` - `db` (postgres:18), `app`, and a `seed` one-shot.
+- `docker-compose.yml` - `db` (postgres:18), `migrate` one-shot, `app`, and a
+  `seed` one-shot.
 - `frontend/` - Vite + Vue 3 + TypeScript + Tailwind 4 + shadcn-vue.
   `@/*` maps to `src/*`. Generated shadcn code in `src/components/ui` is
   excluded from lint and formatting. `src/api/schema.d.ts` is generated

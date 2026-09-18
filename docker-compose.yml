@@ -15,7 +15,17 @@ services:
       timeout: 5s
       retries: 15
 
-  # runs alembic upgrade head, then uvicorn on :8000
+  # one-shot alembic upgrade head, gates app and seed so only one migrates
+  migrate:
+    build: .
+    entrypoint: ["alembic", "-c", "/app/backend/alembic.ini", "upgrade", "head"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://devin:devin@db:5432/devin_flow
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # entrypoint re-runs alembic (a no-op here), then uvicorn on :8000
   app:
     build: .
     environment:
@@ -23,19 +33,18 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   # one-shot: docker compose run --rm seed
-  # migrates first so it does not race the app container's alembic run
   seed:
     build: .
-    entrypoint: ["sh", "-c", "alembic -c /app/backend/alembic.ini upgrade head && seed"]
+    entrypoint: ["seed"]
     environment:
       DATABASE_URL: postgresql+psycopg://devin:devin@db:5432/devin_flow
     depends_on:
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     profiles: [tools]
 
 volumes:

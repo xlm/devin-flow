@@ -105,7 +105,7 @@ coverage-complete on its own, only the full run is.
 ## Docker
 
 ```sh
-docker compose up --build          # postgres 18 + app on :8000
+docker compose up --build          # postgres 18, migrate, app on :8000
 docker compose run --rm seed       # seed the compose database (idempotent)
 docker compose down -v             # also drops the pgdata volume
 ```
