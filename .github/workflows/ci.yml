@@ -17,6 +17,8 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy
+      # full suite: docker-marked tests start postgres:18 via testcontainers
+      # (ubuntu-latest ships Docker) and the 100% coverage gate applies
       - run: uv run pytest
 
   frontend:
