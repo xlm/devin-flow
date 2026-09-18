@@ -14,6 +14,7 @@ def test_dump_openapi_includes_health_endpoint() -> None:
 def test_dump_openapi_includes_items_endpoints() -> None:
     spec = json.loads(dump_openapi())
     assert set(spec["paths"]["/api/items"]) == {"get", "post"}
+    assert "409" in spec["paths"]["/api/items"]["post"]["responses"]
     assert spec["components"]["schemas"]["ItemCreate"]
     assert spec["components"]["schemas"]["ItemRead"]
 
