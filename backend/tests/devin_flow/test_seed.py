@@ -1,5 +1,7 @@
 import pytest
-from sqlalchemy import Engine
+from sqlalchemy import Engine, insert
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import SessionTransaction
 from sqlmodel import Session, select
 
 from devin_flow import db, seed
@@ -32,18 +34,22 @@ def test_main_seeds_configured_engine(
         assert names(session) == sorted(seed.SEED_ITEM_NAMES)
 
 
-def test_seed_retries_when_a_concurrent_seeder_wins(
-    unit_engine: Engine, unit_session: Session
-) -> None:
-    real_commit = unit_session.commit
+def test_seed_retries_when_a_concurrent_seeder_wins(unit_session: Session) -> None:
+    real_begin_nested = unit_session.begin_nested
 
-    def commit_after_rival_inserts() -> None:
-        with Session(unit_engine) as rival:
-            rival.add(Item(name="alpha"))
-            rival.commit()
-        unit_session.commit = real_commit  # type: ignore[method-assign]
-        real_commit()
+    def rival_inserts_alpha_then_begin_nested() -> SessionTransaction:
+        unit_session.begin_nested = real_begin_nested  # type: ignore[method-assign]
+        unit_session.exec(insert(Item).values(name="alpha"))
+        return real_begin_nested()
 
-    unit_session.commit = commit_after_rival_inserts  # type: ignore[method-assign]
+    unit_session.begin_nested = rival_inserts_alpha_then_begin_nested  # type: ignore[method-assign]
     seed.seed(unit_session)
     assert names(unit_session) == sorted(seed.SEED_ITEM_NAMES)
+
+
+def test_seed_surfaces_callers_pending_failure(unit_session: Session) -> None:
+    unit_session.add(Item(name="delta"))
+    unit_session.commit()
+    unit_session.add(Item(name="delta"))
+    with pytest.raises(IntegrityError):
+        seed.seed(unit_session)
