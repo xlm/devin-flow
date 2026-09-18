@@ -68,7 +68,11 @@ def test_create_session_proxies_response(tmp_path: Path) -> None:
         assert request.read() == b'{"prompt":"Build it"}'
         return httpx.Response(
             200,
-            json={"session_id": "session-2", "status": "queued"},
+            json={
+                "session_id": "session-2",
+                "url": "https://devin.example/session-2",
+                "is_new_session": True,
+            },
         )
 
     client, upstream = make_client(tmp_path, httpx.MockTransport(handler))
@@ -76,9 +80,8 @@ def test_create_session_proxies_response(tmp_path: Path) -> None:
     assert response.status_code == 201
     assert response.json() == {
         "session_id": "session-2",
-        "status": "queued",
-        "title": None,
-        "url": None,
+        "url": "https://devin.example/session-2",
+        "is_new_session": True,
     }
     upstream.http.close()
 
@@ -118,5 +121,18 @@ def test_limit_validation_returns_422(tmp_path: Path, limit: int) -> None:
         httpx.MockTransport(lambda request: httpx.Response(200, json={"sessions": []})),
     )
     response = client.get(f"/api/devin/sessions?limit={limit}")
+    assert response.status_code == 422
+    upstream.http.close()
+
+
+def test_oversized_prompt_returns_422(tmp_path: Path) -> None:
+    client, upstream = make_client(
+        tmp_path,
+        httpx.MockTransport(lambda request: httpx.Response(200, json={})),
+    )
+    response = client.post(
+        "/api/devin/sessions",
+        json={"prompt": "x" * 20_001},
+    )
     assert response.status_code == 422
     upstream.http.close()

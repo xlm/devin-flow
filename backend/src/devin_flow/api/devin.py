@@ -4,7 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from devin_flow.devin import DevinClient, get_devin_client
-from devin_flow.devin.client import DevinSession, DevinUpstreamError, SessionCreate
+from devin_flow.devin.client import (
+    DevinSession,
+    DevinUpstreamError,
+    SessionCreate,
+    SessionCreated,
+)
 
 router = APIRouter()
 
@@ -41,7 +46,7 @@ def list_sessions(
 
 @router.post(
     "/devin/sessions",
-    response_model=DevinSession,
+    response_model=SessionCreated,
     status_code=201,
     responses={
         502: {"model": ErrorResponse, "description": "Devin API failure"},
@@ -51,7 +56,7 @@ def list_sessions(
         },
     },
 )
-def create_session(payload: SessionCreate, client: DevinClientDep) -> DevinSession:
+def create_session(payload: SessionCreate, client: DevinClientDep) -> SessionCreated:
     try:
         return client.create_session(payload)
     except DevinUpstreamError as exc:
