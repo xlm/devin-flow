@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { defineComponent, h } from 'vue'
+
+vi.mock('@/components/FlowCanvas.vue', () => ({
+  default: defineComponent({
+    name: 'FlowCanvas',
+    render: () => h('div', { 'data-testid': 'flow-canvas' }),
+  }),
+}))
 
 function jsonResponse(body: string, status = 200): Response {
   return new Response(body, {
@@ -34,10 +42,11 @@ describe('App', () => {
     vi.unstubAllGlobals()
   })
 
-  it('shows API: loading before the health check resolves', async () => {
+  it('renders the flow canvas with API: loading before the health check resolves', async () => {
     const wrapper = await mountApp(
       vi.fn().mockReturnValue(new Promise(() => {})),
     )
+    expect(wrapper.find('[data-testid="flow-canvas"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('API: loading')
   })
 
