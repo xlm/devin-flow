@@ -7,8 +7,23 @@
   `api/` (under `/api`), and static file serving in `web/spa.py`. Serves
   `frontend/dist` when it exists (or `STATIC_DIR`). Unknown `/api/*`
   paths must stay 404.
+  Settings (`DATABASE_URL`, `STATIC_DIR`) come from `config.py`
+  (pydantic-settings, `.env` aware). `db.py` builds the sync SQLModel
+  engine lazily and exposes the `get_session` dependency. Table models
+  live in `models/` and must be imported from `models/__init__.py` so
+  `SQLModel.metadata` is complete. `seed.py` holds the idempotent
+  `seed(session)` used by `uv run seed` and by test fixtures.
+- `backend/alembic/` + `backend/alembic.ini` - migrations (target
+  metadata is `SQLModel.metadata`, URL from `Settings`). Never
+  `create_all` against Postgres; add a migration instead.
 - `backend/tests/` - pytest tests; test files mirror `src` under
   `tests/devin_flow/` (pytest runs with `--import-mode=importlib`).
+  `conftest.py` provides `unit_session`/`unit_client` (in-memory sqlite,
+  no Docker) and `session`/`client`/`seeded_session` (Postgres 18 via
+  testcontainers, per-test transaction rollback). Tests using the
+  Postgres fixtures must carry `@pytest.mark.docker` (markers are
+  strict); they live in `tests/integration/`.
+- `docker-compose.yml` - `db` (postgres:18), `app`, and a `seed` one-shot.
 - `frontend/` - Vite + Vue 3 + TypeScript + Tailwind 4 + shadcn-vue.
   `@/*` maps to `src/*`. Generated shadcn code in `src/components/ui` is
   excluded from lint and formatting. `src/api/schema.d.ts` is generated
@@ -23,7 +38,13 @@
 ```sh
 uv sync                        # python env + lockfile
 pnpm install                   # node deps
-uv run pytest                  # backend tests, fails under 100% coverage
+uv run pytest                  # full backend suite (needs Docker), 100% coverage gate, what CI runs
+uv run pytest -m "not docker" --no-cov   # fast docker-free loop, NOT coverage-complete
+uv run alembic -c backend/alembic.ini upgrade head
+uv run alembic -c backend/alembic.ini revision --autogenerate -m "msg"
+uv run seed                    # idempotent seed against DATABASE_URL
+docker compose up -d db        # local postgres 18 on :5432
+docker compose run --rm seed   # seed the compose database
 uv run ruff check .            # python lint
 uv run ruff format --check .   # python format check
 uv run mypy                    # strict type check
