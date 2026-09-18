@@ -7,7 +7,9 @@ class Item(SQLModel, table=True):
 
 
 class ItemCreate(SQLModel):
-    name: str
+    name: str = Field(
+        min_length=1, max_length=255, schema_extra={"pattern": r"^[^\x00]*$"}
+    )
 
 
 class ItemRead(SQLModel):
