@@ -128,9 +128,15 @@
   background: var(--background);
 }
 
+/* theme-default redefines these per node type with self-referencing
+   var() cycles, so they must be repeated at type level to take effect. */
 .vue-flow__node-default,
 .vue-flow__node-input,
 .vue-flow__node-output {
+  --vf-node-color: var(--border);
+  --vf-handle: var(--primary);
+  --vf-box-shadow: var(--ring);
+  border-color: var(--border);
   border-radius: var(--radius);
 }
 
