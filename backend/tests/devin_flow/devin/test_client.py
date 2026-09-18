@@ -28,9 +28,11 @@ def clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[None]
     get_devin_client.cache_clear()
 
 
-def test_create_client_requires_token() -> None:
+@pytest.mark.parametrize("token", [None, ""])
+def test_create_client_requires_token(token: str | None) -> None:
+    settings = get_settings().model_copy(update={"devin_api_token": token})
     with pytest.raises(DevinNotConfiguredError, match="DEVIN_API_TOKEN is not set"):
-        create_client(get_settings())
+        create_client(settings)
 
 
 def test_create_client_configures_base_url_and_authorization() -> None:
