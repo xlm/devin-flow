@@ -11,6 +11,8 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+psycopg://devin:devin@localhost:5432/devin_flow"
     static_dir: Path = DEFAULT_STATIC_DIR
+    devin_api_token: str | None = None
+    devin_api_base_url: str = "https://api.devin.ai/v1"
 
 
 @lru_cache

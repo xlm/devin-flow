@@ -415,6 +415,7 @@ source = { editable = "backend" }
 dependencies = [
     { name = "alembic" },
     { name = "fastapi", extra = ["standard"] },
+    { name = "httpx" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic-settings" },
     { name = "sqlmodel" },
@@ -424,6 +425,7 @@ dependencies = [
 requires-dist = [
     { name = "alembic" },
     { name = "fastapi", extras = ["standard"] },
+    { name = "httpx" },
     { name = "psycopg", extras = ["binary"] },
     { name = "pydantic-settings" },
     { name = "sqlmodel" },
