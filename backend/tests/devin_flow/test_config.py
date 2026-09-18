@@ -30,8 +30,10 @@ def test_env_overrides(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     assert settings.static_dir == tmp_path
 
 
-def test_dotenv_file_is_read(tmp_path: Path) -> None:
-    (tmp_path / ".env").write_text("DATABASE_URL=postgresql+psycopg://a:b@h/d\n")
+def test_dotenv_file_is_read_and_unrelated_keys_ignored(tmp_path: Path) -> None:
+    (tmp_path / ".env").write_text(
+        "DATABASE_URL=postgresql+psycopg://a:b@h/d\nVITE_API_URL=/api\n"
+    )
     assert Settings().database_url == "postgresql+psycopg://a:b@h/d"
 
 
