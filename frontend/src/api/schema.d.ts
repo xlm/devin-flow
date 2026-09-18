@@ -70,8 +70,11 @@ export interface components {
         DevinSession: {
             /** Session Id */
             session_id: string;
-            /** Status */
-            status: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "new" | "claimed" | "running" | "exit" | "error" | "suspended" | "resuming";
             /** Title */
             title?: string | null;
             /** Url */
@@ -111,15 +114,6 @@ export interface components {
         SessionCreate: {
             /** Prompt */
             prompt: string;
-        };
-        /** SessionCreated */
-        SessionCreated: {
-            /** Is New Session */
-            is_new_session?: boolean | null;
-            /** Session Id */
-            session_id: string;
-            /** Url */
-            url?: string | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -181,7 +175,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description DEVIN_API_TOKEN not configured */
+            /** @description Devin configuration not configured */
             503: {
                 headers: {
                     [name: string]: unknown;
@@ -211,7 +205,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SessionCreated"];
+                    "application/json": components["schemas"]["DevinSession"];
                 };
             };
             /** @description Validation Error */
@@ -232,7 +226,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description DEVIN_API_TOKEN not configured */
+            /** @description Devin configuration not configured */
             503: {
                 headers: {
                     [name: string]: unknown;

@@ -36,7 +36,7 @@ files = ["backend/src", "backend/tests"]
 
 [tool.pytest.ini_options]
 testpaths = ["backend/tests"]
-addopts = "--import-mode=importlib --strict-markers --cov=devin_flow --cov-report=term-missing --cov-fail-under=100"
+addopts = "--import-mode=importlib --strict-markers --cov=devin_flow --cov-report=term-missing --cov-fail-under=100 -m \"not live\""
 markers = [
     "docker: needs a Docker daemon (testcontainers Postgres)",
     "live: hits the real Devin API, needs DEVIN_API_TOKEN",

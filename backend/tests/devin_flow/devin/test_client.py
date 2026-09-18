@@ -11,7 +11,6 @@ from devin_flow.devin.client import (
     DevinSession,
     DevinUpstreamError,
     SessionCreate,
-    SessionCreated,
     create_client,
 )
 
@@ -20,6 +19,7 @@ from devin_flow.devin.client import (
 def clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[None]:
     monkeypatch.delenv("DEVIN_API_TOKEN", raising=False)
     monkeypatch.delenv("DEVIN_API_BASE_URL", raising=False)
+    monkeypatch.delenv("DEVIN_ORG_ID", raising=False)
     monkeypatch.chdir(tmp_path)
     get_settings.cache_clear()
     get_devin_client.cache_clear()
@@ -35,34 +35,46 @@ def test_create_client_requires_token(token: str | None) -> None:
         create_client(settings)
 
 
+@pytest.mark.parametrize("org_id", [None, ""])
+def test_create_client_requires_org_id(org_id: str | None) -> None:
+    settings = get_settings().model_copy(
+        update={"devin_api_token": "secret", "devin_org_id": org_id}
+    )
+    with pytest.raises(DevinNotConfiguredError, match="DEVIN_ORG_ID is not set"):
+        create_client(settings)
+
+
 def test_create_client_configures_base_url_and_authorization() -> None:
     client = create_client(
         get_settings().model_copy(
             update={
                 "devin_api_token": "secret",
-                "devin_api_base_url": "https://devin.example/v1",
+                "devin_api_base_url": "https://devin.example/v3",
+                "devin_org_id": "org-test",
             }
         )
     )
-    assert client.http.base_url == httpx.URL("https://devin.example/v1/")
+    assert client.http.base_url == httpx.URL("https://devin.example/v3/")
     assert client.http.headers["Authorization"] == "Bearer secret"
+    assert client.org_id == "org-test"
     client.http.close()
 
 
 @pytest.mark.parametrize(
     "base_url",
     [
-        "https://api.devin.ai/v1",
-        "http://localhost:8099/v1",
-        "http://127.0.0.1:8099/v1",
-        "http://[::1]:8099/v1",
-        "HTTPS://api.devin.ai/v1",
+        "https://api.devin.ai/v3",
+        "http://localhost:8099/v3",
+        "http://127.0.0.1:8099/v3",
+        "http://[::1]:8099/v3",
+        "HTTPS://api.devin.ai/v3",
     ],
 )
 def test_create_client_accepts_tls_or_loopback(base_url: str) -> None:
     settings = Settings(
         devin_api_token="secret",
         devin_api_base_url=base_url,
+        devin_org_id="org-test",
     )
     client = create_client(settings)
     assert client.http.base_url.host == httpx.URL(base_url).host
@@ -72,19 +84,20 @@ def test_create_client_accepts_tls_or_loopback(base_url: str) -> None:
 @pytest.mark.parametrize(
     "base_url",
     [
-        "http://api.devin.ai/v1",
-        "http://localhost.evil.com/v1",
-        "http://127.0.0.1.nip.io/v1",
-        "ftp://api.devin.ai/v1",
-        "ftp://localhost/v1",
-        "ws://127.0.0.1:8099/v1",
-        "api.devin.ai/v1",
+        "http://api.devin.ai/v3",
+        "http://localhost.evil.com/v3",
+        "http://127.0.0.1.nip.io/v3",
+        "ftp://api.devin.ai/v3",
+        "ftp://localhost/v3",
+        "ws://127.0.0.1:8099/v3",
+        "api.devin.ai/v3",
     ],
 )
 def test_create_client_rejects_non_tls_remote_urls(base_url: str) -> None:
     settings = Settings(
         devin_api_token="secret",
         devin_api_base_url=base_url,
+        devin_org_id="org-test",
     )
     with pytest.raises(
         DevinNotConfiguredError, match="DEVIN_API_BASE_URL must use https"
@@ -96,21 +109,22 @@ def make_client(
     handler: httpx.BaseTransport,
 ) -> DevinClient:
     return DevinClient(
-        httpx.Client(transport=handler, base_url="https://devin.example/v1")
+        httpx.Client(transport=handler, base_url="https://devin.example"),
+        "org-test",
     )
 
 
 def test_list_sessions_parses_response_and_passes_limit() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
-        assert request.url.path == "/v1/sessions"
-        assert request.url.params["limit"] == "3"
+        assert request.url.path == "/organizations/org-test/sessions"
+        assert request.url.params["first"] == "3"
         return httpx.Response(
             200,
             json={
-                "sessions": [
+                "items": [
                     {
                         "session_id": "session-1",
-                        "status": "working",
+                        "status": "running",
                         "title": "Title",
                         "url": "https://devin.example/session-1",
                         "ignored": True,
@@ -123,7 +137,7 @@ def test_list_sessions_parses_response_and_passes_limit() -> None:
     assert client.list_sessions(limit=3) == [
         DevinSession(
             session_id="session-1",
-            status="working",
+            status="running",
             title="Title",
             url="https://devin.example/session-1",
         )
@@ -134,22 +148,24 @@ def test_list_sessions_parses_response_and_passes_limit() -> None:
 def test_create_session_posts_prompt() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "POST"
-        assert request.url.path == "/v1/sessions"
+        assert request.url.path == "/organizations/org-test/sessions"
         assert request.read() == b'{"prompt":"Build it"}'
         return httpx.Response(
-            201,
+            200,
             json={
                 "session_id": "session-2",
                 "url": "https://devin.example/session-2",
-                "is_new_session": True,
+                "status": "running",
+                "title": "Title",
             },
         )
 
     client = make_client(httpx.MockTransport(handler))
-    assert client.create_session(SessionCreate(prompt="Build it")) == SessionCreated(
+    assert client.create_session(SessionCreate(prompt="Build it")) == DevinSession(
         session_id="session-2",
         url="https://devin.example/session-2",
-        is_new_session=True,
+        status="running",
+        title="Title",
     )
     client.http.close()
 
@@ -208,7 +224,7 @@ def test_create_session_transport_error_has_no_status() -> None:
     [
         httpx.Response(200, text="not json"),
         httpx.Response(200, json={"unexpected": []}),
-        httpx.Response(200, json={"sessions": [{}]}),
+        httpx.Response(200, json={"items": [{}]}),
     ],
 )
 def test_list_sessions_rejects_malformed_success(
@@ -242,6 +258,7 @@ def test_create_session_rejects_malformed_success(
 
 def test_get_devin_client_is_cached(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DEVIN_API_TOKEN", "secret")
+    monkeypatch.setenv("DEVIN_ORG_ID", "org-test")
     first = get_devin_client()
     assert first is get_devin_client()
     assert isinstance(first, DevinClient)

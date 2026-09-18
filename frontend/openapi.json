@@ -21,6 +21,15 @@
             "type": "string"
           },
           "status": {
+            "enum": [
+              "new",
+              "claimed",
+              "running",
+              "exit",
+              "error",
+              "suspended",
+              "resuming"
+            ],
             "title": "Status",
             "type": "string"
           },
@@ -143,41 +152,6 @@
         "title": "SessionCreate",
         "type": "object"
       },
-      "SessionCreated": {
-        "properties": {
-          "is_new_session": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Is New Session"
-          },
-          "session_id": {
-            "title": "Session Id",
-            "type": "string"
-          },
-          "url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Url"
-          }
-        },
-        "required": [
-          "session_id"
-        ],
-        "title": "SessionCreated",
-        "type": "object"
-      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -235,8 +209,8 @@
             "name": "limit",
             "required": false,
             "schema": {
-              "default": 20,
-              "maximum": 100,
+              "default": 100,
+              "maximum": 200,
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
@@ -286,7 +260,7 @@
                 }
               }
             },
-            "description": "DEVIN_API_TOKEN not configured"
+            "description": "Devin configuration not configured"
           }
         },
         "summary": "List Sessions"
@@ -308,7 +282,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SessionCreated"
+                  "$ref": "#/components/schemas/DevinSession"
                 }
               }
             },
@@ -342,7 +316,7 @@
                 }
               }
             },
-            "description": "DEVIN_API_TOKEN not configured"
+            "description": "Devin configuration not configured"
           }
         },
         "summary": "Create Session"
