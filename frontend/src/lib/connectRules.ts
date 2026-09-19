@@ -1,4 +1,6 @@
-export type NodeKind = 'trigger' | 'action' | 'outcome'
+import type { components } from '@/api/schema'
+
+export type NodeKind = components['schemas']['NodeRead']['kind']
 
 export type CanvasEdge = {
   source: string
