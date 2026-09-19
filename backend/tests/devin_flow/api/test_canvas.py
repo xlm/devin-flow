@@ -2,10 +2,12 @@ from datetime import UTC, datetime
 from typing import cast
 from uuid import UUID, uuid4
 
+import pytest
 from fastapi.testclient import TestClient
 from httpx import Response
 from sqlmodel import Session
 
+from devin_flow.api import canvas as canvas_api
 from devin_flow.models import Edge
 
 
@@ -128,11 +130,11 @@ def test_create_edges_returns_full_shape(unit_client: TestClient) -> None:
     }
 
 
-def test_create_edge_forbidden_pair_is_unprocessable(unit_client: TestClient) -> None:
+def test_create_edge_forbidden_pair_is_conflict(unit_client: TestClient) -> None:
     source_id = create_node(unit_client, "action")
     target_id = create_node(unit_client, "trigger")
     response = create_edge(unit_client, source_id, "action", target_id, "trigger")
-    assert response.status_code == 422
+    assert response.status_code == 409
     assert "edges must connect" in response.json()["detail"]
 
 
@@ -198,6 +200,28 @@ def test_create_edge_allowed_independent_rules(unit_client: TestClient) -> None:
         create_edge(unit_client, trigger_id, "trigger", action_id, "action").status_code
         == 201
     )
+
+
+def test_create_edge_database_conflict(
+    unit_client: TestClient,
+    unit_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    trigger_id = create_node(unit_client, "trigger")
+    action_id = create_node(unit_client, "action")
+    unit_session.add(
+        Edge(
+            source_id=UUID(trigger_id),
+            source_kind="trigger",
+            target_id=UUID(action_id),
+            target_kind="action",
+        )
+    )
+    unit_session.commit()
+    monkeypatch.setattr(canvas_api, "check_edge_uniqueness", lambda *_args: None)
+    response = create_edge(unit_client, trigger_id, "trigger", action_id, "action")
+    assert response.status_code == 409
+    assert response.json()["detail"] == "edge conflicts with an existing edge"
 
 
 def test_get_canvas_excludes_soft_deleted_edge(

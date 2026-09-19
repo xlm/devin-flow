@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from typing import Any, Literal, cast
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime
+from sqlalchemy import DateTime, Index, text
 from sqlmodel import Field, SQLModel
 
 NodeKind = Literal["trigger", "action", "outcome"]
@@ -46,6 +46,30 @@ NODE_MODELS: dict[NodeKind, type[NodeBase]] = {
 
 class Edge(SQLModel, table=True):
     __tablename__ = "edge"
+    __table_args__ = (
+        Index(
+            "ux_edge_live_pair",
+            "source_id",
+            "target_id",
+            unique=True,
+            postgresql_where=text("deleted_at IS NULL"),
+            sqlite_where=text("deleted_at IS NULL"),
+        ),
+        Index(
+            "ux_edge_live_trigger_source",
+            "source_id",
+            unique=True,
+            postgresql_where=text("source_kind = 'trigger' AND deleted_at IS NULL"),
+            sqlite_where=text("source_kind = 'trigger' AND deleted_at IS NULL"),
+        ),
+        Index(
+            "ux_edge_live_trigger_target",
+            "target_id",
+            unique=True,
+            postgresql_where=text("source_kind = 'trigger' AND deleted_at IS NULL"),
+            sqlite_where=text("source_kind = 'trigger' AND deleted_at IS NULL"),
+        ),
+    )
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
     source_id: UUID = Field(index=True)

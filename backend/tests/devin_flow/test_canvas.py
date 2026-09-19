@@ -26,8 +26,9 @@ def test_check_edge_kinds_matrix(source_kind: str, target_kind: str) -> None:
     if (source_kind, target_kind) in VALID_KINDS:
         check_edge_kinds(source_kind, target_kind)
     else:
-        with pytest.raises(ConnectError, match="edges must connect"):
+        with pytest.raises(ConnectError, match="edges must connect") as error:
             check_edge_kinds(source_kind, target_kind)
+        assert error.value.status_code == 409
 
 
 def node_ref(kind: str) -> NodeRef:

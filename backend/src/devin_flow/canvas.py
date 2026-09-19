@@ -25,7 +25,7 @@ class NodeRef(BaseModel):
 def check_edge_kinds(source_kind: str, target_kind: str) -> None:
     if (source_kind, target_kind) not in ALLOWED_EDGE_KINDS:
         raise ConnectError(
-            422,
+            409,
             "edges must connect a Trigger to an Action or an Action to an Outcome",
         )
 

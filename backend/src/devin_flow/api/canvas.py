@@ -4,6 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, col, delete, select
 
 from devin_flow.api.devin import ErrorResponse
@@ -63,7 +64,6 @@ class CanvasRead(BaseModel):
 ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
     404: {"model": ErrorResponse, "description": "Canvas object not found"},
     409: {"model": ErrorResponse, "description": "Canvas conflict"},
-    422: {"model": ErrorResponse, "description": "Invalid canvas connection"},
 }
 
 
@@ -86,8 +86,10 @@ def edge_read(edge: Edge) -> EdgeRead:
     )
 
 
-def get_node(session: Session, kind: NodeKind, node_id: UUID) -> NodeBase | None:
-    return session.get(NODE_MODELS[kind], node_id)
+def get_node(
+    session: Session, kind: NodeKind, node_id: UUID, *, for_update: bool = False
+) -> NodeBase | None:
+    return session.get(NODE_MODELS[kind], node_id, with_for_update=for_update)
 
 
 @router.get("", response_model=CanvasRead)
@@ -152,7 +154,7 @@ def move_node(
 
 @router.delete("/nodes/{kind}/{node_id}", status_code=204, responses=ERROR_RESPONSES)
 def delete_node(kind: NodeKind, node_id: UUID, session: SessionDep) -> Response:
-    node = get_node(session, kind, node_id)
+    node = get_node(session, kind, node_id, for_update=True)
     if node is None:
         raise HTTPException(404, "node not found")
     session.exec(
@@ -176,9 +178,15 @@ def create_edge(payload: EdgeCreate, session: SessionDep) -> EdgeRead:
         check_edge_kinds(payload.source.kind, payload.target.kind)
     except ConnectError as exc:
         raise HTTPException(exc.status_code, exc.detail) from exc
-    if get_node(session, payload.source.kind, payload.source.id) is None:
+    if (
+        get_node(session, payload.source.kind, payload.source.id, for_update=True)
+        is None
+    ):
         raise HTTPException(404, "source node not found")
-    if get_node(session, payload.target.kind, payload.target.id) is None:
+    if (
+        get_node(session, payload.target.kind, payload.target.id, for_update=True)
+        is None
+    ):
         raise HTTPException(404, "target node not found")
     existing = session.exec(select(Edge).where(col(Edge.deleted_at).is_(None))).all()
     try:
@@ -191,8 +199,12 @@ def create_edge(payload: EdgeCreate, session: SessionDep) -> EdgeRead:
         target_id=payload.target.id,
         target_kind=payload.target.kind,
     )
-    session.add(edge)
-    session.commit()
+    try:
+        session.add(edge)
+        session.commit()
+    except IntegrityError as exc:
+        session.rollback()
+        raise HTTPException(409, "edge conflicts with an existing edge") from exc
     session.refresh(edge)
     return edge_read(edge)
 
