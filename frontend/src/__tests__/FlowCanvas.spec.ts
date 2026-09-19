@@ -198,6 +198,7 @@ describe('FlowCanvas', () => {
         data: { sourceKind: 'trigger', targetKind: 'action' },
       },
     ])
+    expect(wrapper.find('[data-testid="load-error"]').exists()).toBe(false)
     wrapper.unmount()
   })
 
@@ -207,6 +208,7 @@ describe('FlowCanvas', () => {
     await flushPromises()
     expect(vueFlow(wrapper).props('nodes')).toEqual([])
     expect(vueFlow(wrapper).props('edges')).toEqual([])
+    expect(wrapper.find('[data-testid="load-error"]').exists()).toBe(true)
     wrapper.unmount()
   })
 
@@ -216,6 +218,29 @@ describe('FlowCanvas', () => {
     await flushPromises()
     expect(vueFlow(wrapper).props('nodes')).toEqual([])
     expect(vueFlow(wrapper).props('edges')).toEqual([])
+    expect(wrapper.find('[data-testid="load-error"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('shows a load error when the API returns an error', async () => {
+    mocks.GET.mockResolvedValue(response(undefined, { detail: 'down' }))
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    expect(wrapper.find('[data-testid="load-error"]').exists()).toBe(true)
+    expect(vueFlow(wrapper).props('nodes')).toEqual([])
+    wrapper.unmount()
+  })
+
+  it('retries loading the canvas', async () => {
+    mocks.GET.mockRejectedValueOnce(new Error('down'))
+    mocks.GET.mockResolvedValueOnce(response(canvas))
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    expect(wrapper.find('[data-testid="load-error"]').exists()).toBe(true)
+    await wrapper.find('[data-testid="load-retry"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="load-error"]').exists()).toBe(false)
+    expect(vueFlow(wrapper).props('nodes')).toHaveLength(3)
     wrapper.unmount()
   })
 

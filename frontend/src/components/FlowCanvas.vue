@@ -14,6 +14,7 @@ import { Background } from '@vue-flow/background'
 import { ControlButton, Controls } from '@vue-flow/controls'
 import { MiniMap } from '@vue-flow/minimap'
 import { client } from '@/api/client'
+import { Button } from '@/components/ui/button'
 import { useTheme } from '@/composables/useTheme'
 import {
   connectError,
@@ -26,6 +27,7 @@ const RESIZE_DEBOUNCE_MS = 100
 
 const nodes = ref<Node[]>([])
 const edges = ref<Edge[]>([])
+const loadError = ref(false)
 const nodeSnapshots = new Map<string, Node>()
 const edgeSnapshots = new Map<string, Edge>()
 const saveGenerations = new Map<string, number>()
@@ -92,9 +94,15 @@ function copyEdge(edge: Edge): Edge {
 }
 
 async function loadCanvas() {
+  loadError.value = false
   try {
-    const { data } = await client.GET('/api/canvas')
-    if (!data) return
+    const { data, error } = await client.GET('/api/canvas')
+    if (error || !data) {
+      loadError.value = true
+      nodes.value = []
+      edges.value = []
+      return
+    }
     const loadedNodes = [
       ...data.trigger_nodes,
       ...data.action_nodes,
@@ -106,6 +114,7 @@ async function loadCanvas() {
     loadedNodes.forEach((node) => nodeSnapshots.set(node.id, copyNode(node)))
     loadedEdges.forEach((edge) => edgeSnapshots.set(edge.id, copyEdge(edge)))
   } catch {
+    loadError.value = true
     nodes.value = []
     edges.value = []
   }
@@ -319,7 +328,23 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="h-screen w-screen">
+  <div class="relative h-screen w-screen">
+    <div
+      v-if="loadError"
+      role="alert"
+      data-testid="load-error"
+      class="absolute top-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-3 rounded-md border border-destructive bg-background px-4 py-2 text-sm text-destructive shadow"
+    >
+      <span>Could not load the Canvas.</span>
+      <Button
+        size="sm"
+        variant="outline"
+        data-testid="load-retry"
+        @click="loadCanvas"
+      >
+        Retry
+      </Button>
+    </div>
     <VueFlow
       :nodes="nodes"
       :edges="edges"
