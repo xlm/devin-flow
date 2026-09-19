@@ -372,6 +372,7 @@ async function removeNode(change: Extract<NodeChange, { type: 'remove' }>) {
           edgeSnapshots.delete(edge.id)
         }
       })
+      if (!error && kind === 'trigger') await refreshSyncState()
     }
   } catch {
     await loadCanvas()
