@@ -12,14 +12,10 @@ test.beforeEach(async ({ request }) => {
   await resetAll(request)
 })
 
-test('spec 6: deleting an Action cascades its edges', async ({
-  page,
-  request,
-}) => {
-  const fixture = await seedBasic(request)
-  const outcome = await createNode(request, 'outcome', { x: 800, y: 180 })
+test('spec 6: deleting an Action cascades its edges', async ({ page }) => {
+  const fixture = await seedBasic()
+  const outcome = await createNode('outcome', { x: 800, y: 180 })
   await createEdge(
-    request,
     { id: fixture.actionId, kind: 'action' },
     { id: outcome.id, kind: 'outcome' },
   )
@@ -42,7 +38,7 @@ test('spec 6: deleting an Action cascades its edges', async ({
         item.method === 'DELETE' && item.url.includes('/api/canvas/edges/'),
     ),
   ).toHaveLength(0)
-  const saved = await canvas(request)
+  const saved = await canvas()
   expect(saved.action_nodes).toHaveLength(0)
   expect(saved.edges).toHaveLength(0)
   await page.reload()

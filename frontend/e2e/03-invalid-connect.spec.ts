@@ -14,10 +14,9 @@ test.beforeEach(async ({ request }) => {
 
 test('spec 3: forbidden and duplicate connections are refused client-side', async ({
   page,
-  request,
 }) => {
-  const fixture = await seedBasic(request)
-  const outcome = await createNode(request, 'outcome', { x: 800, y: 180 })
+  const fixture = await seedBasic()
+  const outcome = await createNode('outcome', { x: 800, y: 180 })
   await page.goto('/')
   const requests = trackRequests(page)
   await connect(page, fixture.triggerId, outcome.id)
@@ -29,5 +28,5 @@ test('spec 3: forbidden and duplicate connections are refused client-side', asyn
         item.method === 'POST' && item.url.endsWith('/api/canvas/edges'),
     ),
   ).toHaveLength(0)
-  expect((await canvas(request)).edges).toHaveLength(1)
+  expect((await canvas()).edges).toHaveLength(1)
 })

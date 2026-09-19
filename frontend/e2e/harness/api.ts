@@ -6,7 +6,7 @@ export type NodeKind = components['schemas']['NodeRef']['kind']
 export type Position = components['schemas']['Position']
 export type NodeRef = components['schemas']['NodeRef']
 export type Session = {
-  // DevinSession is an upstream payload, not part of our OpenAPI schema.
+  // Upstream Devin session payload, not part of our OpenAPI schema.
   session_id: string
   status: string
   title?: string
@@ -25,20 +25,17 @@ export const apiClient = createClient<paths>({
   baseUrl: 'http://127.0.0.1:5174',
 })
 
-export async function canvas(request: APIRequestContext): Promise<Canvas> {
-  void request
+export async function canvas(): Promise<Canvas> {
   const { data, error } = await apiClient.GET('/api/canvas')
   if (error || !data) throw new Error('canvas request failed')
   return data
 }
 
 export async function createNode(
-  request: APIRequestContext,
   kind: NodeKind,
   position: Position,
   body: Omit<components['schemas']['NodeCreate'], 'position'> = {},
 ): Promise<NodeRead> {
-  void request
   const { data, error } = await apiClient.POST('/api/canvas/nodes/{kind}', {
     params: { path: { kind } },
     body: { position, ...body },
@@ -48,11 +45,9 @@ export async function createNode(
 }
 
 export async function createEdge(
-  request: APIRequestContext,
   source: NodeRef,
   target: NodeRef,
 ): Promise<void> {
-  void request
   const { error } = await apiClient.POST('/api/canvas/edges', {
     body: { source, target },
   })

@@ -10,7 +10,7 @@ test('spec 7: Canvas retry restores a graph after backend recovery', async ({
   page,
   request,
 }) => {
-  await seedBasic(request)
+  await seedBasic()
   await stopBackend(request)
   await page.goto('/')
   await expect(page.locator('[data-testid=load-error]')).toBeVisible()
@@ -21,5 +21,5 @@ test('spec 7: Canvas retry restores a graph after backend recovery', async ({
   await expect(page.locator('[data-testid=load-error]')).toBeHidden()
   await expect(page.locator('.vue-flow__node')).toHaveCount(2)
   await expect(page.locator('.vue-flow__edge')).toHaveCount(1)
-  expect((await canvas(request)).edges).toHaveLength(1)
+  expect((await canvas()).edges).toHaveLength(1)
 })

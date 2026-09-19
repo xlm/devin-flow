@@ -10,7 +10,7 @@ test('spec 8: outcome kinds show matching counts after refresh', async ({
   page,
   request,
 }) => {
-  const fixture = await seedOutcomeGraph(request)
+  const fixture = await seedOutcomeGraph()
   await setSessions(request, outcomeSessions())
   await page.goto('/')
   const outcomes = page.locator('[data-testid=canvas-node][data-kind=outcome]')
@@ -34,7 +34,7 @@ test('spec 8: outcome kinds show matching counts after refresh', async ({
     '1 outcome',
     '1 outcome',
   ])
-  const saved = await canvas(request)
+  const saved = await canvas()
   expect(saved.action_nodes[0].invocation_count).toBe(6)
   expect(
     saved.edges

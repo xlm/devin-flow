@@ -40,7 +40,7 @@ test('spec 9: Action -> Pull Request edge opens the Invocation sheet', async ({
   page,
   request,
 }) => {
-  await seedOutcomeGraph(request)
+  await seedOutcomeGraph()
   await setSessions(request, outcomeSessions())
   await page.goto('/')
   await clickOutcomeEdge(page, '0 outcomes')
@@ -92,7 +92,7 @@ test('spec 9: Action -> Pull Request edge opens the Invocation sheet', async ({
   await expect(sheet).toContainText('Not a bug')
   await page.getByRole('button', { name: 'Close' }).click()
   await expect(sheet).toBeHidden()
-  expect((await canvas(request)).edges).toHaveLength(5)
+  expect((await canvas()).edges).toHaveLength(5)
 })
 
 test('spec 9: Trigger -> Action edge count opens the Invocation sheet', async () => {
