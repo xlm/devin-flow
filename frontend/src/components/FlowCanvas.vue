@@ -2,7 +2,9 @@
 import { onMounted, onUnmounted, ref } from 'vue'
 import { VueFlow, useVueFlow, type Edge, type Node } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
-import { Controls } from '@vue-flow/controls'
+import { ControlButton, Controls } from '@vue-flow/controls'
+import { MiniMap } from '@vue-flow/minimap'
+import { useTheme } from '@/composables/useTheme'
 
 const RESIZE_DEBOUNCE_MS = 100
 
@@ -28,6 +30,7 @@ const edges = ref<Edge[]>([
 ])
 
 const { fitView } = useVueFlow()
+const { mode, icon, cycleMode } = useTheme()
 
 let resizeTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -52,7 +55,25 @@ onUnmounted(() => {
   <div class="h-screen w-screen">
     <VueFlow :nodes="nodes" :edges="edges" fit-view-on-init>
       <Background />
-      <Controls />
+      <Controls position="top-left">
+        <ControlButton
+          :title="`Theme: ${mode}`"
+          :aria-label="`Theme: ${mode}`"
+          data-testid="theme-toggle"
+          @click="cycleMode"
+        >
+          <component :is="icon" />
+        </ControlButton>
+      </Controls>
+      <MiniMap
+        position="bottom-right"
+        pannable
+        zoomable
+        node-color="var(--muted-foreground)"
+        node-stroke-color="var(--border)"
+        mask-color="var(--vf-minimap-mask)"
+        mask-stroke-color="var(--border)"
+      />
     </VueFlow>
   </div>
 </template>
