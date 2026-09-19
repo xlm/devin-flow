@@ -992,3 +992,7 @@ def test_canvas_counts_invocations_per_action(
         "/api/canvas/nodes/action", json={"position": {"x": 0, "y": 0}}
     )
     assert created.json()["invocation_count"] == 0
+    moved = unit_client.patch(
+        f"/api/canvas/nodes/action/{counted_id}", json={"position": {"x": 1, "y": 1}}
+    )
+    assert moved.json()["invocation_count"] == 2

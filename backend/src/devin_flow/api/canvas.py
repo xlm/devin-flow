@@ -215,6 +215,12 @@ def get_node(
     return session.get(NODE_MODELS[kind], node_id, with_for_update=for_update)
 
 
+def invocation_count(session: Session, action_id: UUID) -> int:
+    return session.exec(
+        select(func.count()).where(Invocation.action_node_id == action_id)
+    ).one()
+
+
 @router.get("", response_model=CanvasRead)
 def get_canvas(session: SessionDep) -> CanvasRead:
     counts = dict(
@@ -339,7 +345,7 @@ def update_node(
             session.commit()
             sync_action(session, client, action.id)
     session.refresh(node)
-    return node_read(node, kind)
+    return node_read(node, kind, invocation_count(session, node.id))
 
 
 @router.delete("/nodes/{kind}/{node_id}", status_code=204, responses=ERROR_RESPONSES)
