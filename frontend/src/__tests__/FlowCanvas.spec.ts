@@ -844,7 +844,7 @@ describe('FlowCanvas', () => {
       global: { stubs: { NodePalette: saveProbe(provided) } },
     })
     await flushPromises()
-    await provided.value?.('action', { name: 'Triage' })
+    expect(await provided.value?.('action', { name: 'Triage' })).toBe(true)
     expect(node.data.name).toBe('Triage')
     expect(mocks.PATCH).toHaveBeenLastCalledWith(
       '/api/canvas/nodes/{kind}/{node_id}',
@@ -856,7 +856,7 @@ describe('FlowCanvas', () => {
     mocks.PATCH.mockResolvedValue(
       response(undefined, { detail: 'failed' }, 500),
     )
-    await provided.value?.('action', { playbookId: 'pb-1' })
+    expect(await provided.value?.('action', { playbookId: 'pb-1' })).toBe(false)
     expect(node.data).toEqual({
       kind: 'action',
       name: 'Triage',
@@ -1069,12 +1069,12 @@ describe('FlowCanvas', () => {
       },
     } as Node
     mocks.findNode.mockReturnValue(newAction)
-    await provided.value?.('new-action', { name: 'New' })
+    expect(await provided.value?.('new-action', { name: 'New' })).toBe(true)
     expect(newAction.data.name).toBe('New')
     mocks.findNode.mockReturnValue(undefined)
-    await provided.value?.('missing', { name: 'Ignored' })
+    expect(await provided.value?.('missing', { name: 'Ignored' })).toBe(false)
     mocks.findNode.mockReturnValue({ id: 'trigger', data: {} })
-    await provided.value?.('trigger', { name: 'Ignored' })
+    expect(await provided.value?.('trigger', { name: 'Ignored' })).toBe(false)
     wrapper.unmount()
   })
 

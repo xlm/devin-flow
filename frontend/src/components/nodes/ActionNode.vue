@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, inject } from 'vue'
+import { computed, inject, ref } from 'vue'
 import type { NodeProps } from '@vue-flow/core'
 import { useVueFlow } from '@vue-flow/core'
 import { actionFieldsFromData, actionInvalidReason } from '@/lib/actionValidity'
@@ -8,9 +8,10 @@ import { usePlaybooks } from '@/composables/usePlaybooks'
 import CanvasNodeShell from './CanvasNodeShell.vue'
 
 const props = defineProps<NodeProps>()
-const saveNodeFields = inject(SAVE_NODE_FIELDS, async () => {})
+const saveNodeFields = inject(SAVE_NODE_FIELDS, async () => false)
 const { edges } = useVueFlow()
 const { playbooks, loading, error, reload } = usePlaybooks()
+const saveError = ref(false)
 
 const fields = computed(() => actionFieldsFromData(props.data))
 const reason = computed(() =>
@@ -26,21 +27,23 @@ const unknownPlaybook = computed(() => {
   return fields.value.playbookId
 })
 
-function saveName(event: Event) {
-  void saveNodeFields(props.id, {
+async function saveName(event: Event) {
+  saveError.value = !(await saveNodeFields(props.id, {
     name: (event.target as HTMLInputElement).value,
-  })
+  }))
 }
 
-function savePlaybook(event: Event) {
+async function savePlaybook(event: Event) {
   const value = (event.target as HTMLSelectElement).value
-  void saveNodeFields(props.id, { playbookId: value || null })
+  saveError.value = !(await saveNodeFields(props.id, {
+    playbookId: value || null,
+  }))
 }
 
-function saveInstructions(event: Event) {
-  void saveNodeFields(props.id, {
+async function saveInstructions(event: Event) {
+  saveError.value = !(await saveNodeFields(props.id, {
     extraInstructions: (event.target as HTMLTextAreaElement).value,
-  })
+  }))
 }
 </script>
 
@@ -50,6 +53,9 @@ function saveInstructions(event: Event) {
     kind="action"
     :complete="reason === null"
     :status="reason === 'no-trigger' ? 'No Trigger' : undefined"
+    :hint="
+      reason === 'no-trigger' ? 'Connect a Trigger to this Action' : undefined
+    "
   >
     <template #toolbar>
       <button
@@ -65,12 +71,21 @@ function saveInstructions(event: Event) {
         Enable
       </button>
     </template>
+    <p
+      v-if="saveError"
+      role="alert"
+      data-testid="save-error"
+      class="text-xs text-destructive"
+    >
+      Could not save
+    </p>
     <div class="space-y-2 text-xs">
       <label class="block">
         <span class="sr-only">Action name</span>
         <input
           data-testid="action-name"
           class="nodrag w-full rounded-md border bg-background px-2 py-1"
+          maxlength="200"
           :value="fields.name"
           @change="saveName"
         />
@@ -116,6 +131,7 @@ function saveInstructions(event: Event) {
           data-testid="action-instructions"
           class="nodrag nowheel w-full rounded-md border bg-background px-2 py-1"
           rows="3"
+          maxlength="20000"
           :value="fields.extraInstructions"
           @change="saveInstructions"
         />

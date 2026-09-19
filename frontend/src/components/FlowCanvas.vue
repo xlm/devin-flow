@@ -47,7 +47,7 @@ const creationBlocked = computed(() => loading.value || loadError.value)
 const nodeSnapshots = new Map<string, Node>()
 const edgeSnapshots = new Map<string, Edge>()
 const saveGenerations = new Map<string, number>()
-const saveChains = new Map<string, Promise<void>>()
+const saveChains = new Map<string, Promise<void | boolean>>()
 const pendingFields = new Map<string, Map<string, number>>()
 const cascadedNodeIds = new Set<string>()
 let loadPromise: Promise<void> | undefined
@@ -202,7 +202,7 @@ async function doSaveNodeFields(
   node: Node,
   kind: NodeKind,
   fields: Partial<ActionFields>,
-) {
+): Promise<boolean> {
   const body: {
     name?: string
     playbook_id?: string | null
@@ -254,6 +254,7 @@ async function doSaveNodeFields(
       current.data = data
     }
   }
+  return !failed
 }
 
 const saveNodeFields: SaveNodeFields = async (
@@ -261,9 +262,9 @@ const saveNodeFields: SaveNodeFields = async (
   fields: Partial<ActionFields>,
 ) => {
   const node = findNode(nodeId)
-  if (!node) return
+  if (!node) return false
   const kind = kindOf(node)
-  if (!kind) return
+  if (!kind) return false
   const pending = pendingFields.get(nodeId) ?? new Map<string, number>()
   for (const field of Object.keys(fields)) {
     pending.set(field, (pending.get(field) ?? 0) + 1)
@@ -277,7 +278,7 @@ const saveNodeFields: SaveNodeFields = async (
     nodeId,
     next.catch(() => {}),
   )
-  await next
+  return next
 }
 
 provide(SAVE_NODE_FIELDS, saveNodeFields)
