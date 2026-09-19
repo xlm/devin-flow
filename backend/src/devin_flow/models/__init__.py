@@ -12,7 +12,11 @@ from devin_flow.models.canvas import (
     SyncStatus,
     TriggerNode,
 )
-from devin_flow.models.invocation import Invocation, PollerState
+from devin_flow.models.invocation import (
+    Invocation,
+    InvocationOutcome,
+    PollerState,
+)
 
 __all__ = [
     "NODE_MODELS",
@@ -20,6 +24,7 @@ __all__ = [
     "Edge",
     "EventAction",
     "Invocation",
+    "InvocationOutcome",
     "NodeBase",
     "NodeKind",
     "OutcomeKind",

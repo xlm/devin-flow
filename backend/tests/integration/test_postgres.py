@@ -1,7 +1,11 @@
 from collections.abc import Iterator
+from pathlib import Path
+from uuid import uuid4
 
 import pytest
+from alembic import command
 from alembic.autogenerate import compare_metadata
+from alembic.config import Config
 from alembic.migration import MigrationContext
 from sqlalchemy import Engine, inspect
 from sqlmodel import Session, SQLModel, text
@@ -10,6 +14,8 @@ from devin_flow import db, seed
 from devin_flow.config import get_settings
 
 pytestmark = pytest.mark.docker
+
+ALEMBIC_INI = Path(__file__).resolve().parents[2] / "alembic.ini"
 
 
 def test_postgres_major_version(session: Session) -> None:
@@ -30,6 +36,7 @@ def test_canvas_tables_exist(postgres_engine: Engine) -> None:
         "alembic_version",
         "edge",
         "invocation",
+        "invocation_outcome",
         "outcome_node",
         "poller_state",
         "trigger_node",
@@ -87,6 +94,79 @@ def test_tests_are_isolated(session: Session) -> None:
 
 def test_previous_test_scratch_table_is_gone(session: Session) -> None:
     assert "scratch" not in inspect(session.connection()).get_table_names()
+
+
+def test_invocation_outcome_backfill(postgres_engine: Engine) -> None:
+    config = Config(ALEMBIC_INI)
+    action_id = uuid4()
+    first_id, second_id = uuid4(), uuid4()
+    with postgres_engine.begin() as connection:
+        config.attributes["connection"] = connection
+        command.downgrade(config, "e5f1a2c3d4b6")
+    try:
+        with postgres_engine.begin() as connection:
+            connection.execute(
+                text(
+                    "insert into action_node "
+                    "(id, position_x, position_y, name, prompt, enabled, "
+                    "sync_status, created_at, updated_at) "
+                    "values (:id, 0, 0, '', '', false, 'unprovisioned', "
+                    "now(), now())"
+                ),
+                {"id": action_id},
+            )
+            connection.execute(
+                text(
+                    "insert into invocation "
+                    "(id, session_id, automation_id, action_node_id, status, "
+                    "pull_requests, structured_output, session_created_at, "
+                    "session_updated_at, created_at, updated_at) "
+                    "values (:id, :session_id, 'auto-1', :action_id, 'exit', "
+                    "cast(:pull_requests as json), "
+                    "cast(:structured_output as json), now(), now(), now(), "
+                    "now())"
+                ),
+                [
+                    {
+                        "id": first_id,
+                        "session_id": "s-1",
+                        "action_id": action_id,
+                        "pull_requests": '[{"pr_url": "https://gh.example/1"}]',
+                        "structured_output": '{"outcome": "duplicate"}',
+                    },
+                    {
+                        "id": second_id,
+                        "session_id": "s-2",
+                        "action_id": action_id,
+                        "pull_requests": "[]",
+                        "structured_output": None,
+                    },
+                ],
+            )
+        with postgres_engine.begin() as connection:
+            config.attributes["connection"] = connection
+            command.upgrade(config, "head")
+        with postgres_engine.connect() as connection:
+            rows = {
+                (invocation_id, kind)
+                for invocation_id, kind in connection.execute(
+                    text("select invocation_id, kind from invocation_outcome")
+                )
+            }
+        assert rows == {
+            (first_id, "duplicate"),
+            (first_id, "pull_request"),
+        }
+    finally:
+        with postgres_engine.begin() as connection:
+            connection.execute(
+                text("delete from invocation where action_node_id = :id"),
+                {"id": action_id},
+            )
+            connection.execute(
+                text("delete from action_node where id = :id"),
+                {"id": action_id},
+            )
 
 
 @pytest.fixture

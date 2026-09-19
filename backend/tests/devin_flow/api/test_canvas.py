@@ -17,6 +17,7 @@ from devin_flow.devin.client import (
     AutomationUpdate,
     DevinNotConfiguredError,
 )
+from devin_flow.invocations import record_outcomes
 from devin_flow.models import (
     ActionNode,
     Edge,
@@ -1057,6 +1058,7 @@ def add_invocation(
         session_updated_at=now,
     )
     session.add(invocation)
+    record_outcomes(session, invocation)
     session.commit()
     return invocation
 
@@ -1151,6 +1153,31 @@ def test_canvas_edges_report_outcome_counts(
     assert by_target[str(unset_outcome.id)]["outcome_count"] == 0
     assert by_target[str(action_id)]["outcome_count"] is None
     assert {e["id"] for e in canvas_edges} >= {e["id"] for e in edges.values()}
+
+
+def test_outcome_count_is_zero_when_no_invocation_matches(
+    unit_client: TestClient, unit_session: Session
+) -> None:
+    action_id = UUID(create_node(unit_client, "action"))
+    outcome = OutcomeNode(position_x=5, position_y=6, kind="not_a_bug")
+    unit_session.add(outcome)
+    unit_session.commit()
+    add_invocation(
+        unit_session,
+        action_id,
+        "s-1",
+        pull_requests=[{"pr_url": "https://github.com/a/b/pull/1"}],
+    )
+    add_invocation(unit_session, action_id, "s-2")
+    assert (
+        create_edge(
+            unit_client, str(action_id), "action", str(outcome.id), "outcome"
+        ).status_code
+        == 201
+    )
+    canvas_edges = unit_client.get("/api/canvas").json()["edges"]
+    by_target = {edge["target"]["id"]: edge for edge in canvas_edges}
+    assert by_target[str(outcome.id)]["outcome_count"] == 0
 
 
 def test_reconnect_same_trigger_patches_existing_automation(

@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from httpx import Response
 from sqlmodel import Session
 
+from devin_flow.invocations import record_outcomes
 from devin_flow.models import Invocation, OutcomeNode
 
 
@@ -57,6 +58,7 @@ def add_invocation(
         session_updated_at=now,
     )
     session.add(invocation)
+    record_outcomes(session, invocation)
     session.commit()
     return invocation
 

@@ -8,11 +8,10 @@ from sqlmodel import Session, col, select
 
 from devin_flow.api.devin import ErrorResponse
 from devin_flow.db import get_session
-from devin_flow.models import Edge, Invocation, OutcomeNode
+from devin_flow.models import Edge, Invocation, InvocationOutcome, OutcomeNode
 from devin_flow.outcomes import (
     PullRequestLink,
     duplicate_of,
-    matches,
     pull_request_links,
 )
 
@@ -61,7 +60,12 @@ def list_outcome_invocations(
         action_ids = [action_node_id]
     invocations = session.exec(
         select(Invocation)
+        .join(
+            InvocationOutcome,
+            col(InvocationOutcome.invocation_id) == col(Invocation.id),
+        )
         .where(col(Invocation.action_node_id).in_(action_ids))
+        .where(col(InvocationOutcome.kind) == node.kind)
         .order_by(col(Invocation.session_created_at).desc())
     ).all()
     return [
@@ -76,5 +80,4 @@ def list_outcome_invocations(
             duplicate_of=duplicate_of(invocation),
         )
         for invocation in invocations
-        if matches(invocation, node.kind)
     ]
