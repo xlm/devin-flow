@@ -122,10 +122,8 @@ describe('ActionNode', () => {
     ).toBe('false')
     expect(
       wrapper.get('[data-testid="canvas-node"]').attributes('data-status'),
-    ).toBe('Incomplete')
-    expect(wrapper.find('[data-testid="canvas-node"] > span').exists()).toBe(
-      false,
-    )
+    ).toBe('Ready')
+    expect(wrapper.text()).toContain('Ready')
   })
 
   it('shows no trigger status for a complete unlinked action', async () => {
