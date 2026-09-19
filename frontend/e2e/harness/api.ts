@@ -1,22 +1,13 @@
 import type { APIRequestContext, Page } from '@playwright/test'
 import createClient from 'openapi-fetch'
+import { NODE_KIND_MIME } from '../../src/lib/nodeKinds.js'
 import type { components, paths } from '../../src/api/schema.js'
+import type { StubCall } from './stub-devin.js'
 
 export type NodeKind = components['schemas']['NodeRef']['kind']
 export type Position = components['schemas']['Position']
 export type NodeRef = components['schemas']['NodeRef']
-export type Session = {
-  // Upstream Devin session payload, not part of our OpenAPI schema.
-  session_id: string
-  status: string
-  title?: string
-  url?: string
-  automation_id?: string
-  pull_requests?: Array<{ pr_url: string; pr_state?: string }>
-  structured_output?: Record<string, unknown> | null
-  created_at?: number
-  updated_at?: number
-}
+export type Session = components['schemas']['DevinSession']
 export type Canvas = components['schemas']['CanvasRead']
 type NodeRead =
   components['schemas']['ActionNodeRead'] | components['schemas']['NodeRead']
@@ -67,13 +58,11 @@ export async function setSessions(
     throw new Error(`set sessions failed: ${response.status()}`)
 }
 
-export async function calls(
-  request: APIRequestContext,
-): Promise<Array<Record<string, unknown>>> {
+export async function calls(request: APIRequestContext): Promise<StubCall[]> {
   const stub = process.env.E2E_STUB_URL
   if (!stub) throw new Error('E2E_STUB_URL is not set')
   const response = await request.get(`${stub}/_harness/calls`)
-  return (await response.json()) as Array<Record<string, unknown>>
+  return (await response.json()) as StubCall[]
 }
 
 export async function resetAll(request: APIRequestContext): Promise<void> {
@@ -121,7 +110,7 @@ export async function dragPalette(
     await palette.dragTo(dropZone, { targetPosition: { x, y } })
   } catch {
     await page.evaluate(
-      ({ kind: nextKind, x: clientX, y: clientY }) => {
+      ({ kind: nextKind, x: clientX, y: clientY, mime }) => {
         const source = document.querySelector(
           `[data-testid="palette-${nextKind}"]`,
         )
@@ -131,7 +120,7 @@ export async function dragPalette(
         if (!source || !target)
           throw new Error('palette or drop zone is missing')
         const transfer = new DataTransfer()
-        transfer.setData('application/x-devin-flow-node-kind', nextKind)
+        transfer.setData(mime, nextKind)
         source.dispatchEvent(
           new DragEvent('dragstart', { dataTransfer: transfer }),
         )
@@ -152,7 +141,7 @@ export async function dragPalette(
           }),
         )
       },
-      { kind, x, y },
+      { kind, x, y, mime: NODE_KIND_MIME },
     )
   }
 }

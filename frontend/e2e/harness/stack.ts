@@ -187,16 +187,13 @@ export async function startStack(): Promise<Stack> {
           '-d',
           'devin_flow',
           '-c',
-          'TRUNCATE invocation, poller_state, edge, action_node, trigger_node, outcome_node CASCADE',
+          "DO $$ DECLARE t text; BEGIN SELECT string_agg(format('%I', table_name), ', ') INTO t FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' AND table_name <> 'alembic_version'; IF t IS NOT NULL THEN EXECUTE 'TRUNCATE ' || t || ' CASCADE'; END IF; END $$;",
         ])
       },
     })
     const stubUrl = stub.url
     const baseUrl = `${stubUrl}/v3`
-    if (
-      new URL(baseUrl).hostname !== '127.0.0.1' ||
-      FAKE_TOKEN !== 'e2e-fake-token'
-    ) {
+    if (new URL(baseUrl).hostname !== '127.0.0.1') {
       throw new Error('E2E safety check failed: upstream is not the local stub')
     }
     const env = envFor(databaseUrl, stubUrl)

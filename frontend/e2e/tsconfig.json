@@ -4,6 +4,13 @@
     "lib": ["ES2023", "DOM"],
     "module": "nodenext",
     "moduleResolution": "nodenext",
+    "baseUrl": ".",
+    "paths": {
+      "@/api/*": ["../src/api/*.d.ts"],
+      "@/lib/*": ["../src/lib/*.ts"],
+      "@/*": ["../src/*"]
+    },
+    "ignoreDeprecations": "6.0",
     "types": ["node"],
     "strict": true,
     "noEmit": true,

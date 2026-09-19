@@ -48,8 +48,7 @@ test('spec 4: configuring and enabling an Action provisions automation', async (
   ).toBeVisible()
 
   const automationCalls = (await calls(request)).filter(
-    (call) =>
-      call.method === 'POST' && String(call.path).endsWith('/automations'),
+    (call) => call.method === 'POST' && call.path.endsWith('/automations'),
   )
   expect(automationCalls).toHaveLength(1)
   const body = automationCalls[0].body as {
@@ -58,8 +57,7 @@ test('spec 4: configuring and enabling an Action provisions automation', async (
   expect(body.metadata.devin_flow_action_id).toBe(fixture.actionId)
   const updates = (await calls(request)).filter(
     (call) =>
-      call.method === 'PATCH' &&
-      String(call.path).endsWith('/automations/auto-1'),
+      call.method === 'PATCH' && call.path.endsWith('/automations/auto-1'),
   )
   expect(updates.at(-1)?.body).toMatchObject({ enabled: true })
   const saved = await canvas()
