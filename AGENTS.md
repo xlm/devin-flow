@@ -26,8 +26,10 @@
   (`poll_once`, run from the app lifespan and `POST /api/invocations/refresh`).
   `poll_once` first retries pending/error Action syncs
   (`automations.retry_syncs`) so recovered Automations are polled in the
-  same cycle. `models/invocation.py` holds `Invocation` and the single-row
-  `PollerState`.
+  same cycle. `models/invocation.py` holds `Invocation`, the
+  `InvocationOutcome` link table (one row per derived Outcome kind,
+  written by `record_outcomes` so Canvas counts are SQL aggregates) and
+  the single-row `PollerState`.
 - `backend/tests/` - pytest tests; test files mirror `src` under
   `tests/devin_flow/` (pytest runs with `--import-mode=importlib`).
   `conftest.py` provides `unit_session`/`unit_client` (in-memory sqlite,
