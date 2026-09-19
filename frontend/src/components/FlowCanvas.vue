@@ -17,6 +17,7 @@ import { RefreshCw } from '@lucide/vue'
 import { client } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import NodePalette from '@/components/NodePalette.vue'
+import OutcomeInvocationsSheet from '@/components/OutcomeInvocationsSheet.vue'
 import { nodeTypes } from '@/components/nodes/nodeTypes'
 import { useTheme } from '@/composables/useTheme'
 import {
@@ -40,6 +41,8 @@ import {
   type NodeKind,
   type NodeRead,
   type NodeRef,
+  type OutcomeKind,
+  type OutcomeRead,
   type Position,
 } from '@/lib/connectRules'
 import { isNodeKind, NODE_KIND_MIME, nodeLabel } from '@/lib/nodeKinds'
@@ -71,6 +74,7 @@ const {
   onNodesChange,
   onEdgesChange,
   onConnect,
+  onNodeClick,
   screenToFlowCoordinate,
 } = useVueFlow()
 const { mode, icon, cycleMode } = useTheme()
@@ -581,6 +585,18 @@ onEdgesChange((changes) => {
 })
 onConnect(saveConnection)
 
+const outcomeSheetOpen = ref(false)
+const selectedOutcomeId = ref<string | null>(null)
+const selectedOutcomeKind = ref<OutcomeKind | null>(null)
+
+onNodeClick((event) => {
+  if (kindOf(event.node) !== 'outcome') return
+  selectedOutcomeId.value = event.node.id
+  selectedOutcomeKind.value =
+    (event.node.data?.outcome as OutcomeRead | undefined)?.kind ?? null
+  outcomeSheetOpen.value = true
+})
+
 // Vue Flow tracks pane dimensions itself; this only re-centers the graph
 // once the user stops resizing the window.
 function onWindowResize() {
@@ -662,6 +678,11 @@ onUnmounted(() => {
           mask-stroke-color="var(--border)"
         />
       </VueFlow>
+      <OutcomeInvocationsSheet
+        v-model:open="outcomeSheetOpen"
+        :node-id="selectedOutcomeId"
+        :kind="selectedOutcomeKind"
+      />
     </div>
   </div>
 </template>

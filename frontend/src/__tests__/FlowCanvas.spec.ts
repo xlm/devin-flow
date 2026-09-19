@@ -8,6 +8,7 @@ import { SAVE_NODE_FIELDS, type SaveNodeFields } from '@/lib/canvasInjection'
 type DragHandler = (event: { node: Node }) => void | Promise<void>
 type ChangeHandler = (changes: { type: string; id: string }[]) => void
 type ConnectHandler = (connection: { source: string; target: string }) => void
+type NodeClickHandler = (event: { node: Node }) => void
 
 const mocks = vi.hoisted(() => {
   return {
@@ -27,7 +28,9 @@ const mocks = vi.hoisted(() => {
       nodesChange?: ChangeHandler
       edgesChange?: ChangeHandler
       connect?: ConnectHandler
+      nodeClick?: NodeClickHandler
     },
+    sheetProps: {} as Record<string, unknown>,
   }
 })
 
@@ -73,6 +76,25 @@ vi.mock('@vue-flow/core', () => ({
     },
     onConnect: (handler: ConnectHandler) => {
       mocks.handlers.connect = handler
+    },
+    onNodeClick: (handler: NodeClickHandler) => {
+      mocks.handlers.nodeClick = handler
+    },
+  }),
+}))
+
+vi.mock('@/components/OutcomeInvocationsSheet.vue', () => ({
+  default: defineComponent({
+    name: 'OutcomeInvocationsSheet',
+    props: {
+      open: { type: Boolean, default: false },
+      nodeId: { type: String, default: null },
+      kind: { type: String, default: null },
+    },
+    emits: ['update:open'],
+    setup(props) {
+      mocks.sheetProps = props
+      return () => h('div', { 'data-testid': 'outcome-sheet-stub' })
     },
   }),
 }))
@@ -2054,6 +2076,72 @@ describe('FlowCanvas', () => {
       expect.objectContaining({ id: 'action-outcome', label: '5 outcomes' }),
       expect.objectContaining({ id: 'unset-outcome', label: '0 outcomes' }),
     ])
+    wrapper.unmount()
+  })
+
+  it('opens the outcome sheet when an Outcome node is clicked', async () => {
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    mocks.handlers.nodeClick?.({
+      node: {
+        id: 'outcome',
+        data: { kind: 'outcome', outcome: { kind: 'duplicate' } },
+      } as Node,
+    })
+    await flushPromises()
+    expect(mocks.sheetProps).toMatchObject({
+      open: true,
+      nodeId: 'outcome',
+      kind: 'duplicate',
+    })
+    expect(wrapper.find('[data-testid="outcome-sheet-stub"]').exists()).toBe(
+      true,
+    )
+    wrapper.unmount()
+  })
+
+  it('closes the outcome sheet when it is dismissed', async () => {
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    mocks.handlers.nodeClick?.({
+      node: {
+        id: 'outcome',
+        data: { kind: 'outcome', outcome: { kind: 'duplicate' } },
+      } as Node,
+    })
+    await flushPromises()
+    expect(mocks.sheetProps.open).toBe(true)
+    wrapper
+      .findComponent({ name: 'OutcomeInvocationsSheet' })
+      .vm.$emit('update:open', false)
+    await flushPromises()
+    expect(mocks.sheetProps.open).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('opens the sheet with a null kind for outcomes without one', async () => {
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    mocks.handlers.nodeClick?.({
+      node: { id: 'outcome', data: { kind: 'outcome' } } as Node,
+    })
+    await flushPromises()
+    expect(mocks.sheetProps).toMatchObject({
+      open: true,
+      nodeId: 'outcome',
+      kind: null,
+    })
+    wrapper.unmount()
+  })
+
+  it('ignores clicks on non-outcome nodes', async () => {
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    mocks.handlers.nodeClick?.({
+      node: { id: 'action', data: { kind: 'action' } } as Node,
+    })
+    await flushPromises()
+    expect(mocks.sheetProps?.open).not.toBe(true)
     wrapper.unmount()
   })
 
