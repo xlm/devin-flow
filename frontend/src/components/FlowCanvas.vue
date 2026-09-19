@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, provide, ref } from 'vue'
+import { computed, onMounted, onUnmounted, provide, ref } from 'vue'
 import {
   VueFlow,
   useVueFlow,
@@ -71,7 +71,6 @@ const {
   onEdgesChange,
   onConnect,
   screenToFlowCoordinate,
-  updateNodeInternals,
 } = useVueFlow()
 const { mode, icon, cycleMode } = useTheme()
 
@@ -157,11 +156,6 @@ async function fetchCanvas() {
     edges.value = loadedEdges
     loadedNodes.forEach((node) => nodeSnapshots.set(node.id, copyNode(node)))
     loadedEdges.forEach((edge) => edgeSnapshots.set(edge.id, copyEdge(edge)))
-    // replaced node objects start without dimensions or handle bounds, and
-    // the resize observer stays silent when the DOM size is unchanged, so
-    // edges would not render until the next re-measure
-    await nextTick()
-    updateNodeInternals()
   } catch {
     loadError.value = true
     nodes.value = []
@@ -439,11 +433,13 @@ async function removeEdge(change: Extract<EdgeChange, { type: 'remove' }>) {
   }
 }
 
-function edgeCandidates(): Array<CanvasEdge & { sourceKind: NodeKind }> {
+function edgeCandidates(
+  excludeId?: string,
+): Array<CanvasEdge & { sourceKind: NodeKind }> {
   const candidates: Array<CanvasEdge & { sourceKind: NodeKind }> = []
   getEdges.value.forEach((edge) => {
     const sourceKind = edge.data?.sourceKind as NodeKind | undefined
-    if (sourceKind) {
+    if (sourceKind && edge.id !== excludeId) {
       candidates.push({ source: edge.source, target: edge.target, sourceKind })
     }
   })
@@ -470,13 +466,16 @@ function resolveConnection(connection: Connection): EdgeCreate | null {
   }
 }
 
-function connectionError(connection: Connection): string | null {
+function connectionError(connection: Connection | Edge): string | null {
   const resolved = resolveConnection(connection)
   if (!resolved) return 'node not found'
-  return connectError(resolved.source, resolved.target, edgeCandidates())
+  // Vue Flow also validates existing edges when the edge list is replaced,
+  // so an edge must not count as a duplicate of itself
+  const ownId = 'id' in connection ? connection.id : undefined
+  return connectError(resolved.source, resolved.target, edgeCandidates(ownId))
 }
 
-function validConnection(connection: Connection): boolean {
+function validConnection(connection: Connection | Edge): boolean {
   return connectionError(connection) === null
 }
 
