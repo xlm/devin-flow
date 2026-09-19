@@ -38,6 +38,7 @@ const mocks = vi.hoisted(() => {
       edgeClick?: EdgeClickHandler
     },
     sheetProps: {} as Record<string, unknown>,
+    actionSheetProps: {} as Record<string, unknown>,
   }
 })
 
@@ -94,6 +95,21 @@ vi.mock('@vue-flow/core', () => ({
   }),
 }))
 
+vi.mock('@/components/ActionInvocationsSheet.vue', () => ({
+  default: defineComponent({
+    name: 'ActionInvocationsSheet',
+    props: {
+      open: { type: Boolean, default: false },
+      nodeId: { type: String, default: null },
+      actionName: { type: String, default: null },
+    },
+    emits: ['update:open'],
+    setup(props) {
+      mocks.actionSheetProps = props
+      return () => h('div', { 'data-testid': 'action-sheet-stub' })
+    },
+  }),
+}))
 vi.mock('@/components/OutcomeInvocationsSheet.vue', () => ({
   default: defineComponent({
     name: 'OutcomeInvocationsSheet',
@@ -283,6 +299,7 @@ describe('FlowCanvas', () => {
         target: 'action',
         data: { sourceKind: 'trigger', targetKind: 'action' },
         label: '2 invocations',
+        class: 'cursor-pointer',
       },
     ])
     expect(wrapper.find('[data-testid="load-error"]').exists()).toBe(false)
@@ -2168,7 +2185,34 @@ describe('FlowCanvas', () => {
     wrapper.unmount()
   })
 
-  it('ignores edge clicks on non-outcome edges', async () => {
+  it('opens the action sheet when a trigger edge is clicked', async () => {
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    mocks.findNode.mockReturnValue({
+      id: 'action',
+      data: { kind: 'action', name: 'Triage' },
+    } as Node)
+    mocks.handlers.edgeClick?.({
+      edge: {
+        source: 'trigger',
+        target: 'action',
+        data: { sourceKind: 'trigger', targetKind: 'action' },
+      },
+    })
+    await flushPromises()
+    expect(mocks.actionSheetProps).toMatchObject({
+      open: true,
+      nodeId: 'action',
+      actionName: 'Triage',
+    })
+    expect(mocks.sheetProps?.open).not.toBe(true)
+    expect(wrapper.find('[data-testid="action-sheet-stub"]').exists()).toBe(
+      true,
+    )
+    wrapper.unmount()
+  })
+
+  it('closes the action sheet when it is dismissed', async () => {
     const wrapper = mount(FlowCanvas)
     await flushPromises()
     mocks.handlers.edgeClick?.({
@@ -2178,8 +2222,44 @@ describe('FlowCanvas', () => {
         data: { sourceKind: 'trigger', targetKind: 'action' },
       },
     })
+    await flushPromises()
+    expect(mocks.actionSheetProps.open).toBe(true)
+    wrapper
+      .findComponent({ name: 'ActionInvocationsSheet' })
+      .vm.$emit('update:open', false)
+    await flushPromises()
+    expect(mocks.actionSheetProps.open).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('opens the action sheet with a null name when it is missing', async () => {
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    mocks.findNode.mockReturnValue({
+      id: 'action',
+      data: { kind: 'action' },
+    } as Node)
     mocks.handlers.edgeClick?.({
-      edge: { source: 'trigger', target: 'action' },
+      edge: {
+        source: 'trigger',
+        target: 'action',
+        data: { sourceKind: 'trigger', targetKind: 'action' },
+      },
+    })
+    await flushPromises()
+    expect(mocks.actionSheetProps).toMatchObject({
+      open: true,
+      nodeId: 'action',
+      actionName: null,
+    })
+    wrapper.unmount()
+  })
+
+  it('ignores edge clicks on non-outcome edges', async () => {
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    mocks.handlers.edgeClick?.({
+      edge: { source: 'trigger', target: 'outcome' },
     })
     await flushPromises()
     expect(mocks.sheetProps?.open).not.toBe(true)

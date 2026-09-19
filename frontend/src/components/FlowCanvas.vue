@@ -17,6 +17,7 @@ import { RefreshCw } from '@lucide/vue'
 import { client } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import NodePalette from '@/components/NodePalette.vue'
+import ActionInvocationsSheet from '@/components/ActionInvocationsSheet.vue'
 import OutcomeInvocationsSheet from '@/components/OutcomeInvocationsSheet.vue'
 import { nodeTypes } from '@/components/nodes/nodeTypes'
 import { refreshApiHealth } from '@/composables/useApiHealth'
@@ -119,6 +120,7 @@ function mapEdge(edge: EdgeRead, counts: Map<string, number>): Edge {
   }
   if (edge.target.kind === 'action') {
     mapped.label = invocationLabel(counts.get(edge.target.id) ?? 0)
+    mapped.class = 'cursor-pointer'
   }
   if (edge.target.kind === 'outcome') {
     mapped.label = outcomeCountLabel(edge.outcome_count ?? 0)
@@ -596,8 +598,19 @@ const outcomeSheetOpen = ref(false)
 const selectedOutcomeId = ref<string | null>(null)
 const selectedActionId = ref<string | null>(null)
 const selectedOutcomeKind = ref<OutcomeKind | null>(null)
+const actionSheetOpen = ref(false)
+const selectedActionSheetId = ref<string | null>(null)
+const selectedActionName = ref<string | null>(null)
 
 onEdgeClick((event) => {
+  if (event.edge.data?.targetKind === 'action') {
+    selectedActionSheetId.value = event.edge.target
+    const actionData = findNode(event.edge.target)?.data
+    selectedActionName.value =
+      typeof actionData?.name === 'string' ? actionData.name : null
+    actionSheetOpen.value = true
+    return
+  }
   if (event.edge.data?.targetKind !== 'outcome') return
   selectedOutcomeId.value = event.edge.target
   selectedActionId.value = event.edge.source
@@ -693,6 +706,11 @@ onUnmounted(() => {
         :node-id="selectedOutcomeId"
         :action-node-id="selectedActionId"
         :kind="selectedOutcomeKind"
+      />
+      <ActionInvocationsSheet
+        v-model:open="actionSheetOpen"
+        :node-id="selectedActionSheetId"
+        :action-name="selectedActionName"
       />
     </div>
   </div>
