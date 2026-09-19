@@ -8,7 +8,6 @@ import {
   type TriggerRead,
   type TriggerUpdate,
 } from '@/lib/connectRules'
-import { isRepositoryFullName } from '@/lib/repository'
 import CanvasNodeShell from './CanvasNodeShell.vue'
 
 type TriggerData = {
@@ -26,7 +25,6 @@ const repositories = ref<string[] | null>(null)
 const repositoriesError = ref(false)
 const loadingRepositories = ref(true)
 const saveError = ref(false)
-const repositoryInvalid = ref(false)
 let saveChain = Promise.resolve()
 
 const complete = computed(() =>
@@ -42,6 +40,15 @@ const repositoryOptions = computed(() => {
   }
   return values
 })
+const repositoryHint = computed(() =>
+  loadingRepositories.value
+    ? undefined
+    : repositoriesError.value
+      ? 'Could not load repositories'
+      : repositoryOptions.value.length === 0
+        ? 'No eligible repositories'
+        : undefined,
+)
 
 function syncFromData(trigger: TriggerRead | undefined) {
   eventAction.value = trigger?.event_action ?? ''
@@ -100,19 +107,6 @@ function save(patch: TriggerUpdate) {
   return next
 }
 
-function saveRepositoryInput() {
-  repositoryInvalid.value = false
-  if (repository.value === '') {
-    void save({ repository_full_name: null })
-    return
-  }
-  if (!isRepositoryFullName(repository.value)) {
-    repositoryInvalid.value = true
-    return
-  }
-  void save({ repository_full_name: repository.value })
-}
-
 watch(
   () => props.data?.trigger,
   (trigger) => syncFromData(trigger),
@@ -122,7 +116,12 @@ onMounted(() => void loadRepositories())
 </script>
 
 <template>
-  <CanvasNodeShell :id="id" kind="trigger" :complete="complete">
+  <CanvasNodeShell
+    :id="id"
+    kind="trigger"
+    :complete="complete"
+    :hint="repositoryHint"
+  >
     <div class="mt-2 flex flex-col gap-1">
       <select
         v-model="eventAction"
@@ -141,43 +140,27 @@ onMounted(() => void loadRepositories())
       >
         <option>Loading repositories...</option>
       </select>
-      <template v-else-if="!repositoriesError">
-        <select
-          v-model="repository"
-          data-testid="trigger-repository"
-          class="nodrag rounded-md border bg-background px-2 py-1 text-xs"
-          @change="save({ repository_full_name: repository || null })"
-        >
-          <option value="">Select repository</option>
-          <option v-for="repo in repositoryOptions" :key="repo" :value="repo">
-            {{ repo }}
-          </option>
-        </select>
-      </template>
-      <template v-else>
-        <input
-          v-model="repository"
-          data-testid="trigger-repository-input"
-          placeholder="owner/repo"
-          class="nodrag rounded-md border bg-background px-2 py-1 text-xs"
-          @change="saveRepositoryInput"
-        />
-        <span
-          v-if="repositoryInvalid"
-          data-testid="trigger-repository-invalid"
-          class="text-xs text-destructive"
-        >
-          Use owner/repo
-        </span>
-        <button
-          type="button"
-          data-testid="trigger-repositories-retry"
-          class="rounded-md border bg-background px-2 py-1 text-xs"
-          @click="loadRepositories"
-        >
-          Retry
-        </button>
-      </template>
+      <select
+        v-else
+        v-model="repository"
+        data-testid="trigger-repository"
+        class="nodrag rounded-md border bg-background px-2 py-1 text-xs"
+        @change="save({ repository_full_name: repository || null })"
+      >
+        <option value="">Select repository</option>
+        <option v-for="repo in repositoryOptions" :key="repo" :value="repo">
+          {{ repo }}
+        </option>
+      </select>
+      <button
+        v-if="repositoriesError"
+        type="button"
+        data-testid="trigger-repositories-retry"
+        class="rounded-md border bg-background px-2 py-1 text-xs"
+        @click="loadRepositories"
+      >
+        Retry
+      </button>
       <span v-if="saveError" role="alert" class="text-xs text-destructive">
         Could not save
       </span>
