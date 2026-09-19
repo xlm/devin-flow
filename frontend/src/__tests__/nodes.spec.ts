@@ -103,7 +103,7 @@ function mountNode(component: Component) {
               label: 'Action',
               name: '',
               playbookId: null,
-              extraInstructions: '',
+              prompt: '',
             },
           }
         : {

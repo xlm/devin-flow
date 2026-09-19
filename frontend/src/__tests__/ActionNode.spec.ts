@@ -63,7 +63,7 @@ describe('ActionNode', () => {
       {
         name: 'Triage action',
         playbookId: 'pb-1',
-        extraInstructions: 'Notes',
+        prompt: 'Notes',
       },
       save,
     )
@@ -80,7 +80,7 @@ describe('ActionNode', () => {
     ).toBe('pb-1')
     expect(
       (
-        wrapper.get('[data-testid="action-instructions"]')
+        wrapper.get('[data-testid="action-prompt"]')
           .element as HTMLTextAreaElement
       ).value,
     ).toBe('Notes')
@@ -88,19 +88,17 @@ describe('ActionNode', () => {
       wrapper.get('[data-testid="action-name"]').attributes('maxlength'),
     ).toBe('200')
     expect(
-      wrapper
-        .get('[data-testid="action-instructions"]')
-        .attributes('maxlength'),
+      wrapper.get('[data-testid="action-prompt"]').attributes('maxlength'),
     ).toBe('20000')
     await wrapper.get('[data-testid="action-name"]').setValue('Updated')
     await wrapper.get('[data-testid="action-name"]').trigger('change')
     await wrapper.get('[data-testid="action-playbook"]').setValue('pb-1')
     await wrapper.get('[data-testid="action-playbook"]').trigger('change')
-    await wrapper.get('[data-testid="action-instructions"]').setValue('More')
-    await wrapper.get('[data-testid="action-instructions"]').trigger('change')
+    await wrapper.get('[data-testid="action-prompt"]').setValue('More')
+    await wrapper.get('[data-testid="action-prompt"]').trigger('change')
     expect(save).toHaveBeenCalledWith('n1', { name: 'Updated' })
     expect(save).toHaveBeenCalledWith('n1', { playbookId: 'pb-1' })
-    expect(save).toHaveBeenCalledWith('n1', { extraInstructions: 'More' })
+    expect(save).toHaveBeenCalledWith('n1', { prompt: 'More' })
   })
 
   it('saves null when the playbook placeholder is selected', async () => {

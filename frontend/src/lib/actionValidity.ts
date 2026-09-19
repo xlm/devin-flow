@@ -4,7 +4,7 @@ export type ActionNodeRead = components['schemas']['ActionNodeRead']
 export type ActionFields = {
   name: string
   playbookId: string | null
-  extraInstructions: string
+  prompt: string
 }
 export type ActionInvalidReason = 'incomplete' | 'no-trigger'
 export type LinkedEdge = {
@@ -18,8 +18,7 @@ export function actionFieldsFromData(
   return {
     name: typeof data.name === 'string' ? data.name : '',
     playbookId: typeof data.playbookId === 'string' ? data.playbookId : null,
-    extraInstructions:
-      typeof data.extraInstructions === 'string' ? data.extraInstructions : '',
+    prompt: typeof data.prompt === 'string' ? data.prompt : '',
   }
 }
 
@@ -27,7 +26,7 @@ export function actionFieldsOf(node: ActionNodeRead): ActionFields {
   return {
     name: node.name,
     playbookId: node.playbook_id,
-    extraInstructions: node.extra_instructions,
+    prompt: node.prompt,
   }
 }
 

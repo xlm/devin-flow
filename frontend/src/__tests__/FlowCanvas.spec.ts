@@ -126,7 +126,7 @@ const canvas = {
       position: { x: 3, y: 4 },
       name: '',
       playbook_id: null,
-      extra_instructions: '',
+      prompt: '',
     },
   ],
   outcome_nodes: [{ id: 'outcome', kind: 'outcome', position: { x: 5, y: 6 } }],
@@ -223,7 +223,7 @@ describe('FlowCanvas', () => {
           label: 'Action',
           name: '',
           playbookId: null,
-          extraInstructions: '',
+          prompt: '',
         },
       },
       {
@@ -256,7 +256,7 @@ describe('FlowCanvas', () => {
         position: { x: 40, y: 50 },
         name: '',
         playbook_id: null,
-        extra_instructions: '',
+        prompt: '',
       }),
     )
     const dataTransfer = {
@@ -337,7 +337,7 @@ describe('FlowCanvas', () => {
         position: { x: 0, y: 0 },
         name: '',
         playbook_id: null,
-        extra_instructions: '',
+        prompt: '',
       }),
     )
     const secondDrop = new Event('drop', {
@@ -491,7 +491,7 @@ describe('FlowCanvas', () => {
         position: { x: 0, y: 0 },
         name: '',
         playbook_id: null,
-        extra_instructions: '',
+        prompt: '',
       }),
     )
     dispatchDrop()
@@ -569,7 +569,7 @@ describe('FlowCanvas', () => {
               position: { x: 7, y: 8 },
               name: '',
               playbook_id: null,
-              extra_instructions: '',
+              prompt: '',
             },
           ],
           outcome_nodes: [],
@@ -835,7 +835,7 @@ describe('FlowCanvas', () => {
         kind: 'action',
         name: '',
         playbookId: null,
-        extraInstructions: '',
+        prompt: '',
       },
     } as Node
     const provided = { value: undefined as SaveNodeFields | undefined }
@@ -861,7 +861,7 @@ describe('FlowCanvas', () => {
       kind: 'action',
       name: 'Triage',
       playbookId: null,
-      extraInstructions: '',
+      prompt: '',
     })
     wrapper.unmount()
   })
@@ -874,7 +874,7 @@ describe('FlowCanvas', () => {
         kind: 'action',
         name: '',
         playbookId: null,
-        extraInstructions: '',
+        prompt: '',
       },
     } as Node
     const provided = { value: undefined as SaveNodeFields | undefined }
@@ -884,8 +884,8 @@ describe('FlowCanvas', () => {
       global: { stubs: { NodePalette: saveProbe(provided) } },
     })
     await flushPromises()
-    await provided.value?.('action', { extraInstructions: 'Notes' })
-    expect(node.data.extraInstructions).toBe('')
+    await provided.value?.('action', { prompt: 'Notes' })
+    expect(node.data.prompt).toBe('')
     wrapper.unmount()
   })
 
@@ -897,7 +897,7 @@ describe('FlowCanvas', () => {
         kind: 'action',
         name: '',
         playbookId: null,
-        extraInstructions: '',
+        prompt: '',
       },
     } as Node
     const provided = { value: undefined as SaveNodeFields | undefined }
@@ -937,7 +937,7 @@ describe('FlowCanvas', () => {
         kind: 'action',
         name: '',
         playbookId: null,
-        extraInstructions: '',
+        prompt: '',
       },
     } as Node
     const provided = { value: undefined as SaveNodeFields | undefined }
@@ -971,7 +971,7 @@ describe('FlowCanvas', () => {
       kind: 'action',
       name: '',
       playbookId: 'pb-1',
-      extraInstructions: '',
+      prompt: '',
     })
     resolveSecond?.(response(undefined))
     await second
@@ -983,7 +983,7 @@ describe('FlowCanvas', () => {
       kind: 'action',
       name: '',
       playbookId: 'pb-1',
-      extraInstructions: '',
+      prompt: '',
     })
     wrapper.unmount()
   })
@@ -996,7 +996,7 @@ describe('FlowCanvas', () => {
         kind: 'action',
         name: '',
         playbookId: null,
-        extraInstructions: '',
+        prompt: '',
       },
     } as Node
     const provided = { value: undefined as SaveNodeFields | undefined }
@@ -1049,7 +1049,7 @@ describe('FlowCanvas', () => {
         kind: 'action',
         name: '',
         playbookId: null,
-        extraInstructions: '',
+        prompt: '',
       },
     } as Node
     const provided = { value: undefined as SaveNodeFields | undefined }
@@ -1065,7 +1065,7 @@ describe('FlowCanvas', () => {
         kind: 'action',
         name: '',
         playbookId: null,
-        extraInstructions: '',
+        prompt: '',
       },
     } as Node
     mocks.findNode.mockReturnValue(newAction)
@@ -1086,7 +1086,7 @@ describe('FlowCanvas', () => {
         kind: 'action',
         name: '',
         playbookId: null,
-        extraInstructions: '',
+        prompt: '',
       },
     } as Node
     const provided = { value: undefined as SaveNodeFields | undefined }
@@ -1125,7 +1125,7 @@ describe('FlowCanvas', () => {
         kind: 'action',
         name: '',
         playbookId: null,
-        extraInstructions: '',
+        prompt: '',
       },
     } as Node
     const provided = { value: undefined as SaveNodeFields | undefined }
@@ -1155,7 +1155,7 @@ describe('FlowCanvas', () => {
           position: { x: 3, y: 4 },
           name: '',
           playbook_id: null,
-          extra_instructions: '',
+          prompt: '',
         },
       ],
       outcome_nodes: [],
@@ -1182,7 +1182,7 @@ describe('FlowCanvas', () => {
           label: 'Action',
           name: '',
           playbookId: null,
-          extraInstructions: '',
+          prompt: '',
         },
       },
     ])
@@ -1241,7 +1241,7 @@ describe('FlowCanvas', () => {
         position: { x: 0, y: 0 },
         name: '',
         playbook_id: null,
-        extra_instructions: '',
+        prompt: '',
       }),
     )
     await flushPromises()
@@ -1269,7 +1269,7 @@ describe('FlowCanvas', () => {
           position: { x: 0, y: 0 },
           name: '',
           playbook_id: null,
-          extra_instructions: '',
+          prompt: '',
         },
       ],
       outcome_nodes: [],
@@ -1319,7 +1319,7 @@ describe('FlowCanvas', () => {
         position: { x: 0, y: 0 },
         name: '',
         playbook_id: null,
-        extra_instructions: '',
+        prompt: '',
       }),
     )
     await flushPromises()
@@ -1380,7 +1380,7 @@ describe('FlowCanvas', () => {
         position: { x: 0, y: 0 },
         name: '',
         playbook_id: null,
-        extra_instructions: '',
+        prompt: '',
       }),
     )
     await flushPromises()
@@ -1432,7 +1432,7 @@ describe('FlowCanvas', () => {
           position: { x: 3, y: 4 },
           name: '',
           playbook_id: null,
-          extra_instructions: '',
+          prompt: '',
         },
       ],
       outcome_nodes: [],
@@ -1464,7 +1464,7 @@ describe('FlowCanvas', () => {
         label: 'Action',
         name: '',
         playbookId: null,
-        extraInstructions: '',
+        prompt: '',
       },
     })
     expect(vueFlow(wrapper).props('edges')).toEqual([])

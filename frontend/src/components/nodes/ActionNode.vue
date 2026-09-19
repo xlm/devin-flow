@@ -42,7 +42,7 @@ async function savePlaybook(event: Event) {
 
 async function saveInstructions(event: Event) {
   saveError.value = !(await saveNodeFields(props.id, {
-    extraInstructions: (event.target as HTMLTextAreaElement).value,
+    prompt: (event.target as HTMLTextAreaElement).value,
   }))
 }
 </script>
@@ -126,13 +126,13 @@ async function saveInstructions(event: Event) {
         </button>
       </div>
       <label class="block">
-        <span class="sr-only">Extra instructions</span>
+        <span class="sr-only">Prompt</span>
         <textarea
-          data-testid="action-instructions"
+          data-testid="action-prompt"
           class="nodrag nowheel w-full rounded-md border bg-background px-2 py-1"
           rows="3"
           maxlength="20000"
-          :value="fields.extraInstructions"
+          :value="fields.prompt"
           @change="saveInstructions"
         />
       </label>

@@ -3,10 +3,6 @@
     "schemas": {
       "ActionNodeRead": {
         "properties": {
-          "extra_instructions": {
-            "title": "Extra Instructions",
-            "type": "string"
-          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -39,6 +35,10 @@
           "position": {
             "$ref": "#/components/schemas/Position"
           },
+          "prompt": {
+            "title": "Prompt",
+            "type": "string"
+          },
           "trigger": {
             "anyOf": [
               {
@@ -56,7 +56,7 @@
           "position",
           "name",
           "playbook_id",
-          "extra_instructions"
+          "prompt"
         ],
         "title": "ActionNodeRead",
         "type": "object"
@@ -221,18 +221,6 @@
       },
       "NodeCreate": {
         "properties": {
-          "extra_instructions": {
-            "anyOf": [
-              {
-                "maxLength": 20000,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Extra Instructions"
-          },
           "name": {
             "anyOf": [
               {
@@ -260,6 +248,18 @@
           },
           "position": {
             "$ref": "#/components/schemas/Position"
+          },
+          "prompt": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt"
           },
           "trigger": {
             "anyOf": [
@@ -342,18 +342,6 @@
       },
       "NodeUpdate": {
         "properties": {
-          "extra_instructions": {
-            "anyOf": [
-              {
-                "maxLength": 20000,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Extra Instructions"
-          },
           "name": {
             "anyOf": [
               {
@@ -388,6 +376,18 @@
                 "type": "null"
               }
             ]
+          },
+          "prompt": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt"
           },
           "trigger": {
             "anyOf": [
