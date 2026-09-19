@@ -67,7 +67,7 @@ const components = [
   {
     component: TriggerNode,
     kind: 'trigger',
-    hint: 'Choose repository and event',
+    hint: 'No eligible repositories',
     handles: ['source'],
   },
   {

@@ -1,5 +1,4 @@
 import { defineComponent, h } from 'vue'
-import { nextTick } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -162,28 +161,28 @@ describe('TriggerNode', () => {
     wrapper.unmount()
   })
 
-  it('handles an unavailable repository list while rendering options', async () => {
+  it('shows no eligible repositories when the list is empty', async () => {
+    mocks.GET.mockResolvedValueOnce({ data: [], error: undefined })
     const wrapper = mountNode()
     await flushPromises()
-    ;(wrapper.vm as unknown as { repositories: string[] | null }).repositories =
-      null
-    await nextTick()
     expect(wrapper.find('[data-testid="trigger-repository"]').exists()).toBe(
       true,
     )
+    expect(wrapper.text()).toContain('No eligible repositories')
     wrapper.unmount()
   })
 
   it.each([{ result: { error: { detail: 'failed' } } }, { throws: true }])(
-    'falls back to free text when repositories fail',
+    'shows repository loading errors (%s)',
     async (failure) => {
       if (failure.throws) mocks.GET.mockRejectedValueOnce(new Error('down'))
       else mocks.GET.mockResolvedValueOnce(failure.result)
       const wrapper = mountNode()
       await flushPromises()
-      expect(
-        wrapper.find('[data-testid="trigger-repository-input"]').exists(),
-      ).toBe(true)
+      expect(wrapper.find('[data-testid="trigger-repository"]').exists()).toBe(
+        true,
+      )
+      expect(wrapper.text()).toContain('Could not load repositories')
       expect(
         wrapper.find('[data-testid="trigger-repositories-retry"]').exists(),
       ).toBe(true)
@@ -203,62 +202,14 @@ describe('TriggerNode', () => {
     expect(wrapper.find('[data-testid="trigger-repository"]').exists()).toBe(
       true,
     )
-    expect(
-      wrapper.find('[data-testid="trigger-repository-input"]').exists(),
-    ).toBe(false)
     wrapper.unmount()
   })
 
-  it('validates free text and saves valid, invalid, and empty values', async () => {
-    mocks.GET.mockResolvedValueOnce({ error: { detail: 'failed' } })
+  it('does not show a repository availability hint when repositories exist', async () => {
     const wrapper = mountNode()
     await flushPromises()
-    const input = wrapper.find('[data-testid="trigger-repository-input"]')
-    await input.setValue('invalid')
-    await input.trigger('change')
-    expect(
-      wrapper.find('[data-testid="trigger-repository-invalid"]').exists(),
-    ).toBe(true)
-    expect(mocks.PATCH).not.toHaveBeenCalled()
-    await input.setValue('octo/new')
-    await input.trigger('change')
-    await flushPromises()
-    expect(mocks.PATCH).toHaveBeenCalledWith(
-      '/api/canvas/nodes/{kind}/{node_id}',
-      expect.objectContaining({
-        body: { trigger: { repository_full_name: 'octo/new' } },
-      }),
-    )
-    await input.setValue('')
-    await input.trigger('change')
-    await flushPromises()
-    expect(mocks.PATCH).toHaveBeenLastCalledWith(
-      '/api/canvas/nodes/{kind}/{node_id}',
-      expect.objectContaining({
-        body: { trigger: { repository_full_name: null } },
-      }),
-    )
-    wrapper.unmount()
-  })
-
-  it('stays incomplete when local edits are not confirmed', async () => {
-    mocks.GET.mockResolvedValueOnce({ error: { detail: 'failed' } })
-    const wrapper = mountNode()
-    await flushPromises()
-    await wrapper.find('[data-testid="trigger-event"]').setValue('opened')
-    await flushPromises()
-    mocks.PATCH.mockClear()
-    const input = wrapper.find('[data-testid="trigger-repository-input"]')
-    await input.setValue('invalid')
-    await input.trigger('change')
-    expect(
-      wrapper.find('[data-testid="trigger-repository-invalid"]').exists(),
-    ).toBe(true)
-    expect(mocks.PATCH).not.toHaveBeenCalled()
-    expect(
-      wrapper.find('[data-testid="canvas-node"]').attributes('data-incomplete'),
-    ).toBe('true')
-    expect(wrapper.text()).toContain('Incomplete')
+    expect(wrapper.text()).not.toContain('Could not load repositories')
+    expect(wrapper.text()).not.toContain('No eligible repositories')
     wrapper.unmount()
   })
 
