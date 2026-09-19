@@ -144,5 +144,13 @@ describe('action validity', () => {
         }),
       ),
     ).toBe('trigger-incomplete')
+    expect(
+      actionInvalidReason(
+        'n1',
+        { name: 'Triage', playbookId: 'pb-1' },
+        [{ source: 'trigger', target: 'n1', data: { sourceKind: 'trigger' } }],
+        () => undefined,
+      ),
+    ).toBe('trigger-incomplete')
   })
 })
