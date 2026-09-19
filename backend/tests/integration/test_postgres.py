@@ -23,17 +23,35 @@ def test_migrations_match_models(postgres_engine: Engine) -> None:
         assert compare_metadata(context, SQLModel.metadata) == []
 
 
-def test_item_table_is_dropped(postgres_engine: Engine) -> None:
-    assert inspect(postgres_engine).get_table_names() == ["alembic_version"]
+def test_canvas_tables_exist(postgres_engine: Engine) -> None:
+    assert sorted(inspect(postgres_engine).get_table_names()) == [
+        "action_node",
+        "alembic_version",
+        "edge",
+        "outcome_node",
+        "trigger_node",
+    ]
 
 
 def test_seeded_session_is_empty_canvas(seeded_session: Session) -> None:
-    assert inspect(seeded_session.connection()).get_table_names() == ["alembic_version"]
+    assert all(
+        seeded_session.connection()
+        .execute(text(f"select count(*) from {table}"))
+        .scalar_one()
+        == 0
+        for table in ("trigger_node", "action_node", "outcome_node", "edge")
+    )
 
 
 def test_seed_twice_is_idempotent(seeded_session: Session) -> None:
     seed.seed(seeded_session)
-    assert inspect(seeded_session.connection()).get_table_names() == ["alembic_version"]
+    assert all(
+        seeded_session.connection()
+        .execute(text(f"select count(*) from {table}"))
+        .scalar_one()
+        == 0
+        for table in ("trigger_node", "action_node", "outcome_node", "edge")
+    )
 
 
 def test_tests_are_isolated(session: Session) -> None:
