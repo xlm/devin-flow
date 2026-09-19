@@ -8,6 +8,7 @@ from devin_flow.api.health import STALE_INTERVALS, polling_status
 from devin_flow.config import get_settings
 from devin_flow.models import PollerState
 
+# fixed clock for the pure polling_status tests, keeps the boundary cases deterministic
 NOW = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
 
 

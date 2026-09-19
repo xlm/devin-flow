@@ -14,6 +14,7 @@ from devin_flow.web import spa
 
 def app_client(static_dir: Path, session: Session) -> TestClient:
     app = create_app(static_dir=static_dir)
+    # /api/health reads poller_state, point it at the sqlite unit session
     app.dependency_overrides[get_session] = lambda: session
     return TestClient(app)
 
