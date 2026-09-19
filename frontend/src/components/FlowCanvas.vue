@@ -30,6 +30,7 @@ const nodeSnapshots = new Map<string, Node>()
 const edgeSnapshots = new Map<string, Edge>()
 const dragPositions = new Map<string, { x: number; y: number }>()
 const saveGenerations = new Map<string, number>()
+const saveChains = new Map<string, Promise<void>>()
 const cascadedNodeIds = new Set<string>()
 
 const {
@@ -112,30 +113,54 @@ async function loadCanvas() {
   }
 }
 
-async function saveNodePosition(event: NodeDragEvent) {
-  const node = event.node
-  const kind = kindOf(node)
-  const before = dragPositions.get(node.id)
-  if (!kind || !before) return
-  const generation = (saveGenerations.get(node.id) ?? 0) + 1
-  saveGenerations.set(node.id, generation)
+async function doSaveNodePosition(
+  node: Node,
+  kind: NodeKind,
+  position: { x: number; y: number },
+  before: { x: number; y: number },
+  generation: number,
+) {
   try {
     const { error } = await client.PATCH('/api/canvas/nodes/{kind}/{node_id}', {
       params: { path: { kind, node_id: node.id } },
-      body: { position: { x: node.position.x, y: node.position.y } },
+      body: { position },
     })
     if (generation !== saveGenerations.get(node.id)) return
     if (error) {
       const current = findNode(node.id)
       if (current) current.position = { ...before }
     } else {
-      nodeSnapshots.set(node.id, copyNode(node))
+      const savedNode = copyNode(node)
+      savedNode.position = { ...position }
+      nodeSnapshots.set(node.id, savedNode)
     }
   } catch {
     if (generation !== saveGenerations.get(node.id)) return
     const current = findNode(node.id)
     if (current) current.position = { ...before }
   }
+}
+
+function saveNodePosition(event: NodeDragEvent): Promise<void> | undefined {
+  const node = event.node
+  const kind = kindOf(node)
+  const before = dragPositions.get(node.id)
+  if (!kind || !before) return
+  const position = { ...node.position }
+  const previousPosition = { ...before }
+  const generation = (saveGenerations.get(node.id) ?? 0) + 1
+  saveGenerations.set(node.id, generation)
+  const savedNode = copyNode(node)
+  savedNode.position = { ...position }
+  const previous = saveChains.get(node.id) ?? Promise.resolve()
+  const next = previous.then(() =>
+    doSaveNodePosition(savedNode, kind, position, previousPosition, generation),
+  )
+  saveChains.set(
+    node.id,
+    next.catch(() => {}),
+  )
+  return next
 }
 
 async function removeNode(change: Extract<NodeChange, { type: 'remove' }>) {
@@ -159,13 +184,17 @@ async function removeNode(change: Extract<NodeChange, { type: 'remove' }>) {
     )
     if (error && response?.status !== 404) {
       addNodes([copyNode(snapshot)])
-      addEdges(connectedEdges.map(copyEdge))
+      if (connectedEdges.length > 0) {
+        addEdges(connectedEdges.map(copyEdge))
+      }
     } else {
       connectedEdges.forEach((edge) => edgeSnapshots.delete(edge.id))
     }
   } catch {
     addNodes([copyNode(snapshot)])
-    addEdges(connectedEdges.map(copyEdge))
+    if (connectedEdges.length > 0) {
+      addEdges(connectedEdges.map(copyEdge))
+    }
   } finally {
     cascadedNodeIds.delete(snapshot.id)
   }
@@ -188,7 +217,11 @@ async function removeEdge(change: Extract<EdgeChange, { type: 'remove' }>) {
         params: { path: { edge_id: snapshot.id } },
       },
     )
-    if (error && response?.status !== 404) addEdges([copyEdge(snapshot)])
+    if (!error || response?.status === 404) {
+      edgeSnapshots.delete(snapshot.id)
+    } else {
+      addEdges([copyEdge(snapshot)])
+    }
   } catch {
     addEdges([copyEdge(snapshot)])
   }
