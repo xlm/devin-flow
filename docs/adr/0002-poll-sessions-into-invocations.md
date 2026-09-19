@@ -28,5 +28,6 @@ refresh), rather than querying Devin live on every canvas load.
   on every poll; the Pull Request outcome derives from `pull_requests`,
   the others from `structured_output.outcome`.
 - Canvas writes commit locally first and record `sync_status` and
-  `sync_error` on the edge; the poller retries failed Devin syncs, so the
-  canvas is the source of truth and the Devin side converges.
+  `sync_error` on the Action node (ADR 0003); the poller retries failed
+  Devin syncs, so the canvas is the source of truth and the Devin side
+  converges.
