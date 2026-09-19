@@ -110,7 +110,14 @@ vi.mock('@/composables/useTheme', () => ({
 import FlowCanvas from '@/components/FlowCanvas.vue'
 
 const canvas = {
-  trigger_nodes: [{ id: 'trigger', kind: 'trigger', position: { x: 1, y: 2 } }],
+  trigger_nodes: [
+    {
+      id: 'trigger',
+      kind: 'trigger',
+      position: { x: 1, y: 2 },
+      trigger: { event_action: null, repository_full_name: null },
+    },
+  ],
   action_nodes: [{ id: 'action', kind: 'action', position: { x: 3, y: 4 } }],
   outcome_nodes: [{ id: 'outcome', kind: 'outcome', position: { x: 5, y: 6 } }],
   edges: [
@@ -182,7 +189,11 @@ describe('FlowCanvas', () => {
         id: 'trigger',
         type: 'trigger',
         position: { x: 1, y: 2 },
-        data: { kind: 'trigger', label: 'Trigger' },
+        data: {
+          kind: 'trigger',
+          label: 'Trigger',
+          trigger: { event_action: null, repository_full_name: null },
+        },
       },
       {
         id: 'action',

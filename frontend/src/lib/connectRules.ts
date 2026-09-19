@@ -8,6 +8,9 @@ export type NodeRef = Schemas['NodeRef']
 export type NodeRead = Schemas['NodeRead']
 export type EdgeRead = Schemas['EdgeRead']
 export type EdgeCreate = Schemas['EdgeCreate']
+export type TriggerRead = Schemas['TriggerRead']
+export type TriggerUpdate = Schemas['TriggerUpdate']
+export type EventAction = NonNullable<TriggerRead['event_action']>
 
 export type CanvasEdge = {
   source: string

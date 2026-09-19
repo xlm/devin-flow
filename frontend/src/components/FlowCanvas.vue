@@ -62,11 +62,16 @@ const { mode, icon, cycleMode } = useTheme()
 let resizeTimer: ReturnType<typeof setTimeout> | undefined
 
 function mapNode(node: NodeRead): Node {
+  const data: Record<string, unknown> = {
+    kind: node.kind,
+    label: nodeLabel(node.kind),
+  }
+  if (node.kind === 'trigger') data.trigger = node.trigger
   return {
     id: node.id,
     type: node.kind,
     position: { ...node.position },
-    data: { kind: node.kind, label: nodeLabel(node.kind) },
+    data,
   }
 }
 
