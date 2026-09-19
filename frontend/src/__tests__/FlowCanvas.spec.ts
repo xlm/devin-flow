@@ -22,7 +22,6 @@ const mocks = vi.hoisted(() => {
     DELETE: vi.fn(),
     screenToFlowCoordinate: vi.fn(),
     removeNodes: vi.fn(),
-    updateNodeInternals: vi.fn(),
     handlers: {} as {
       dragStop?: DragHandler
       nodesChange?: ChangeHandler
@@ -63,7 +62,6 @@ vi.mock('@vue-flow/core', () => ({
     getEdges: mocks.getEdges,
     screenToFlowCoordinate: mocks.screenToFlowCoordinate,
     removeNodes: mocks.removeNodes,
-    updateNodeInternals: mocks.updateNodeInternals,
     onNodeDragStop: (handler: (event: { node: Node }) => void) => {
       mocks.handlers.dragStop = handler
     },
@@ -1848,9 +1846,19 @@ describe('FlowCanvas', () => {
     )
     const isValid = vueFlow(wrapper).props(
       'isValidConnection',
-    ) as (connection: { source: string; target: string }) => boolean
+    ) as (connection: {
+      id?: string
+      source: string
+      target: string
+    }) => boolean
     expect(isValid({ source: 'action', target: 'outcome' })).toBe(true)
     expect(isValid({ source: 'trigger', target: 'action' })).toBe(false)
+    expect(isValid({ id: 'edge', source: 'trigger', target: 'action' })).toBe(
+      true,
+    )
+    expect(isValid({ id: 'other', source: 'trigger', target: 'action' })).toBe(
+      false,
+    )
     expect(isValid({ source: 'missing', target: 'action' })).toBe(false)
     mocks.handlers.connect?.({ source: 'missing', target: 'action' })
     expect(mocks.POST).not.toHaveBeenCalled()
@@ -1937,7 +1945,6 @@ describe('FlowCanvas', () => {
     expect(vueFlow(wrapper).props('edges')).toEqual([
       expect.objectContaining({ id: 'edge', label: '5 invocations' }),
     ])
-    expect(mocks.updateNodeInternals).toHaveBeenCalledTimes(2)
     wrapper.unmount()
   })
 
