@@ -12,5 +12,5 @@ the playbook title (the first heading).
 `DEVIN_API_TOKEN` (a service user with the ManageOrgPlaybooks permission)
 and `DEVIN_ORG_ID`, via the environment or `.env`. It prints
 `created <file>` or `updated <file>` per file and exits non-zero on
-failure. `README.md` is skipped, and a macro already set on a playbook in
-the Devin UI is preserved on update.
+failure. `README.md` is skipped, titles must be unique across files, and
+a macro already set on a playbook in the Devin UI is preserved on update.

@@ -169,6 +169,36 @@ def test_sync_playbooks_skips_readme(tmp_path: Path) -> None:
     client.http.close()
 
 
+def test_sync_playbooks_fails_on_missing_directory(tmp_path: Path) -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={"items": []})
+
+    client = make_client(httpx.MockTransport(handler))
+    with pytest.raises(ValueError, match="playbooks directory not found"):
+        list(sync_playbooks(client, tmp_path / "missing"))
+    assert requests == []
+    client.http.close()
+
+
+def test_sync_playbooks_fails_on_duplicate_titles(tmp_path: Path) -> None:
+    (tmp_path / "a.md").write_text("# Same\n\na\n")
+    (tmp_path / "b.md").write_text("# Same\n\nb\n")
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={"items": []})
+
+    client = make_client(httpx.MockTransport(handler))
+    with pytest.raises(ValueError, match="duplicate playbook title 'Same': a.md, b.md"):
+        list(sync_playbooks(client, tmp_path))
+    assert requests == []
+    client.http.close()
+
+
 def test_sync_playbooks_fails_on_bad_file_before_requests(tmp_path: Path) -> None:
     (tmp_path / "bad.md").write_text("no heading\n")
     requests: list[httpx.Request] = []

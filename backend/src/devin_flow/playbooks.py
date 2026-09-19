@@ -42,11 +42,20 @@ def load_playbook(path: Path) -> PlaybookFile:
 def sync_playbooks(
     client: DevinClient, directory: Path = PLAYBOOKS_DIR
 ) -> Iterator[tuple[Path, str]]:
+    if not directory.is_dir():
+        raise ValueError(f"{directory}: playbooks directory not found")
     files = [
         load_playbook(path)
         for path in sorted(directory.glob("*.md"))
         if path.name.lower() != "readme.md"
     ]
+    by_title: dict[str, list[Path]] = {}
+    for playbook_file in files:
+        by_title.setdefault(playbook_file.title, []).append(playbook_file.path)
+    for title, paths in sorted(by_title.items()):
+        if len(paths) > 1:
+            names = ", ".join(sorted(path.name for path in paths))
+            raise ValueError(f"duplicate playbook title {title!r}: {names}")
     existing = {playbook.title: playbook for playbook in client.list_playbooks()}
     for playbook_file in files:
         current = existing.get(playbook_file.title)
