@@ -262,17 +262,6 @@
       },
       "NodeCreate": {
         "properties": {
-          "enabled": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Enabled"
-          },
           "name": {
             "anyOf": [
               {
