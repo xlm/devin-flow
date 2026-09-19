@@ -52,7 +52,17 @@ def test_list_sessions_proxies_response_and_limit(tmp_path: Path) -> None:
     response = client.get("/api/devin/sessions?limit=4")
     assert response.status_code == 200
     assert response.json() == [
-        {"session_id": "session-1", "status": "running", "title": "Title", "url": None}
+        {
+            "session_id": "session-1",
+            "status": "running",
+            "title": "Title",
+            "url": None,
+            "automation_id": None,
+            "pull_requests": [],
+            "structured_output": None,
+            "created_at": None,
+            "updated_at": None,
+        }
     ]
     upstream.http.close()
 
@@ -158,6 +168,11 @@ def test_create_session_proxies_response(tmp_path: Path) -> None:
         "url": "https://devin.example/session-2",
         "status": "running",
         "title": "Title",
+        "automation_id": None,
+        "pull_requests": [],
+        "structured_output": None,
+        "created_at": None,
+        "updated_at": None,
     }
     upstream.http.close()
 
