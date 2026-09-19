@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from json import loads
 from typing import cast
 from uuid import UUID, uuid4
@@ -16,7 +17,13 @@ from devin_flow.devin.client import (
     AutomationUpdate,
     DevinNotConfiguredError,
 )
-from devin_flow.models import ActionNode, Edge, EventAction, TriggerNode
+from devin_flow.models import (
+    ActionNode,
+    Edge,
+    EventAction,
+    Invocation,
+    TriggerNode,
+)
 
 
 def create_node(client: TestClient, kind: str, x: float = 1, y: float = 2) -> str:
@@ -956,3 +963,32 @@ def test_position_only_action_patch_does_not_sync(
 
 def json_body(request: httpx.Request) -> dict[str, object]:
     return cast(dict[str, object], loads(request.read()))
+
+
+def test_canvas_counts_invocations_per_action(
+    unit_client: TestClient, unit_session: Session
+) -> None:
+    counted_id = UUID(create_node(unit_client, "action"))
+    empty_id = UUID(create_node(unit_client, "action"))
+    now = datetime.now(UTC)
+    for session_id in ["s-1", "s-2"]:
+        unit_session.add(
+            Invocation(
+                session_id=session_id,
+                automation_id="auto-1",
+                action_node_id=counted_id,
+                status="exit",
+                session_created_at=now,
+                session_updated_at=now,
+            )
+        )
+    unit_session.commit()
+    canvas = unit_client.get("/api/canvas").json()
+    counts = {
+        UUID(node["id"]): node["invocation_count"] for node in canvas["action_nodes"]
+    }
+    assert counts == {counted_id: 2, empty_id: 0}
+    created = unit_client.post(
+        "/api/canvas/nodes/action", json={"position": {"x": 0, "y": 0}}
+    )
+    assert created.json()["invocation_count"] == 0

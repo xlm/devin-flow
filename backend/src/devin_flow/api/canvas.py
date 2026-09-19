@@ -5,6 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import AfterValidator, BaseModel, Field, FiniteFloat
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, col, delete, select
 
@@ -33,6 +34,7 @@ from devin_flow.models import (
     ActionNode,
     Edge,
     EventAction,
+    Invocation,
     NodeBase,
     NodeKind,
     OutcomeNode,
@@ -98,6 +100,7 @@ class ActionNodeRead(NodeRead):
     sync_status: SyncStatus
     sync_error: str | None
     automation_id: str | None
+    invocation_count: int = 0
 
 
 class NodeCreate(ActionFieldsBase):
@@ -134,7 +137,9 @@ ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
 }
 
 
-def node_read(node: NodeBase, kind: NodeKind) -> NodeRead | ActionNodeRead:
+def node_read(
+    node: NodeBase, kind: NodeKind, invocation_count: int = 0
+) -> NodeRead | ActionNodeRead:
     fields = {
         "id": node.id,
         "kind": kind,
@@ -150,6 +155,7 @@ def node_read(node: NodeBase, kind: NodeKind) -> NodeRead | ActionNodeRead:
             sync_status=node.sync_status,
             sync_error=node.sync_error,
             automation_id=node.automation_id,
+            invocation_count=invocation_count,
         )
     return NodeRead(
         trigger=(
@@ -211,6 +217,13 @@ def get_node(
 
 @router.get("", response_model=CanvasRead)
 def get_canvas(session: SessionDep) -> CanvasRead:
+    counts = dict(
+        session.exec(
+            select(col(Invocation.action_node_id), func.count()).group_by(
+                col(Invocation.action_node_id)
+            )
+        ).all()
+    )
     nodes = {
         "trigger": [
             node_read(node, "trigger")
@@ -219,7 +232,7 @@ def get_canvas(session: SessionDep) -> CanvasRead:
             ).all()
         ],
         "action": [
-            node_read(node, "action")
+            node_read(node, "action", counts.get(node.id, 0))
             for node in session.exec(
                 select(ActionNode)
                 .where(col(ActionNode.deleted_at).is_(None))
