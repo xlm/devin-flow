@@ -14,6 +14,7 @@ import { outcomeKindLabel } from '@/lib/outcomeKinds'
 const props = defineProps<{
   open: boolean
   nodeId: string | null
+  actionNodeId: string | null
   kind: OutcomeKind | null
 }>()
 const emit = defineEmits<{ 'update:open': [value: boolean] }>()
@@ -36,7 +37,14 @@ async function load() {
   try {
     const { data, error } = await client.GET(
       '/api/outcome-nodes/{node_id}/invocations',
-      { params: { path: { node_id: props.nodeId } } },
+      {
+        params: {
+          path: { node_id: props.nodeId },
+          query: props.actionNodeId
+            ? { action_node_id: props.actionNodeId }
+            : {},
+        },
+      },
     )
     if (current !== generation) return
     if (error || !data) {
@@ -53,7 +61,7 @@ async function load() {
 }
 
 watch(
-  () => [props.open, props.nodeId] as const,
+  () => [props.open, props.nodeId, props.actionNodeId] as const,
   ([open]) => {
     if (open) void load()
   },

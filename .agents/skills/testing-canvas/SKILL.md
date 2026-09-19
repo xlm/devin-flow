@@ -87,14 +87,14 @@ to `FlowCanvas.vue` as unverified until it has run in the real browser.
    Incomplete and zero. After reload, GET `/api/canvas` must contain
    `outcome.kind` values `pull_request`, `duplicate`, null and counts 2/2/0.
    Also verify clearing a kind restores Incomplete and zero.
-3. Click the node body, not its picker, to open the right-side sheet.
-   PR and duplicate sheets each list exactly two matching entries newest
-   first. Verify Session hrefs, PR hrefs and state badges, and Duplicate of
-   hrefs. The both-match row belongs in both lists. The neither row belongs
-   in neither. The unset sheet shows `No invocations yet`.
+3. Click the Action->Outcome edge (or its `N outcomes` label), not the
+   node, to open the right-side sheet. PR and duplicate sheets each list
+   exactly two matching entries newest first. Verify Session hrefs, PR
+   hrefs and state badges, and Duplicate of hrefs. The both-match row
+   belongs in both lists. The neither row belongs in neither. The unset
+   sheet shows `No invocations yet`.
    Relevant selectors: `outcome-invocation`, `outcome-empty`, `outcome-error`,
-   `outcome-retry`. Confirm picker interaction itself does not open the
-   sheet.
+   `outcome-retry`.
 4. Stop only the backend and confirm its port is closed. Change a saved
    picker value: expect rollback, `Could not save`, unchanged Ready state
    and edge count. Open the sheet: expect `Could not load invocations`.
