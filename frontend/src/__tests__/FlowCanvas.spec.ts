@@ -263,6 +263,9 @@ describe('FlowCanvas', () => {
         name: '',
         playbook_id: null,
         prompt: '',
+        enabled: false,
+        sync_status: 'unprovisioned',
+        sync_error: null,
       }),
     )
     const dataTransfer = {
@@ -344,6 +347,9 @@ describe('FlowCanvas', () => {
         name: '',
         playbook_id: null,
         prompt: '',
+        enabled: false,
+        sync_status: 'unprovisioned',
+        sync_error: null,
       }),
     )
     const secondDrop = new Event('drop', {
@@ -498,6 +504,9 @@ describe('FlowCanvas', () => {
         name: '',
         playbook_id: null,
         prompt: '',
+        enabled: false,
+        sync_status: 'unprovisioned',
+        sync_error: null,
       }),
     )
     dispatchDrop()
@@ -576,6 +585,9 @@ describe('FlowCanvas', () => {
               name: '',
               playbook_id: null,
               prompt: '',
+              enabled: false,
+              sync_status: 'unprovisioned',
+              sync_error: null,
             },
           ],
           outcome_nodes: [],
@@ -1230,6 +1242,9 @@ describe('FlowCanvas', () => {
           name: '',
           playbook_id: null,
           prompt: '',
+          enabled: false,
+          sync_status: 'unprovisioned',
+          sync_error: null,
         },
       ],
       outcome_nodes: [],
@@ -1257,6 +1272,9 @@ describe('FlowCanvas', () => {
           name: '',
           playbookId: null,
           prompt: '',
+          enabled: false,
+          syncStatus: 'unprovisioned',
+          syncError: null,
         },
       },
     ])
@@ -1316,6 +1334,9 @@ describe('FlowCanvas', () => {
         name: '',
         playbook_id: null,
         prompt: '',
+        enabled: false,
+        sync_status: 'unprovisioned',
+        sync_error: null,
       }),
     )
     await flushPromises()
@@ -1344,6 +1365,9 @@ describe('FlowCanvas', () => {
           name: '',
           playbook_id: null,
           prompt: '',
+          enabled: false,
+          sync_status: 'unprovisioned',
+          sync_error: null,
         },
       ],
       outcome_nodes: [],
@@ -1394,6 +1418,9 @@ describe('FlowCanvas', () => {
         name: '',
         playbook_id: null,
         prompt: '',
+        enabled: false,
+        sync_status: 'unprovisioned',
+        sync_error: null,
       }),
     )
     await flushPromises()
@@ -1455,6 +1482,9 @@ describe('FlowCanvas', () => {
         name: '',
         playbook_id: null,
         prompt: '',
+        enabled: false,
+        sync_status: 'unprovisioned',
+        sync_error: null,
       }),
     )
     await flushPromises()
@@ -1507,6 +1537,9 @@ describe('FlowCanvas', () => {
           name: '',
           playbook_id: null,
           prompt: '',
+          enabled: false,
+          sync_status: 'unprovisioned',
+          sync_error: null,
         },
       ],
       outcome_nodes: [],
@@ -1539,6 +1572,9 @@ describe('FlowCanvas', () => {
         name: '',
         playbookId: null,
         prompt: '',
+        enabled: false,
+        syncStatus: 'unprovisioned',
+        syncError: null,
       },
     })
     expect(vueFlow(wrapper).props('edges')).toEqual([])

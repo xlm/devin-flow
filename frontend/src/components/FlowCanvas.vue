@@ -84,10 +84,9 @@ function mapNode(node: NodeRead | ActionNodeRead): Node {
     data = {
       ...data,
       ...actionFieldsOf(node),
+      syncStatus: node.sync_status,
+      syncError: node.sync_error,
     }
-    if (!('enabled' in node)) delete data.enabled
-    if ('sync_status' in node) data.syncStatus = node.sync_status
-    if ('sync_error' in node) data.syncError = node.sync_error
   }
   return {
     id: node.id,
