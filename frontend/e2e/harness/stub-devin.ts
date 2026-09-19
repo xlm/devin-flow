@@ -4,18 +4,9 @@ import {
   type ServerResponse,
 } from 'node:http'
 import { URL } from 'node:url'
+import type { components } from '../../src/api/schema.js'
 
-export type StubSession = {
-  session_id: string
-  status: string
-  title?: string | null
-  url?: string | null
-  automation_id?: string | null
-  pull_requests?: Array<{ pr_url: string; pr_state?: string | null }>
-  structured_output?: Record<string, unknown> | null
-  created_at?: number | null
-  updated_at?: number | null
-}
+export type StubSession = components['schemas']['DevinSession']
 
 export type StubCall = {
   method: string
@@ -24,6 +15,7 @@ export type StubCall = {
   body: unknown
 }
 
+// Upstream Devin automation payload, not part of our OpenAPI schema.
 type Automation = {
   automation_id: string
   name: string
@@ -40,6 +32,25 @@ type BackendControls = {
 type StubOptions = {
   dbReset: () => Promise<void>
 }
+
+// Upstream Devin payload; the backend maps it to PlaybookOption.
+type Playbook = {
+  playbook_id: string
+  title: string
+  body: string
+}
+
+const stubPlaybooks: Playbook[] = [
+  {
+    playbook_id: 'pb-triage',
+    title: 'Issue triage',
+    body: 'Triage the issue.',
+  },
+]
+
+const stubRepositories: components['schemas']['Repository'][] = [
+  { repo_path: 'acme/widgets', repo_name: 'widgets' },
+]
 
 function json(response: ServerResponse, status: number, value: unknown): void {
   const payload = JSON.stringify(value)
@@ -176,20 +187,14 @@ export class StubDevin {
 
     if (playbooks.test(url.pathname) && request.method === 'GET') {
       json(response, 200, {
-        items: [
-          {
-            playbook_id: 'pb-triage',
-            title: 'Issue triage',
-            body: 'Triage the issue.',
-          },
-        ],
+        items: stubPlaybooks,
         has_next_page: false,
       })
       return
     }
     if (repositories.test(url.pathname) && request.method === 'GET') {
       json(response, 200, {
-        items: [{ repo_path: 'acme/widgets', repo_name: 'widgets' }],
+        items: stubRepositories,
         has_next_page: false,
       })
       return
