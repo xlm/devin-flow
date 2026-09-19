@@ -4,6 +4,16 @@
   "type": "object",
   "additionalProperties": false,
   "required": ["outcome"],
+  "allOf": [
+    {
+      "if": { "properties": { "outcome": { "const": "duplicate" } } },
+      "then": { "required": ["duplicate_of"] }
+    },
+    {
+      "if": { "properties": { "outcome": { "const": "fixed" } } },
+      "then": { "required": ["pr_url"] }
+    }
+  ],
   "properties": {
     "outcome": {
       "type": "string",
