@@ -171,8 +171,15 @@ describe('ActionInvocationsSheet', () => {
     const wrapper = mountSheet({ actionName: null })
     await flushPromises()
     expect(wrapper.find('h2').text()).toBe('Action invocations')
+    wrapper.unmount()
+  })
+
+  it('falls back to the generic title for an empty action name', async () => {
+    const wrapper = mountSheet({ actionName: '' })
+    await flushPromises()
+    expect(wrapper.find('h2').text()).toBe('Action invocations')
     const item = wrapper.find('[data-testid="action-invocation"]')
-    expect(item.text()).toContain('s-1')
+    expect(item.text()).toContain('Triage session')
     wrapper.unmount()
   })
 

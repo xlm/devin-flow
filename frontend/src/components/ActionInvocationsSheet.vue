@@ -25,7 +25,9 @@ const {
   }),
 )
 
-const title = computed(() => `${props.actionName ?? 'Action'} invocations`)
+const title = computed(
+  () => `${props.actionName?.trim() || 'Action'} invocations`,
+)
 
 function issueLabel(issue: IssueRef): string {
   const parts = [
