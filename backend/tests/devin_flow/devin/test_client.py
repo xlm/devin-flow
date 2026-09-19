@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import httpx
@@ -9,6 +10,8 @@ from devin_flow.devin.client import (
     DevinNotConfiguredError,
     DevinSession,
     DevinUpstreamError,
+    Playbook,
+    PlaybookCreate,
     SessionCreate,
     create_client,
 )
@@ -229,6 +232,187 @@ def test_create_session_rejects_malformed_success(
     client = make_client(httpx.MockTransport(lambda request: response))
     with pytest.raises(DevinUpstreamError) as error:
         client.create_session(SessionCreate(prompt="Build it"))
+    assert error.value.status_code is None
+    assert error.value.detail == "malformed devin response"
+    client.http.close()
+
+
+def test_list_playbooks_follows_cursor() -> None:
+    calls: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        if "after" not in request.url.params:
+            return httpx.Response(
+                200,
+                json={
+                    "items": [
+                        {
+                            "playbook_id": "pb-1",
+                            "title": "One",
+                            "body": "body-1",
+                            "macro": "!one",
+                            "ignored": True,
+                        }
+                    ],
+                    "end_cursor": "cursor-1",
+                    "has_next_page": True,
+                    "total": 2,
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "items": [
+                    {
+                        "playbook_id": "pb-2",
+                        "title": "Two",
+                        "body": "body-2",
+                        "structured_output_schema": {"type": "object"},
+                    }
+                ],
+                "end_cursor": None,
+                "has_next_page": False,
+                "total": 2,
+            },
+        )
+
+    client = make_client(httpx.MockTransport(handler))
+    assert client.list_playbooks() == [
+        Playbook(playbook_id="pb-1", title="One", body="body-1", macro="!one"),
+        Playbook(
+            playbook_id="pb-2",
+            title="Two",
+            body="body-2",
+            structured_output_schema={"type": "object"},
+        ),
+    ]
+    assert "after" not in calls[0].url.params
+    assert calls[0].url.params["first"] == "100"
+    assert calls[1].url.params["after"] == "cursor-1"
+    client.http.close()
+
+
+def test_list_playbooks_treats_missing_has_next_page_as_done() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"items": [{"playbook_id": "pb-1", "title": "One", "body": "b"}]},
+        )
+
+    client = make_client(httpx.MockTransport(handler))
+    assert client.list_playbooks() == [
+        Playbook(playbook_id="pb-1", title="One", body="b")
+    ]
+    client.http.close()
+
+
+def test_create_playbook_posts_payload() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/organizations/org-test/playbooks"
+        assert json.loads(request.read()) == {
+            "title": "Triage",
+            "body": "# Triage\n",
+            "macro": None,
+            "structured_output_schema": {"type": "object"},
+        }
+        return httpx.Response(
+            200,
+            json={
+                "playbook_id": "pb-9",
+                "title": "Triage",
+                "body": "# Triage\n",
+                "structured_output_schema": {"type": "object"},
+                "ignored": True,
+            },
+        )
+
+    client = make_client(httpx.MockTransport(handler))
+    assert client.create_playbook(
+        PlaybookCreate(
+            title="Triage",
+            body="# Triage\n",
+            structured_output_schema={"type": "object"},
+        )
+    ) == Playbook(
+        playbook_id="pb-9",
+        title="Triage",
+        body="# Triage\n",
+        structured_output_schema={"type": "object"},
+    )
+    client.http.close()
+
+
+def test_update_playbook_puts_to_playbook_path() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "PUT"
+        assert request.url.path == "/organizations/org-test/playbooks/pb-9"
+        assert json.loads(request.read())["macro"] == "!triage"
+        return httpx.Response(
+            200,
+            json={"playbook_id": "pb-9", "title": "Triage", "body": "b"},
+        )
+
+    client = make_client(httpx.MockTransport(handler))
+    playbook = client.update_playbook(
+        "pb-9", PlaybookCreate(title="Triage", body="b", macro="!triage")
+    )
+    assert playbook.playbook_id == "pb-9"
+    client.http.close()
+
+
+@pytest.mark.parametrize("status_code", [400, 500])
+def test_list_playbooks_upstream_http_error_includes_status(
+    status_code: int,
+) -> None:
+    client = make_client(
+        httpx.MockTransport(
+            lambda request: httpx.Response(status_code, text="upstream failed")
+        )
+    )
+    with pytest.raises(DevinUpstreamError) as error:
+        client.list_playbooks()
+    assert error.value.status_code == status_code
+    assert error.value.detail == f"devin api returned HTTP {status_code}"
+    client.http.close()
+
+
+def test_create_playbook_upstream_http_error_includes_status() -> None:
+    client = make_client(
+        httpx.MockTransport(lambda request: httpx.Response(500, text="upstream failed"))
+    )
+    with pytest.raises(DevinUpstreamError) as error:
+        client.create_playbook(PlaybookCreate(title="t", body="b"))
+    assert error.value.status_code == 500
+    client.http.close()
+
+
+def test_update_playbook_upstream_http_error_includes_status() -> None:
+    client = make_client(
+        httpx.MockTransport(lambda request: httpx.Response(500, text="upstream failed"))
+    )
+    with pytest.raises(DevinUpstreamError) as error:
+        client.update_playbook("pb-1", PlaybookCreate(title="t", body="b"))
+    assert error.value.status_code == 500
+    client.http.close()
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        httpx.Response(200, text="not json"),
+        httpx.Response(200, json={"unexpected": []}),
+        httpx.Response(200, json={"items": [{}]}),
+        httpx.Response(200, json={"items": [], "has_next_page": True}),
+    ],
+)
+def test_list_playbooks_rejects_malformed_success(
+    response: httpx.Response,
+) -> None:
+    client = make_client(httpx.MockTransport(lambda request: response))
+    with pytest.raises(DevinUpstreamError) as error:
+        client.list_playbooks()
     assert error.value.status_code is None
     assert error.value.detail == "malformed devin response"
     client.http.close()

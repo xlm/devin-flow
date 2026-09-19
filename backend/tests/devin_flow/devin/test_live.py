@@ -15,3 +15,7 @@ pytestmark = [
 
 def test_live_list_sessions() -> None:
     get_devin_client().list_sessions(limit=1)
+
+
+def test_live_list_playbooks() -> None:
+    get_devin_client().list_playbooks()
