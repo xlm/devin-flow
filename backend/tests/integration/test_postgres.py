@@ -29,7 +29,9 @@ def test_canvas_tables_exist(postgres_engine: Engine) -> None:
         "action_node",
         "alembic_version",
         "edge",
+        "invocation",
         "outcome_node",
+        "poller_state",
         "trigger_node",
     ]
     action_columns = {column["name"] for column in inspector.get_columns("action_node")}
