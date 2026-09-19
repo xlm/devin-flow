@@ -22,9 +22,13 @@ ALEMBIC_INI = BACKEND_DIR / "alembic.ini"
 
 
 @pytest.fixture(autouse=True)
-def devin_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    monkeypatch.setenv("DEVIN_API_TOKEN", "test-token")
-    monkeypatch.setenv("DEVIN_ORG_ID", "org-test")
+def devin_env(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[None]:
+    # live tests use the real credentials from the environment
+    if request.node.get_closest_marker("live") is None:
+        monkeypatch.setenv("DEVIN_API_TOKEN", "test-token")
+        monkeypatch.setenv("DEVIN_ORG_ID", "org-test")
     get_settings.cache_clear()
     get_devin_client.cache_clear()
     yield
