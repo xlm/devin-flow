@@ -156,7 +156,6 @@ onMounted(() => void loadRepositories())
           placeholder="owner/repo"
           class="nodrag rounded-md border bg-background px-2 py-1 text-xs"
           @change="saveRepositoryInput"
-          @blur="saveRepositoryInput"
         />
         <span
           v-if="repositoryInvalid"
