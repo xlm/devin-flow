@@ -574,7 +574,9 @@ def test_delete_node_cascades_edges_as_source_and_target(
     assert (
         unit_client.delete(f"/api/canvas/nodes/action/{action_id}").status_code == 204
     )
-    assert unit_client.get("/api/canvas").json()["edges"] == []
+    canvas = unit_client.get("/api/canvas").json()
+    assert canvas["edges"] == []
+    assert [node["id"] for node in canvas["action_nodes"]] == []
 
 
 def test_create_edges_returns_full_shape(unit_client: TestClient) -> None:
@@ -803,10 +805,28 @@ def test_edge_delete_disables_connected_action(
     mock_devin: tuple[DevinClient, list[httpx.Request]],
 ) -> None:
     _, action, edge = add_flow(unit_session, enabled=True, automation_id="auto-1")
+    now = datetime.now(UTC)
+    unit_session.add(
+        Invocation(
+            session_id="s-1",
+            automation_id="auto-1",
+            action_node_id=action.id,
+            status="exit",
+            session_created_at=now,
+            session_updated_at=now,
+        )
+    )
+    unit_session.commit()
     response = unit_client.delete(f"/api/canvas/edges/{edge.id}")
     assert response.status_code == 204
     assert action.id
     assert json_body(mock_devin[1][0]) == {"enabled": False}
+    stored = unit_session.get(ActionNode, action.id)
+    assert stored is not None
+    assert stored.automation_id == "auto-1"
+    assert stored.enabled is True
+    assert stored.sync_status == "disabled"
+    assert unit_session.exec(select(Invocation)).one().session_id == "s-1"
 
 
 def test_trigger_delete_disables_connected_action(
@@ -819,10 +839,27 @@ def test_trigger_delete_disables_connected_action(
         enabled=True,
         automation_id="auto-1",
     )
+    now = datetime.now(UTC)
+    unit_session.add(
+        Invocation(
+            session_id="s-1",
+            automation_id="auto-1",
+            action_node_id=action.id,
+            status="exit",
+            session_created_at=now,
+            session_updated_at=now,
+        )
+    )
+    unit_session.commit()
     response = unit_client.delete(f"/api/canvas/nodes/trigger/{trigger.id}")
     assert response.status_code == 204
-    assert unit_session.get(ActionNode, action.id) is not None
+    stored = unit_session.get(ActionNode, action.id)
+    assert stored is not None
+    assert stored.automation_id == "auto-1"
+    assert stored.enabled is True
+    assert stored.sync_status == "disabled"
     assert json_body(mock_devin[1][0]) == {"enabled": False}
+    assert unit_session.exec(select(Invocation)).one().session_id == "s-1"
 
 
 def test_action_delete_tombstones_on_upstream_failure(
@@ -1114,3 +1151,91 @@ def test_canvas_edges_report_outcome_counts(
     assert by_target[str(unset_outcome.id)]["outcome_count"] == 0
     assert by_target[str(action_id)]["outcome_count"] is None
     assert {e["id"] for e in canvas_edges} >= {e["id"] for e in edges.values()}
+
+
+def test_reconnect_same_trigger_patches_existing_automation(
+    unit_client: TestClient,
+    unit_session: Session,
+    mock_devin: tuple[DevinClient, list[httpx.Request]],
+) -> None:
+    _, calls = mock_devin
+    trigger, action, edge = add_flow(unit_session, enabled=True, automation_id="auto-1")
+    assert unit_client.delete(f"/api/canvas/edges/{edge.id}").status_code == 204
+    response = create_edge(
+        unit_client, str(trigger.id), "trigger", str(action.id), "action"
+    )
+    assert response.status_code == 201
+    assert [call.method for call in calls] == ["PATCH", "PATCH"]
+    assert json_body(calls[0]) == {"enabled": False}
+    assert json_body(calls[1])["enabled"] is True
+    stored = unit_session.get(ActionNode, action.id)
+    assert stored is not None
+    assert stored.automation_id == "auto-1"
+    assert stored.enabled is True
+    assert stored.sync_status == "enabled"
+
+
+def test_reconnect_different_trigger_patches_new_conditions(
+    unit_client: TestClient,
+    unit_session: Session,
+    mock_devin: tuple[DevinClient, list[httpx.Request]],
+) -> None:
+    _, calls = mock_devin
+    _, action, edge = add_flow(unit_session, enabled=True, automation_id="auto-1")
+    assert unit_client.delete(f"/api/canvas/edges/{edge.id}").status_code == 204
+    other = TriggerNode(
+        position_x=5,
+        position_y=6,
+        event_action="opened",
+        repository_full_name="other/repo",
+    )
+    unit_session.add(other)
+    unit_session.commit()
+    response = create_edge(
+        unit_client, str(other.id), "trigger", str(action.id), "action"
+    )
+    assert response.status_code == 201
+    assert [call.method for call in calls] == ["PATCH", "PATCH"]
+    body = json_body(calls[1])
+    assert "other/repo" in cast(str, body["name"])
+    triggers = cast(list[dict[str, object]], body["triggers"])
+    conditions = cast(
+        dict[str, list[dict[str, list[dict[str, str]]]]],
+        triggers[0]["conditions"],
+    )
+    assert {c["field"]: c["value"] for c in conditions["any"][0]["all"]} == {
+        "action": "opened",
+        "repository.full_name": "other/repo",
+    }
+    stored = unit_session.get(ActionNode, action.id)
+    assert stored is not None
+    assert stored.automation_id == "auto-1"
+
+
+def test_edit_marks_pending_before_sync(
+    unit_client: TestClient,
+    unit_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    trigger, action, _ = add_flow(unit_session, enabled=True, automation_id="auto-1")
+    statuses: list[str] = []
+
+    def spy(session: Session, _client: DevinClient, action_id: UUID) -> None:
+        node = session.get(ActionNode, action_id)
+        statuses.append(node.sync_status if node is not None else "missing")
+
+    monkeypatch.setattr(canvas_api, "sync_action", spy)
+    assert (
+        unit_client.patch(
+            f"/api/canvas/nodes/action/{action.id}", json={"prompt": "New"}
+        ).status_code
+        == 200
+    )
+    assert (
+        unit_client.patch(
+            f"/api/canvas/nodes/trigger/{trigger.id}",
+            json={"trigger": {"event_action": "closed"}},
+        ).status_code
+        == 200
+    )
+    assert statuses == ["pending", "pending"]

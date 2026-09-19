@@ -1,7 +1,9 @@
+import logging
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from devin_flow.devin import DevinClient
 from devin_flow.devin.client import (
@@ -19,6 +21,8 @@ from devin_flow.devin.client import (
 from devin_flow.models import ActionNode, Edge, TriggerNode
 
 METADATA_KEY = "devin_flow_action_id"
+
+logger = logging.getLogger(__name__)
 
 
 def is_trigger_complete(trigger: TriggerNode) -> bool:
@@ -39,7 +43,12 @@ def connected_trigger(session: Session, action_id: UUID) -> TriggerNode | None:
             Edge.source_kind == "trigger",
         )
     ).first()
-    return None if edge is None else session.get(TriggerNode, edge.source_id)
+    return (
+        None
+        if edge is None
+        # may be cached by an earlier query, so refresh like the Action lock
+        else session.get(TriggerNode, edge.source_id, populate_existing=True)
+    )
 
 
 def connected_action(session: Session, trigger_id: UUID) -> ActionNode | None:
@@ -117,7 +126,12 @@ def mark_pending(action: ActionNode) -> None:
 
 def sync_action(session: Session, client: DevinClient, action_id: UUID) -> None:
     action = session.exec(
-        select(ActionNode).where(ActionNode.id == action_id).with_for_update()
+        select(ActionNode)
+        .where(ActionNode.id == action_id)
+        .with_for_update()
+        # the lock must also refresh fields cached by an earlier query,
+        # e.g. actions_to_sync
+        .execution_options(populate_existing=True)
     ).first()
     if action is None:
         return
@@ -172,3 +186,42 @@ def sync_action(session: Session, client: DevinClient, action_id: UUID) -> None:
     finally:
         session.add(action)
         session.commit()
+
+
+def actions_to_sync(session: Session) -> Sequence[ActionNode]:
+    # tombstoned Actions are retried only while an Automation still needs
+    # disabling
+    return session.exec(
+        select(ActionNode)
+        .where(
+            col(ActionNode.sync_status).in_(["pending", "error"]),
+            (col(ActionNode.deleted_at).is_(None))
+            | (col(ActionNode.automation_id).is_not(None)),
+        )
+        .order_by(col(ActionNode.updated_at))
+    ).all()
+
+
+def retry_syncs(session: Session, client: DevinClient) -> int:
+    # one attempt per Action per cycle; one failure must not stop the rest
+    ids = [action.id for action in actions_to_sync(session)]
+    synced = 0
+    for action_id in ids:
+        try:
+            # re-read under the row lock: an overlapping cycle may have
+            # settled it
+            action = session.exec(
+                select(ActionNode)
+                .where(ActionNode.id == action_id)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            ).first()
+            if action is None or action.sync_status not in ("pending", "error"):
+                session.rollback()
+                continue
+            sync_action(session, client, action_id)
+            synced += 1
+        except Exception:
+            logger.exception("sync of action %s failed", action_id)
+            session.rollback()
+    return synced
