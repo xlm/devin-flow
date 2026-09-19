@@ -36,6 +36,9 @@ class TriggerNode(NodeBase, table=True):
 
 class ActionNode(NodeBase, table=True):
     __tablename__ = "action_node"
+    name: str = ""
+    playbook_id: str | None = None
+    extra_instructions: str = ""
     automation_id: str | None = None
     sync_status: str = "unprovisioned"
     sync_error: str | None = None

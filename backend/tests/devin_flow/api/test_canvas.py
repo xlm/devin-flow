@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi.testclient import TestClient
 from httpx import Response
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from devin_flow.api import canvas as canvas_api
 from devin_flow.models import ActionNode, Edge, EventAction
@@ -241,6 +241,161 @@ def test_event_action_validation_returns_422(unit_client: TestClient) -> None:
     assert response.status_code == 422
 
 
+def test_create_action_node_persists_and_returns_fields(
+    unit_client: TestClient,
+) -> None:
+    response = unit_client.post(
+        "/api/canvas/nodes/action",
+        json={
+            "position": {"x": 1, "y": 2},
+            "name": "Triage",
+            "playbook_id": "pb-1",
+            "extra_instructions": "Use the repository context",
+        },
+    )
+    assert response.status_code == 201
+    assert response.json()["name"] == "Triage"
+    assert response.json()["playbook_id"] == "pb-1"
+    assert response.json()["extra_instructions"] == "Use the repository context"
+
+
+def test_create_action_node_defaults_fields(unit_client: TestClient) -> None:
+    response = unit_client.post(
+        "/api/canvas/nodes/action",
+        json={"position": {"x": 1, "y": 2}},
+    )
+    assert response.status_code == 201
+    assert response.json()["name"] == ""
+    assert response.json()["playbook_id"] is None
+    assert response.json()["extra_instructions"] == ""
+
+
+def test_canvas_action_nodes_include_fields_but_other_nodes_do_not(
+    unit_client: TestClient,
+) -> None:
+    action_id = create_node(unit_client, "action")
+    trigger_id = create_node(unit_client, "trigger")
+    outcome_id = create_node(unit_client, "outcome")
+    canvas = unit_client.get("/api/canvas").json()
+    assert set(canvas["action_nodes"][0]) >= {
+        "id",
+        "kind",
+        "position",
+        "name",
+        "playbook_id",
+        "extra_instructions",
+    }
+    assert action_id == canvas["action_nodes"][0]["id"]
+    assert "name" not in canvas["trigger_nodes"][0]
+    assert "name" not in canvas["outcome_nodes"][0]
+    assert {trigger_id, outcome_id} == {
+        canvas["trigger_nodes"][0]["id"],
+        canvas["outcome_nodes"][0]["id"],
+    }
+
+
+def test_action_patch_preserves_omitted_fields_and_clears_null(
+    unit_client: TestClient,
+) -> None:
+    response = unit_client.post(
+        "/api/canvas/nodes/action",
+        json={
+            "position": {"x": 1, "y": 2},
+            "name": "Triage",
+            "playbook_id": "pb-1",
+            "extra_instructions": "Keep this",
+        },
+    )
+    node_id = response.json()["id"]
+    response = unit_client.patch(
+        f"/api/canvas/nodes/action/{node_id}", json={"name": "Updated"}
+    )
+    assert response.status_code == 200
+    assert response.json()["name"] == "Updated"
+    assert response.json()["playbook_id"] == "pb-1"
+    assert response.json()["extra_instructions"] == "Keep this"
+    response = unit_client.patch(
+        f"/api/canvas/nodes/action/{node_id}", json={"name": None}
+    )
+    assert response.status_code == 200
+    assert response.json()["name"] == ""
+    response = unit_client.patch(
+        f"/api/canvas/nodes/action/{node_id}",
+        json={"extra_instructions": None},
+    )
+    assert response.status_code == 200
+    assert response.json()["extra_instructions"] == ""
+    response = unit_client.patch(
+        f"/api/canvas/nodes/action/{node_id}", json={"playbook_id": None}
+    )
+    assert response.status_code == 200
+    assert response.json()["playbook_id"] is None
+
+
+def test_action_patch_without_position_updates_fields_and_timestamp(
+    unit_client: TestClient, unit_session: Session
+) -> None:
+    node_id = create_node(unit_client, "action")
+    before = (
+        unit_session.exec(select(ActionNode).where(ActionNode.id == UUID(node_id)))
+        .one()
+        .updated_at
+    )
+    response = unit_client.patch(
+        f"/api/canvas/nodes/action/{node_id}",
+        json={"name": "Updated", "extra_instructions": "Notes"},
+    )
+    assert response.status_code == 200
+    assert response.json()["position"] == {"x": 1, "y": 2}
+    assert response.json()["name"] == "Updated"
+    after = (
+        unit_session.exec(select(ActionNode).where(ActionNode.id == UUID(node_id)))
+        .one()
+        .updated_at
+    )
+    assert after >= before
+
+
+def test_action_fields_on_trigger_are_rejected(unit_client: TestClient) -> None:
+    node_id = create_node(unit_client, "trigger")
+    response = unit_client.patch(
+        f"/api/canvas/nodes/trigger/{node_id}", json={"name": "Not allowed"}
+    )
+    assert response.status_code == 422
+    assert (
+        response.json()["detail"]
+        == "only action nodes have name, playbook_id and extra_instructions"
+    )
+
+
+def test_position_only_patch_on_trigger_still_works(unit_client: TestClient) -> None:
+    node_id = create_node(unit_client, "trigger")
+    response = unit_client.patch(
+        f"/api/canvas/nodes/trigger/{node_id}",
+        json={"position": {"x": 4, "y": 5}},
+    )
+    assert response.status_code == 200
+    assert response.json()["position"] == {"x": 4, "y": 5}
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("playbook_id", ""),
+        ("name", "x" * 201),
+        ("extra_instructions", "x" * 20_001),
+    ],
+)
+def test_action_field_validation(
+    unit_client: TestClient, field: str, value: str
+) -> None:
+    response = unit_client.post(
+        "/api/canvas/nodes/action",
+        json={"position": {"x": 1, "y": 2}, field: value},
+    )
+    assert response.status_code == 422
+
+
 def test_action_node_defaults_sync_status(unit_session: Session) -> None:
     node = ActionNode(position_x=1, position_y=2)
     unit_session.add(node)
@@ -260,7 +415,7 @@ def test_unknown_node_kind_is_unprocessable(unit_client: TestClient) -> None:
     )
 
 
-def test_move_node_updates_position(unit_client: TestClient) -> None:
+def test_update_node_updates_position(unit_client: TestClient) -> None:
     node_id = create_node(unit_client, "trigger")
     response = unit_client.patch(
         f"/api/canvas/nodes/trigger/{node_id}",
@@ -280,7 +435,7 @@ def test_non_finite_create_position_is_rejected(unit_client: TestClient) -> None
     assert unit_client.get("/api/canvas").json()["trigger_nodes"] == []
 
 
-def test_non_finite_move_position_is_rejected(unit_client: TestClient) -> None:
+def test_non_finite_update_position_is_rejected(unit_client: TestClient) -> None:
     node_id = create_node(unit_client, "trigger")
     response = unit_client.patch(
         f"/api/canvas/nodes/trigger/{node_id}",
@@ -294,7 +449,7 @@ def test_non_finite_move_position_is_rejected(unit_client: TestClient) -> None:
     }
 
 
-def test_move_and_delete_missing_or_wrong_kind_are_not_found(
+def test_update_and_delete_missing_or_wrong_kind_are_not_found(
     unit_client: TestClient,
 ) -> None:
     node_id = create_node(unit_client, "trigger")

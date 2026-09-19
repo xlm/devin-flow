@@ -4,7 +4,7 @@ from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response
-from pydantic import AfterValidator, BaseModel, FiniteFloat
+from pydantic import AfterValidator, BaseModel, Field, FiniteFloat
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, col, delete, select
 
@@ -18,6 +18,7 @@ from devin_flow.canvas import (
 from devin_flow.db import get_session
 from devin_flow.models import (
     NODE_MODELS,
+    ActionNode,
     Edge,
     EventAction,
     NodeBase,
@@ -65,12 +66,24 @@ class NodeRead(BaseModel):
     trigger: TriggerRead | None = None
 
 
-class NodeCreate(BaseModel):
+class ActionFields(BaseModel):
+    name: str | None = Field(default=None, max_length=200)
+    playbook_id: str | None = Field(default=None, min_length=1, max_length=200)
+    extra_instructions: str | None = Field(default=None, max_length=20_000)
+
+
+class ActionNodeRead(NodeRead):
+    name: str
+    playbook_id: str | None
+    extra_instructions: str
+
+
+class NodeCreate(ActionFields):
     position: Position
     trigger: TriggerUpdate | None = None
 
 
-class NodeUpdate(BaseModel):
+class NodeUpdate(ActionFields):
     position: Position | None = None
     trigger: TriggerUpdate | None = None
 
@@ -88,7 +101,7 @@ class EdgeCreate(BaseModel):
 
 class CanvasRead(BaseModel):
     trigger_nodes: list[NodeRead]
-    action_nodes: list[NodeRead]
+    action_nodes: list[ActionNodeRead]
     outcome_nodes: list[NodeRead]
     edges: list[EdgeRead]
 
@@ -99,11 +112,20 @@ ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
 }
 
 
-def node_read(node: NodeBase, kind: NodeKind) -> NodeRead:
+def node_read(node: NodeBase, kind: NodeKind) -> NodeRead | ActionNodeRead:
+    fields = {
+        "id": node.id,
+        "kind": kind,
+        "position": Position(x=node.position_x, y=node.position_y),
+    }
+    if isinstance(node, ActionNode):
+        return ActionNodeRead(
+            **fields,
+            name=node.name,
+            playbook_id=node.playbook_id,
+            extra_instructions=node.extra_instructions,
+        )
     return NodeRead(
-        id=node.id,
-        kind=kind,
-        position=Position(x=node.position_x, y=node.position_y),
         trigger=(
             TriggerRead(
                 event_action=node.event_action,
@@ -112,7 +134,29 @@ def node_read(node: NodeBase, kind: NodeKind) -> NodeRead:
             if isinstance(node, TriggerNode)
             else None
         ),
+        **fields,
     )
+
+
+def apply_action_fields(node: NodeBase, payload: ActionFields) -> None:
+    fields = payload.model_fields_set & {
+        "name",
+        "playbook_id",
+        "extra_instructions",
+    }
+    if not fields:
+        return
+    if not isinstance(node, ActionNode):
+        raise HTTPException(
+            422,
+            "only action nodes have name, playbook_id and extra_instructions",
+        )
+    if "name" in fields:
+        node.name = payload.name or ""
+    if "playbook_id" in fields:
+        node.playbook_id = payload.playbook_id
+    if "extra_instructions" in fields:
+        node.extra_instructions = payload.extra_instructions or ""
 
 
 def edge_read(edge: Edge) -> EdgeRead:
@@ -151,11 +195,13 @@ def get_canvas(session: SessionDep) -> CanvasRead:
 
 @router.post(
     "/nodes/{kind}",
-    response_model=NodeRead,
+    response_model=ActionNodeRead | NodeRead,
     status_code=201,
     responses=ERROR_RESPONSES,
 )
-def create_node(kind: NodeKind, payload: NodeCreate, session: SessionDep) -> NodeRead:
+def create_node(
+    kind: NodeKind, payload: NodeCreate, session: SessionDep
+) -> NodeRead | ActionNodeRead:
     if payload.trigger is not None and kind != "trigger":
         raise HTTPException(422, "trigger fields apply only to trigger nodes")
     node = NODE_MODELS[kind](
@@ -170,6 +216,7 @@ def create_node(kind: NodeKind, payload: NodeCreate, session: SessionDep) -> Nod
             else {}
         ),
     )
+    apply_action_fields(node, payload)
     session.add(node)
     session.commit()
     session.refresh(node)
@@ -178,12 +225,12 @@ def create_node(kind: NodeKind, payload: NodeCreate, session: SessionDep) -> Nod
 
 @router.patch(
     "/nodes/{kind}/{node_id}",
-    response_model=NodeRead,
+    response_model=ActionNodeRead | NodeRead,
     responses=ERROR_RESPONSES,
 )
 def update_node(
     kind: NodeKind, node_id: UUID, payload: NodeUpdate, session: SessionDep
-) -> NodeRead:
+) -> NodeRead | ActionNodeRead:
     node = get_node(session, kind, node_id)
     if node is None:
         raise HTTPException(404, "node not found")
@@ -198,6 +245,7 @@ def update_node(
             node.event_action = payload.trigger.event_action
         if "repository_full_name" in fields_set:
             node.repository_full_name = payload.trigger.repository_full_name
+    apply_action_fields(node, payload)
     node.updated_at = datetime.now(UTC)
     session.add(node)
     session.commit()
