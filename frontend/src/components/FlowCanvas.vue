@@ -13,6 +13,7 @@ import {
 import { Background } from '@vue-flow/background'
 import { ControlButton, Controls } from '@vue-flow/controls'
 import { MiniMap } from '@vue-flow/minimap'
+import { RefreshCw } from '@lucide/vue'
 import { client } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import NodePalette from '@/components/NodePalette.vue'
@@ -49,6 +50,7 @@ const nodes = ref<Node[]>([])
 const edges = ref<Edge[]>([])
 const loadError = ref(false)
 const loading = ref(false)
+const refreshing = ref(false)
 const creationBlocked = computed(() => loading.value || loadError.value)
 const nodeSnapshots = new Map<string, Node>()
 const edgeSnapshots = new Map<string, Edge>()
@@ -86,6 +88,7 @@ function mapNode(node: NodeRead | ActionNodeRead): Node {
       ...actionFieldsOf(node),
       syncStatus: node.sync_status,
       syncError: node.sync_error,
+      invocationCount: node.invocation_count,
     }
   }
   return {
@@ -96,13 +99,25 @@ function mapNode(node: NodeRead | ActionNodeRead): Node {
   }
 }
 
-function mapEdge(edge: EdgeRead): Edge {
-  return {
+function invocationLabel(count: number): string {
+  return `${count} ${count === 1 ? 'invocation' : 'invocations'}`
+}
+
+function mapEdge(edge: EdgeRead, counts: Map<string, number>): Edge {
+  const mapped: Edge = {
     id: edge.id,
     source: edge.source.id,
     target: edge.target.id,
     data: { sourceKind: edge.source.kind, targetKind: edge.target.kind },
   }
+  if (edge.target.kind === 'action') {
+    mapped.label = invocationLabel(counts.get(edge.target.id) ?? 0)
+  }
+  return mapped
+}
+
+function invocationCounts(actions: ActionNodeRead[]): Map<string, number> {
+  return new Map(actions.map((action) => [action.id, action.invocation_count]))
 }
 
 function copyNode(node: Node): Node {
@@ -135,7 +150,8 @@ async function fetchCanvas() {
       ...data.action_nodes,
       ...data.outcome_nodes,
     ].map(mapNode)
-    const loadedEdges = data.edges.map(mapEdge)
+    const counts = invocationCounts(data.action_nodes)
+    const loadedEdges = data.edges.map((edge) => mapEdge(edge, counts))
     nodes.value = loadedNodes
     edges.value = loadedEdges
     loadedNodes.forEach((node) => nodeSnapshots.set(node.id, copyNode(node)))
@@ -322,6 +338,7 @@ async function refreshSyncState() {
         syncStatus: action.sync_status,
         syncError: action.sync_error,
       })
+      const count = action.invocation_count
       const current = findNode(action.id)
       if (current) {
         current.data = {
@@ -329,6 +346,7 @@ async function refreshSyncState() {
           enabled: action.enabled,
           syncStatus: sync.status,
           syncError: sync.error,
+          invocationCount: count,
         }
       }
       const snapshot = nodeSnapshots.get(action.id)
@@ -338,8 +356,14 @@ async function refreshSyncState() {
           enabled: action.enabled,
           syncStatus: sync.status,
           syncError: sync.error,
+          invocationCount: count,
         }
       }
+      getEdges.value
+        .filter((edge) => edge.target === action.id)
+        .forEach((edge) => {
+          edge.label = invocationLabel(count)
+        })
     })
   } catch {
     return
@@ -458,7 +482,8 @@ async function saveConnection(connection: Connection) {
       body: refs,
     })
     if (data) {
-      const edge = mapEdge(data)
+      // refreshSyncState below fills in the real invocation count
+      const edge = mapEdge(data, new Map())
       edgeSnapshots.set(edge.id, copyEdge(edge))
       addEdges([edge])
       await refreshSyncState()
@@ -466,6 +491,18 @@ async function saveConnection(connection: Connection) {
   } catch {
     // The edge was never added locally, so there is nothing to revert.
   }
+}
+
+async function refreshInvocations() {
+  refreshing.value = true
+  try {
+    await client.POST('/api/invocations/refresh')
+  } catch {
+    // A failed refresh still reloads so the canvas shows what is stored.
+  } finally {
+    refreshing.value = false
+  }
+  await loadCanvas()
 }
 
 async function createNode(kind: NodeKind, position: Position) {
@@ -586,6 +623,15 @@ onUnmounted(() => {
             @click="cycleMode"
           >
             <component :is="icon" />
+          </ControlButton>
+          <ControlButton
+            title="Refresh invocations"
+            aria-label="Refresh invocations"
+            data-testid="refresh-invocations"
+            :disabled="refreshing"
+            @click="refreshInvocations"
+          >
+            <RefreshCw />
           </ControlButton>
         </Controls>
         <MiniMap

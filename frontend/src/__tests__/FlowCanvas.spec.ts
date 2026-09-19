@@ -130,6 +130,8 @@ const canvas = {
       enabled: false,
       sync_status: 'unprovisioned',
       sync_error: null,
+      automation_id: null,
+      invocation_count: 2,
     },
   ],
   outcome_nodes: [{ id: 'outcome', kind: 'outcome', position: { x: 5, y: 6 } }],
@@ -230,6 +232,7 @@ describe('FlowCanvas', () => {
           enabled: false,
           syncStatus: 'unprovisioned',
           syncError: null,
+          invocationCount: 2,
         },
       },
       {
@@ -245,6 +248,7 @@ describe('FlowCanvas', () => {
         source: 'trigger',
         target: 'action',
         data: { sourceKind: 'trigger', targetKind: 'action' },
+        label: '2 invocations',
       },
     ])
     expect(wrapper.find('[data-testid="load-error"]').exists()).toBe(false)
@@ -927,6 +931,7 @@ describe('FlowCanvas', () => {
       enabled: true,
       syncStatus: 'enabled',
       syncError: null,
+      invocationCount: 2,
     })
     expect(mocks.PATCH).toHaveBeenLastCalledWith(
       '/api/canvas/nodes/{kind}/{node_id}',
@@ -1245,6 +1250,7 @@ describe('FlowCanvas', () => {
           enabled: false,
           sync_status: 'unprovisioned',
           sync_error: null,
+          invocation_count: 2,
         },
       ],
       outcome_nodes: [],
@@ -1275,6 +1281,7 @@ describe('FlowCanvas', () => {
           enabled: false,
           syncStatus: 'unprovisioned',
           syncError: null,
+          invocationCount: 2,
         },
       },
     ])
@@ -1411,6 +1418,7 @@ describe('FlowCanvas', () => {
           enabled: false,
           sync_status: 'unprovisioned',
           sync_error: null,
+          invocation_count: 2,
         },
       ],
       outcome_nodes: [],
@@ -1583,6 +1591,7 @@ describe('FlowCanvas', () => {
           enabled: false,
           sync_status: 'unprovisioned',
           sync_error: null,
+          invocation_count: 2,
         },
       ],
       outcome_nodes: [],
@@ -1618,6 +1627,7 @@ describe('FlowCanvas', () => {
         enabled: false,
         syncStatus: 'unprovisioned',
         syncError: null,
+        invocationCount: 2,
       },
     })
     expect(vueFlow(wrapper).props('edges')).toEqual([])
@@ -1869,6 +1879,89 @@ describe('FlowCanvas', () => {
       'isValidConnection',
     ) as (connection: { source: string; target: string }) => boolean
     expect(isValid({ source: 'action', target: 'outcome' })).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('labels Trigger to Action edges with the invocation count', async () => {
+    mocks.GET.mockResolvedValueOnce(
+      response({
+        ...canvas,
+        action_nodes: [{ ...canvas.action_nodes[0], invocation_count: 1 }],
+        edges: [
+          ...canvas.edges,
+          {
+            id: 'action-outcome',
+            source: { id: 'action', kind: 'action' },
+            target: { id: 'outcome', kind: 'outcome' },
+          },
+        ],
+      }),
+    )
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    expect(vueFlow(wrapper).props('edges')).toEqual([
+      expect.objectContaining({ id: 'edge', label: '1 invocation' }),
+      expect.not.objectContaining({ label: expect.anything() }),
+    ])
+    wrapper.unmount()
+  })
+
+  it('refreshes invocations on demand and reloads the canvas', async () => {
+    mocks.GET.mockResolvedValueOnce(response(canvas)).mockResolvedValueOnce(
+      response({
+        ...canvas,
+        action_nodes: [{ ...canvas.action_nodes[0], invocation_count: 5 }],
+      }),
+    )
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    const button = wrapper.find('[data-testid="refresh-invocations"]')
+    expect(button.attributes('title')).toBe('Refresh invocations')
+    let finish: (value: unknown) => void = () => {}
+    mocks.POST.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve
+      }),
+    )
+    await button.trigger('click')
+    expect(button.attributes('disabled')).toBeDefined()
+    await button.trigger('click')
+    finish(response({ listed: 1, upserted: 1, refreshed: 0 }))
+    await flushPromises()
+    expect(button.attributes('disabled')).toBeUndefined()
+    expect(mocks.POST).toHaveBeenCalledTimes(1)
+    expect(mocks.POST).toHaveBeenCalledWith('/api/invocations/refresh')
+    expect(mocks.GET).toHaveBeenCalledTimes(2)
+    expect(vueFlow(wrapper).props('edges')).toEqual([
+      expect.objectContaining({ id: 'edge', label: '5 invocations' }),
+    ])
+    wrapper.unmount()
+  })
+
+  it('reloads the canvas even when the refresh request fails', async () => {
+    mocks.POST.mockRejectedValueOnce(new Error('refresh failed'))
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    await wrapper.find('[data-testid="refresh-invocations"]').trigger('click')
+    await flushPromises()
+    expect(mocks.GET).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
+  it('updates edge labels when Action sync state is refreshed', async () => {
+    mocks.GET.mockResolvedValueOnce(response(canvas)).mockResolvedValueOnce(
+      response({
+        ...canvas,
+        action_nodes: [{ ...canvas.action_nodes[0], invocation_count: 3 }],
+      }),
+    )
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    mocks.handlers.nodesChange?.([{ type: 'remove', id: 'trigger' }])
+    await flushPromises()
+    expect(mocks.getEdges.value).toEqual([
+      expect.objectContaining({ id: 'edge', label: '3 invocations' }),
+    ])
     wrapper.unmount()
   })
 

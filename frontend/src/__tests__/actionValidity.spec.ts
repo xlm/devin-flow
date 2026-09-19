@@ -50,6 +50,7 @@ describe('action validity', () => {
         sync_status: 'enabled',
         sync_error: null,
         automation_id: null,
+        invocation_count: 0,
       }),
     ).toEqual({
       name: 'Triage',

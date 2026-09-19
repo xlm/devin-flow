@@ -23,6 +23,11 @@
             "title": "Id",
             "type": "string"
           },
+          "invocation_count": {
+            "default": 0,
+            "title": "Invocation Count",
+            "type": "integer"
+          },
           "kind": {
             "enum": [
               "trigger",
@@ -144,6 +149,36 @@
       },
       "DevinSession": {
         "properties": {
+          "automation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Automation Id"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "pull_requests": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/SessionPullRequest"
+            },
+            "title": "Pull Requests",
+            "type": "array"
+          },
           "session_id": {
             "title": "Session Id",
             "type": "string"
@@ -151,6 +186,18 @@
           "status": {
             "title": "Status",
             "type": "string"
+          },
+          "structured_output": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structured Output"
           },
           "title": {
             "anyOf": [
@@ -162,6 +209,17 @@
               }
             ],
             "title": "Title"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
           },
           "url": {
             "anyOf": [
@@ -473,6 +531,29 @@
         "title": "PlaybookOption",
         "type": "object"
       },
+      "PollResult": {
+        "properties": {
+          "listed": {
+            "title": "Listed",
+            "type": "integer"
+          },
+          "refreshed": {
+            "title": "Refreshed",
+            "type": "integer"
+          },
+          "upserted": {
+            "title": "Upserted",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "listed",
+          "upserted",
+          "refreshed"
+        ],
+        "title": "PollResult",
+        "type": "object"
+      },
       "Position": {
         "properties": {
           "x": {
@@ -522,6 +603,30 @@
           "prompt"
         ],
         "title": "SessionCreate",
+        "type": "object"
+      },
+      "SessionPullRequest": {
+        "properties": {
+          "pr_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pr State"
+          },
+          "pr_url": {
+            "title": "Pr Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pr_url"
+        ],
+        "title": "SessionPullRequest",
         "type": "object"
       },
       "TriggerRead": {
@@ -1230,6 +1335,44 @@
           }
         },
         "summary": "Health"
+      }
+    },
+    "/api/invocations/refresh": {
+      "post": {
+        "operationId": "refresh_invocations_api_invocations_refresh_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PollResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Devin API failure"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Devin API not configured"
+          }
+        },
+        "summary": "Refresh Invocations"
       }
     }
   }
