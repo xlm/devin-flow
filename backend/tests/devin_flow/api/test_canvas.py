@@ -877,7 +877,7 @@ def test_action_delete_tombstones_on_upstream_failure(
     client.http.close()
 
 
-def test_action_delete_hard_deletes_after_upstream_success(
+def test_action_delete_tombstones_after_upstream_success(
     unit_client: TestClient,
     unit_session: Session,
     mock_devin: tuple[DevinClient, list[httpx.Request]],
@@ -891,7 +891,13 @@ def test_action_delete_hard_deletes_after_upstream_success(
     unit_session.commit()
     response = unit_client.delete(f"/api/canvas/nodes/action/{action.id}")
     assert response.status_code == 204
-    assert unit_session.get(ActionNode, action.id) is None
+    stored = unit_session.get(ActionNode, action.id)
+    assert stored is not None
+    assert stored.deleted_at is not None
+    assert stored.automation_id == "auto-1"
+    assert stored.enabled is False
+    assert stored.sync_status == "disabled"
+    assert stored.sync_error is None
     assert json_body(mock_devin[1][0]) == {"enabled": False}
 
 
