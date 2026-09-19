@@ -7,7 +7,7 @@ frontend. The backend serves the built SPA in production.
 
 - uv (Python 3.13 is pinned via `.python-version`)
 - Node 24 + pnpm (pinned via `.node-version` and `packageManager`)
-- Docker (Postgres 18 for local dev and for the full test suite)
+- Docker (Postgres 18 for local dev, the full test suite, and browser E2E)
 - A Devin GitHub connection whose Automation scope is **All installed
   repos**. By default Devin Automations only fire on private
   repositories, so a Flow whose Trigger points at a public repo would
@@ -90,6 +90,9 @@ pnpm format:check
 pnpm typecheck
 pnpm test                # fast, no coverage
 pnpm test:coverage       # what CI runs, fails under 100%
+pnpm e2e:install         # one-time Chromium install
+pnpm e2e                 # browser suite against throwaway postgres:18 and stub Devin
+                        # needs Docker and free ports 8000 and 5174
 pnpm build
 
 # everything (pre-commit)
@@ -120,6 +123,12 @@ running Docker daemon.
 `uv run pytest -m "not docker" --no-cov` skips the container-backed tests
 and the coverage gate for fast iteration without Docker. It is not
 coverage-complete on its own, only the full run is.
+
+The browser E2E suite under `frontend/e2e` starts its own throwaway
+`postgres:18` container, a local Devin API stub at
+`frontend/e2e/harness/stub-devin.ts`, the backend, and Vite. It strips every
+`DEVIN_*` variable and never reaches the real Devin API. CI runs it in the
+`e2e` job. Failures upload `playwright-report` and `test-results` artifacts.
 
 ## Docker
 
