@@ -36,6 +36,19 @@ export function isActionComplete(
   return fields.name.trim() !== '' && fields.playbookId !== null
 }
 
+export function actionIncompleteHint(
+  fields: Pick<ActionFields, 'name' | 'playbookId'>,
+): string | null {
+  const missingName = fields.name.trim() === ''
+  const missingPlaybook = fields.playbookId === null
+  if (missingName && missingPlaybook) {
+    return 'Enter a name and choose a Playbook'
+  }
+  if (missingName) return 'Enter a name'
+  if (missingPlaybook) return 'Choose a Playbook'
+  return null
+}
+
 export function hasLinkedTrigger(nodeId: string, edges: LinkedEdge[]): boolean {
   return edges.some(
     (edge) => edge.target === nodeId && edge.data?.sourceKind === 'trigger',

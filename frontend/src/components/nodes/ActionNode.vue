@@ -2,7 +2,11 @@
 import { computed, inject, ref } from 'vue'
 import type { NodeProps } from '@vue-flow/core'
 import { useVueFlow } from '@vue-flow/core'
-import { actionFieldsFromData, actionInvalidReason } from '@/lib/actionValidity'
+import {
+  actionFieldsFromData,
+  actionIncompleteHint,
+  actionInvalidReason,
+} from '@/lib/actionValidity'
 import { SAVE_NODE_FIELDS } from '@/lib/canvasInjection'
 import { usePlaybooks } from '@/composables/usePlaybooks'
 import CanvasNodeShell from './CanvasNodeShell.vue'
@@ -54,7 +58,9 @@ async function saveInstructions(event: Event) {
     :complete="reason === null"
     :status="reason === 'no-trigger' ? 'No Trigger' : undefined"
     :hint="
-      reason === 'no-trigger' ? 'Connect a Trigger to this Action' : undefined
+      reason === 'no-trigger'
+        ? 'Connect a Trigger to this Action'
+        : (actionIncompleteHint(fields) ?? undefined)
     "
   >
     <template #toolbar>
@@ -86,6 +92,7 @@ async function saveInstructions(event: Event) {
           data-testid="action-name"
           class="nodrag w-full rounded-md border bg-background px-2 py-1"
           maxlength="200"
+          placeholder="Name"
           :value="fields.name"
           @change="saveName"
         />
@@ -132,6 +139,7 @@ async function saveInstructions(event: Event) {
           class="nodrag nowheel w-full rounded-md border bg-background px-2 py-1"
           rows="3"
           maxlength="20000"
+          placeholder="Enter prompt here"
           :value="fields.prompt"
           @change="saveInstructions"
         />

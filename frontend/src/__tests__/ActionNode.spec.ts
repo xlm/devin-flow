@@ -88,8 +88,14 @@ describe('ActionNode', () => {
       wrapper.get('[data-testid="action-name"]').attributes('maxlength'),
     ).toBe('200')
     expect(
+      wrapper.get('[data-testid="action-name"]').attributes('placeholder'),
+    ).toBe('Name')
+    expect(
       wrapper.get('[data-testid="action-prompt"]').attributes('maxlength'),
     ).toBe('20000')
+    expect(
+      wrapper.get('[data-testid="action-prompt"]').attributes('placeholder'),
+    ).toBe('Enter prompt here')
     await wrapper.get('[data-testid="action-name"]').setValue('Updated')
     await wrapper.get('[data-testid="action-name"]').trigger('change')
     await wrapper.get('[data-testid="action-playbook"]').setValue('pb-1')
@@ -151,6 +157,13 @@ describe('ActionNode', () => {
       wrapper.get('[data-testid="canvas-node"]').attributes('data-incomplete'),
     ).toBe('true')
     expect(wrapper.text()).toContain('Incomplete')
+    expect(wrapper.text()).toContain('Enter a name')
+  })
+
+  it('shows the playbook hint when only the name is set', async () => {
+    GET.mockResolvedValue({ data: [], error: undefined })
+    const wrapper = mountAction({ name: 'Triage', playbookId: null })
+    await flushPromises()
     expect(wrapper.text()).toContain('Choose a Playbook')
   })
 
