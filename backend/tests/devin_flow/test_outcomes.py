@@ -6,8 +6,10 @@ import pytest
 
 from devin_flow.models import Invocation
 from devin_flow.outcomes import (
+    IssueRef,
     bucket_pr_state,
     duplicate_of,
+    issue_ref,
     matches,
     outcome_kinds,
     pull_request_links,
@@ -121,3 +123,65 @@ def test_matches_with_none_kind_is_always_false() -> None:
         structured_output={"outcome": "duplicate"},
     )
     assert not matches(inv, None)
+
+
+def test_issue_ref_from_structured_output() -> None:
+    inv = invocation(
+        structured_output={
+            "issue_url": "https://github.com/a/b/issues/7",
+            "issue_number": 7,
+            "issue_title": "Crash on save",
+        }
+    )
+    assert issue_ref(inv, None) == IssueRef(
+        url="https://github.com/a/b/issues/7", number=7, title="Crash on save"
+    )
+
+
+def test_issue_ref_structured_output_with_wrong_typed_fields() -> None:
+    inv = invocation(
+        structured_output={
+            "issue_url": "https://github.com/a/b/issues/7",
+            "issue_number": "7",
+            "issue_title": 12,
+        }
+    )
+    ref = issue_ref(inv, "a/b")
+    assert ref == IssueRef(
+        url="https://github.com/a/b/issues/7", number=None, title=None
+    )
+
+
+def test_issue_ref_bool_issue_number_is_rejected() -> None:
+    inv = invocation(
+        structured_output={
+            "issue_url": "https://github.com/a/b/issues/7",
+            "issue_number": True,
+        }
+    )
+    ref = issue_ref(inv, None)
+    assert ref is not None
+    assert ref.number is None
+
+
+def test_issue_ref_empty_or_missing_url_falls_through_to_title() -> None:
+    for output in ({"issue_url": ""}, {"issue_url": 5}, {}, None):
+        inv = invocation(structured_output=output)
+        assert issue_ref(inv, "a/b") is None
+        inv = invocation(structured_output=output)
+        object.__setattr__(inv, "title", "Triage #3")
+        assert issue_ref(inv, "a/b") == IssueRef(
+            url="https://github.com/a/b/issues/3", number=3, title=None
+        )
+
+
+def test_issue_ref_title_fallback_without_repository() -> None:
+    inv = invocation()
+    object.__setattr__(inv, "title", "Triage #3")
+    assert issue_ref(inv, None) is None
+
+
+def test_issue_ref_title_fallback_without_match() -> None:
+    inv = invocation()
+    object.__setattr__(inv, "title", "No issue here")
+    assert issue_ref(inv, "a/b") is None
