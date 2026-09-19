@@ -95,6 +95,11 @@ function copyEdge(edge: Edge): Edge {
 
 async function loadCanvas() {
   loadError.value = false
+  nodeSnapshots.clear()
+  edgeSnapshots.clear()
+  saveGenerations.clear()
+  saveChains.clear()
+  cascadedNodeIds.clear()
   try {
     const { data, error } = await client.GET('/api/canvas')
     if (error || !data) {
@@ -117,6 +122,21 @@ async function loadCanvas() {
     loadError.value = true
     nodes.value = []
     edges.value = []
+  }
+}
+
+function rollbackEdges(nodeId: string, connectedEdges: Edge[]) {
+  const restorableEdges = connectedEdges.filter((edge) => {
+    if (!edgeSnapshots.has(edge.id)) return false
+    const otherId = edge.source === nodeId ? edge.target : edge.source
+    if (!findNode(otherId)) {
+      edgeSnapshots.delete(edge.id)
+      return false
+    }
+    return true
+  })
+  if (restorableEdges.length > 0) {
+    addEdges(restorableEdges.map(copyEdge))
   }
 }
 
@@ -192,17 +212,13 @@ async function removeNode(change: Extract<NodeChange, { type: 'remove' }>) {
     )
     if (error && response?.status !== 404) {
       addNodes([copyNode(snapshot)])
-      if (connectedEdges.length > 0) {
-        addEdges(connectedEdges.map(copyEdge))
-      }
+      rollbackEdges(snapshot.id, connectedEdges)
     } else {
       connectedEdges.forEach((edge) => edgeSnapshots.delete(edge.id))
     }
   } catch {
     addNodes([copyNode(snapshot)])
-    if (connectedEdges.length > 0) {
-      addEdges(connectedEdges.map(copyEdge))
-    }
+    rollbackEdges(snapshot.id, connectedEdges)
   } finally {
     cascadedNodeIds.delete(snapshot.id)
   }

@@ -244,6 +244,38 @@ describe('FlowCanvas', () => {
     wrapper.unmount()
   })
 
+  it('clears snapshots when retrying a different canvas', async () => {
+    mocks.GET.mockResolvedValueOnce(response(canvas))
+      .mockRejectedValueOnce(new Error('down'))
+      .mockResolvedValueOnce(
+        response({
+          trigger_nodes: [],
+          action_nodes: [
+            { id: 'replacement', kind: 'action', position: { x: 7, y: 8 } },
+          ],
+          outcome_nodes: [],
+          edges: [],
+        }),
+      )
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    await (
+      wrapper.vm as unknown as {
+        loadCanvas: () => Promise<void>
+      }
+    ).loadCanvas()
+    await flushPromises()
+    await wrapper.find('[data-testid="load-retry"]').trigger('click')
+    await flushPromises()
+    mocks.DELETE.mockResolvedValue(
+      response(undefined, { detail: 'delete failed' }, 500),
+    )
+    mocks.handlers.nodesChange?.([{ type: 'remove', id: 'replacement' }])
+    await flushPromises()
+    expect(mocks.addEdges).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
   it('saves drag positions and reverts failed saves', async () => {
     const node = {
       id: 'trigger',
@@ -473,6 +505,9 @@ describe('FlowCanvas', () => {
   })
 
   it('deletes nodes and restores them on non-404 failures', async () => {
+    mocks.DELETE.mockResolvedValue(
+      response(undefined, { detail: 'delete failed' }, 500),
+    )
     const wrapper = mount(FlowCanvas)
     await flushPromises()
     mocks.handlers.nodesChange?.([{ type: 'remove', id: 'trigger' }])
@@ -481,14 +516,12 @@ describe('FlowCanvas', () => {
       '/api/canvas/nodes/{kind}/{node_id}',
       { params: { path: { kind: 'trigger', node_id: 'trigger' } } },
     )
-    mocks.DELETE.mockResolvedValue(
-      response(undefined, { detail: 'delete failed' }, 500),
-    )
     mocks.handlers.nodesChange?.([{ type: 'remove', id: 'trigger' }])
     await flushPromises()
     expect(mocks.addNodes).toHaveBeenCalledWith([
       expect.objectContaining({ id: 'trigger' }),
     ])
+    expect(mocks.addEdges).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 
@@ -541,6 +574,10 @@ describe('FlowCanvas', () => {
     )
     const wrapper = mount(FlowCanvas)
     await flushPromises()
+    const loadedNodes = vueFlow(wrapper).props('nodes') as Node[]
+    mocks.findNode.mockImplementation((id: string) =>
+      loadedNodes.find((node) => node.id === id),
+    )
     mocks.handlers.edgesChange?.([
       { type: 'remove', id: 'edge' },
       { type: 'remove', id: 'outcome-edge' },
@@ -563,6 +600,27 @@ describe('FlowCanvas', () => {
       expect.objectContaining({ id: 'edge' }),
       expect.objectContaining({ id: 'outcome-edge' }),
     ])
+    wrapper.unmount()
+  })
+
+  it('does not restore edges when a peer node was deleted', async () => {
+    mocks.DELETE.mockResolvedValueOnce(
+      response(undefined),
+    ).mockResolvedValueOnce(
+      response(undefined, { detail: 'delete failed' }, 500),
+    )
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    mocks.handlers.edgesChange?.([{ type: 'remove', id: 'edge' }])
+    mocks.handlers.nodesChange?.([
+      { type: 'remove', id: 'trigger' },
+      { type: 'remove', id: 'action' },
+    ])
+    await flushPromises()
+    expect(mocks.addNodes).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'action' }),
+    ])
+    expect(mocks.addEdges).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 
