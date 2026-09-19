@@ -24,7 +24,10 @@
   tables, and `api/canvas.py` holds the Canvas routes.
 - `invocations.py` mirrors Devin sessions into the `invocation` table
   (`poll_once`, run from the app lifespan and `POST /api/invocations/refresh`).
-  `models/invocation.py` holds `Invocation` and the single-row `PollerState`.
+  `poll_once` first retries pending/error Action syncs
+  (`automations.retry_syncs`) so recovered Automations are polled in the
+  same cycle. `models/invocation.py` holds `Invocation` and the single-row
+  `PollerState`.
 - `backend/tests/` - pytest tests; test files mirror `src` under
   `tests/devin_flow/` (pytest runs with `--import-mode=importlib`).
   `conftest.py` provides `unit_session`/`unit_client` (in-memory sqlite,

@@ -1,12 +1,15 @@
 import json
+import logging
 from datetime import UTC, datetime
 from uuid import uuid4
 
 import httpx
+import pytest
 from sqlmodel import Session
 
 from devin_flow.automations import (
     METADATA_KEY,
+    actions_to_sync,
     build_automation_payload,
     build_prompt,
     connected_action,
@@ -15,10 +18,15 @@ from devin_flow.automations import (
     is_action_complete,
     is_trigger_complete,
     mark_pending,
+    retry_syncs,
     sync_action,
 )
 from devin_flow.devin import DevinClient
-from devin_flow.devin.client import Automation, DevinNotConfiguredError
+from devin_flow.devin.client import (
+    Automation,
+    AutomationUpdate,
+    DevinNotConfiguredError,
+)
 from devin_flow.models import ActionNode, Edge, TriggerNode
 
 
@@ -371,3 +379,135 @@ def test_sync_handles_missing_action_and_pending(unit_session: Session) -> None:
     unit_session.add(node)
     mark_pending(node)
     assert node.sync_status == "pending"
+
+
+def test_retry_syncs_errored_action(unit_session: Session) -> None:
+    node = action()
+    node.automation_id = "auto-1"
+    node.sync_status = "error"
+    node.sync_error = "boom"
+    source = trigger()
+    unit_session.add_all([node, source])
+    unit_session.commit()
+    connect(unit_session, source, node)
+    calls: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        assert request.method == "PATCH"
+        return httpx.Response(200, json=automation_response("auto-1"))
+
+    client = make_client(httpx.MockTransport(handler))
+    assert retry_syncs(unit_session, client) == 1
+    assert [request.method for request in calls] == ["PATCH"]
+    stored = unit_session.get(ActionNode, node.id)
+    assert stored is not None
+    assert stored.sync_status == "enabled"
+    assert stored.sync_error is None
+
+
+def test_retry_syncs_tombstoned_action_disables(unit_session: Session) -> None:
+    node = action()
+    node.automation_id = "auto-1"
+    node.sync_status = "error"
+    node.deleted_at = datetime.now(UTC)
+    unit_session.add(node)
+    unit_session.commit()
+    calls: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        assert request.method == "PATCH"
+        assert json.loads(request.read()) == {"enabled": False}
+        return httpx.Response(200, json=automation_response("auto-1"))
+
+    client = make_client(httpx.MockTransport(handler))
+    assert retry_syncs(unit_session, client) == 1
+    assert len(calls) == 1
+    stored = unit_session.get(ActionNode, node.id)
+    assert stored is not None
+    assert stored.sync_status == "disabled"
+
+
+def test_retry_syncs_keeps_error_on_upstream_failure(
+    unit_session: Session,
+) -> None:
+    node = action()
+    node.automation_id = "auto-1"
+    node.sync_status = "error"
+    node.sync_error = "old boom"
+    unit_session.add(node)
+    unit_session.commit()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(502)
+
+    client = make_client(httpx.MockTransport(handler))
+    assert retry_syncs(unit_session, client) == 1
+    stored = unit_session.get(ActionNode, node.id)
+    assert stored is not None
+    assert stored.sync_status == "error"
+    assert stored.sync_error == "devin api returned HTTP 502"
+
+
+def test_retry_syncs_picks_up_pending_action(unit_session: Session) -> None:
+    node = action()
+    node.sync_status = "pending"
+    unit_session.add(node)
+    unit_session.commit()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError(request)
+
+    client = make_client(httpx.MockTransport(handler))
+    assert retry_syncs(unit_session, client) == 1
+    stored = unit_session.get(ActionNode, node.id)
+    assert stored is not None
+    assert stored.sync_status == "unprovisioned"
+
+
+def test_actions_to_sync_skips_settled_statuses(unit_session: Session) -> None:
+    for status in ["enabled", "disabled", "unprovisioned"]:
+        node = action()
+        node.sync_status = status
+        unit_session.add(node)
+    tombstoned = action()
+    tombstoned.deleted_at = datetime.now(UTC)
+    tombstoned.sync_status = "error"
+    unit_session.add(tombstoned)
+    unit_session.commit()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError(request)
+
+    client = make_client(httpx.MockTransport(handler))
+    assert actions_to_sync(unit_session) == []
+    assert retry_syncs(unit_session, client) == 0
+
+
+def test_retry_syncs_one_failure_does_not_stop_others(
+    unit_session: Session, caplog: pytest.LogCaptureFixture
+) -> None:
+    nodes = []
+    for _ in range(2):
+        node = action()
+        node.automation_id = "auto-1"
+        node.sync_status = "error"
+        unit_session.add(node)
+        nodes.append(node)
+    unit_session.commit()
+    attempted: list[str] = []
+
+    class FailingClient(DevinClient):
+        def update_automation(
+            self, automation_id: str, update: AutomationUpdate
+        ) -> Automation:
+            attempted.append(automation_id)
+            raise RuntimeError("client exploded")
+
+    client = FailingClient(httpx.Client(), "org-test")
+    with caplog.at_level(logging.ERROR, logger="devin_flow.automations"):
+        assert retry_syncs(unit_session, client) == 2
+    assert attempted == ["auto-1", "auto-1"]
+    assert caplog.text.count("sync of action") == 2
+    assert "client exploded" in caplog.text

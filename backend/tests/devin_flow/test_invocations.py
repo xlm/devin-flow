@@ -15,7 +15,7 @@ from devin_flow.invocations import (
     poll_once,
     run_poll_cycle,
 )
-from devin_flow.models import ActionNode, Invocation, PollerState
+from devin_flow.models import ActionNode, Edge, Invocation, PollerState, TriggerNode
 
 
 def at(epoch: int) -> datetime:
@@ -103,7 +103,7 @@ def test_first_poll_lists_all_owned_automations(unit_session: Session) -> None:
 
     result = poll_once(unit_session, make_client(httpx.MockTransport(handler)))
 
-    assert result == PollResult(listed=4, upserted=3, refreshed=0)
+    assert result == PollResult(listed=4, upserted=3, refreshed=0, synced=0)
     assert len(requests) == 1
     invocations = unit_session.exec(
         select(Invocation).order_by(Invocation.session_id)
@@ -135,7 +135,7 @@ def test_poll_without_automations_skips_listing(unit_session: Session) -> None:
         raise AssertionError("should not call upstream")
 
     result = poll_once(unit_session, make_client(httpx.MockTransport(handler)))
-    assert result == PollResult(listed=0, upserted=0, refreshed=0)
+    assert result == PollResult(listed=0, upserted=0, refreshed=0, synced=0)
     state = unit_session.get(PollerState, 1)
     assert state is not None and state.last_success_at is not None
 
@@ -179,7 +179,7 @@ def test_incremental_poll_uses_margin_and_upserts(unit_session: Session) -> None
 
     result = poll_once(unit_session, make_client(httpx.MockTransport(handler)))
 
-    assert result == PollResult(listed=2, upserted=2, refreshed=0)
+    assert result == PollResult(listed=2, upserted=2, refreshed=0, synced=0)
     invocations = unit_session.exec(
         select(Invocation).order_by(Invocation.session_id)
     ).all()
@@ -234,7 +234,7 @@ def test_poll_refreshes_non_terminal_invocations(unit_session: Session) -> None:
 
     result = poll_once(unit_session, make_client(httpx.MockTransport(handler)))
 
-    assert result == PollResult(listed=1, upserted=1, refreshed=1)
+    assert result == PollResult(listed=1, upserted=1, refreshed=1, synced=0)
     assert paths == [
         "/organizations/org-test/sessions",
         "/organizations/org-test/sessions/old-run",
@@ -248,6 +248,89 @@ def test_poll_refreshes_non_terminal_invocations(unit_session: Session) -> None:
     ]
     assert refreshed.structured_output == {"outcome": "duplicate"}
     assert refreshed.session_updated_at == at(1700001000)
+
+
+def test_poll_retries_failed_syncs_before_listing(unit_session: Session) -> None:
+    # an errored Action with an Automation is re-synced first, and a pending
+    # Action without one gets its Automation created, so both are owned by
+    # the time sessions are listed in the same cycle
+    errored = add_action(unit_session, "auto-1")
+    errored.sync_status = "error"
+    errored.sync_error = "boom"
+    pending = ActionNode(
+        position_x=0,
+        position_y=0,
+        name="Triage",
+        playbook_id="pb-1",
+        prompt="Inspect the issue",
+        enabled=True,
+        sync_status="pending",
+    )
+    trigger = TriggerNode(
+        position_x=0,
+        position_y=0,
+        event_action="opened",
+        repository_full_name="octo/repo",
+    )
+    unit_session.add_all([errored, pending, trigger])
+    unit_session.commit()
+    unit_session.add(
+        Edge(
+            source_id=trigger.id,
+            source_kind="trigger",
+            target_id=pending.id,
+            target_kind="action",
+        )
+    )
+    unit_session.commit()
+    calls: list[tuple[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append((request.method, request.url.path))
+        path = request.url.path
+        if path == "/organizations/org-test/automations/auto-1":
+            assert request.method == "PATCH"
+            return httpx.Response(
+                200,
+                json={
+                    "automation_id": "auto-1",
+                    "name": "auto-1",
+                    "enabled": False,
+                },
+            )
+        if path == "/organizations/org-test/automations":
+            if request.method == "GET":
+                return httpx.Response(
+                    200,
+                    json={"items": [], "has_next_page": False, "end_cursor": None},
+                )
+            return httpx.Response(
+                201,
+                json={
+                    "automation_id": "auto-new",
+                    "name": "auto-new",
+                    "enabled": True,
+                },
+            )
+        assert path == "/organizations/org-test/sessions"
+        assert request.method == "GET"
+        assert request.url.params.get_list("automation_ids") == [
+            "auto-1",
+            "auto-new",
+        ]
+        return httpx.Response(200, json={"items": [], "has_next_page": False})
+
+    result = poll_once(unit_session, make_client(httpx.MockTransport(handler)))
+
+    assert result == PollResult(listed=0, upserted=0, refreshed=0, synced=2)
+    methods = [method for method, _ in calls]
+    assert methods[-1] == "GET"
+    assert calls[-1][1] == "/organizations/org-test/sessions"
+    assert methods[:3] == ["PATCH", "GET", "POST"]
+    stored = unit_session.get(ActionNode, pending.id)
+    assert stored is not None
+    assert stored.automation_id == "auto-new"
+    assert stored.sync_status == "enabled"
 
 
 def test_upstream_failure_leaves_state_untouched(unit_session: Session) -> None:
@@ -273,13 +356,13 @@ def test_run_poll_cycle_uses_engine_and_client(
 
     def fake_poll_once(session: Session, devin: DevinClient) -> PollResult:
         calls.append((session, devin))
-        return PollResult(listed=0, upserted=0, refreshed=0)
+        return PollResult(listed=0, upserted=0, refreshed=0, synced=0)
 
     monkeypatch.setattr(invocations, "poll_once", fake_poll_once)
     monkeypatch.setattr(invocations, "get_engine", lambda: unit_session.get_bind())
     monkeypatch.setattr(invocations, "get_devin_client", lambda: client)
 
-    assert run_poll_cycle() == PollResult(listed=0, upserted=0, refreshed=0)
+    assert run_poll_cycle() == PollResult(listed=0, upserted=0, refreshed=0, synced=0)
     assert len(calls) == 1
     assert calls[0][1] is client
 
@@ -294,7 +377,7 @@ def test_poll_forever_logs_failures_and_keeps_going(
         attempts += 1
         if attempts == 1:
             raise RuntimeError("upstream down")
-        return PollResult(listed=1, upserted=1, refreshed=0)
+        return PollResult(listed=1, upserted=1, refreshed=0, synced=0)
 
     async def run() -> None:
         task = asyncio.create_task(poll_forever(0.01, run_cycle))
