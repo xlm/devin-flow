@@ -1,6 +1,17 @@
 import { expect, test } from '@playwright/test'
-import { canvas, resetAll, setSessions } from './harness/api.js'
-import { outcomeSessions, seedOutcomeGraph } from './harness/fixtures.js'
+import {
+  canvas,
+  resetAll,
+  setSessions,
+  startBackend,
+  stopBackend,
+} from './harness/api.js'
+import {
+  outcomeSessions,
+  seedConfigured,
+  seedOutcomeGraph,
+  triggerSessions,
+} from './harness/fixtures.js'
 
 async function chooseKinds(
   page: import('@playwright/test').Page,
@@ -95,9 +106,59 @@ test('spec 9: Action -> Pull Request edge opens the Invocation sheet', async ({
   expect((await canvas()).edges).toHaveLength(5)
 })
 
-test('spec 9: Trigger -> Action edge count opens the Invocation sheet', async () => {
-  test.skip(
-    true,
-    'TODO(#40): Trigger -> Action edge sheet is not implemented yet',
+test('spec 9: Trigger -> Action edge count opens the Invocation sheet', async ({
+  page,
+  request,
+}) => {
+  await seedConfigured()
+  await setSessions(request, triggerSessions())
+  await page.goto('/')
+  const edge = page.locator('.vue-flow__edge').filter({ hasText: 'invocation' })
+  const sheet = page.locator('[data-testid=action-sheet], [role=dialog]')
+  const rows = sheet.locator('[data-testid=action-invocation]')
+
+  await edge.click({ force: true })
+  await expect(sheet).toContainText('Triage issue invocations')
+  await expect(rows).toHaveCount(0)
+  await expect(sheet.locator('[data-testid=action-empty]')).toBeVisible()
+  await page.getByRole('button', { name: 'Close' }).click()
+  await expect(sheet).toBeHidden()
+
+  await page.locator('[data-testid=refresh-invocations]').click()
+  await expect(edge.locator('.vue-flow__edge-text')).toContainText(
+    '3 invocations',
   )
+  await edge.locator('.vue-flow__edge-text').click({ force: true })
+  await expect(rows).toHaveCount(3)
+  await expect(rows.nth(0)).toContainText('Issue unknown')
+  await expect(rows.nth(0)).toContainText('Manual run')
+  await expect(rows.nth(1)).toContainText('#12')
+  await expect(rows.nth(1)).toContainText('running')
+  await expect(
+    rows.nth(1).locator('a[href="https://github.com/acme/widgets/issues/12"]'),
+  ).toBeVisible()
+  await expect(rows.nth(2)).toContainText('#40 Login button unresponsive')
+  await expect(
+    rows.nth(2).locator('a[href="https://github.com/acme/widgets/issues/40"]'),
+  ).toBeVisible()
+  await expect(
+    rows.nth(2).locator('a[href="https://app.devin.ai/sessions/s-issue"]'),
+  ).toBeVisible()
+  await expect(
+    rows.nth(2).locator('a[href="https://github.com/acme/widgets/pull/40"]'),
+  ).toBeVisible()
+  await page.getByRole('button', { name: 'Close' }).click()
+  await expect(sheet).toBeHidden()
+
+  await stopBackend(request)
+  await edge.click({ force: true })
+  await expect(sheet.locator('[data-testid=action-error]')).toBeVisible()
+  await expect(rows).toHaveCount(0)
+  await startBackend(request)
+  await sheet.locator('[data-testid=action-retry]').click()
+  await expect(sheet.locator('[data-testid=action-error]')).toBeHidden()
+  await expect(rows).toHaveCount(3)
+  await page.getByRole('button', { name: 'Close' }).click()
+  await expect(sheet).toBeHidden()
+  expect((await canvas()).action_nodes[0].invocation_count).toBe(3)
 })

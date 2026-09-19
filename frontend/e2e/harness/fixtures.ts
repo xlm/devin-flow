@@ -96,6 +96,55 @@ export async function seedOutcomeGraph(): Promise<OutcomeFixture> {
   return { ...fixture, outcomeIds }
 }
 
+export function triggerSessions(
+  now = Math.floor(Date.now() / 1000),
+): Session[] {
+  return [
+    {
+      session_id: 's-issue',
+      status: 'exit',
+      title: 'Triage: login button unresponsive',
+      url: 'https://app.devin.ai/sessions/s-issue',
+      automation_id: 'auto-1',
+      pull_requests: [
+        {
+          pr_url: 'https://github.com/acme/widgets/pull/40',
+          pr_state: 'open',
+        },
+      ],
+      structured_output: {
+        outcome: 'fixed',
+        issue_url: 'https://github.com/acme/widgets/issues/40',
+        issue_number: 40,
+        issue_title: 'Login button unresponsive',
+      },
+      created_at: now - 120,
+      updated_at: now - 120,
+    },
+    {
+      session_id: 's-title',
+      status: 'running',
+      title: 'Triage #12',
+      url: 'https://app.devin.ai/sessions/s-title',
+      automation_id: 'auto-1',
+      pull_requests: [],
+      created_at: now - 60,
+      updated_at: now - 60,
+    },
+    {
+      session_id: 's-noissue',
+      status: 'exit',
+      title: 'Manual run',
+      url: 'https://app.devin.ai/sessions/s-noissue',
+      automation_id: 'auto-1',
+      pull_requests: [],
+      structured_output: { outcome: 'not_a_bug' },
+      created_at: now,
+      updated_at: now,
+    },
+  ]
+}
+
 export function outcomeSessions(
   now = Math.floor(Date.now() / 1000),
 ): Session[] {
