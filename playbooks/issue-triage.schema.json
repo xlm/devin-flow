@@ -3,7 +3,7 @@
   "title": "IssueTriageOutcome",
   "type": "object",
   "additionalProperties": false,
-  "required": ["outcome"],
+  "required": ["outcome", "issue_url", "issue_number", "issue_title"],
   "allOf": [
     {
       "if": { "properties": { "outcome": { "const": "duplicate" } } },
