@@ -7,6 +7,7 @@ import { resetPlaybooksCache } from '@/composables/usePlaybooks'
 import { SAVE_NODE_FIELDS, type SaveNodeFields } from '@/lib/canvasInjection'
 
 const GET = vi.hoisted(() => vi.fn())
+const findNode = vi.hoisted(() => vi.fn())
 
 vi.mock('@/api/client', () => ({
   client: { GET },
@@ -20,7 +21,7 @@ vi.mock('@vue-flow/core', () => ({
     setup: (props) => () => h('span', props),
   }),
   Position: { Left: 'left', Right: 'right', Top: 'top' },
-  useVueFlow: () => ({ removeNodes: vi.fn(), edges }),
+  useVueFlow: () => ({ removeNodes: vi.fn(), edges, findNode }),
 }))
 
 vi.mock('@vue-flow/node-toolbar', () => ({
@@ -50,6 +51,7 @@ describe('ActionNode', () => {
   afterEach(() => {
     resetPlaybooksCache()
     GET.mockReset()
+    findNode.mockReset()
     edges.value = []
   })
 
@@ -127,6 +129,15 @@ describe('ActionNode', () => {
         data: { sourceKind: 'trigger' },
       },
     ]
+    findNode.mockReturnValue({
+      id: 'trigger',
+      data: {
+        trigger: {
+          event_action: 'opened',
+          repository_full_name: 'octo/repo',
+        },
+      },
+    })
     const wrapper = mountAction({ name: 'Triage', playbookId: 'pb-1' })
     await flushPromises()
     expect(
@@ -147,6 +158,33 @@ describe('ActionNode', () => {
     ).toBe('true')
     expect(wrapper.text()).toContain('No Trigger')
     expect(wrapper.text()).toContain('Connect a Trigger to this Action')
+  })
+
+  it('disables the switch for an incomplete connected trigger', async () => {
+    GET.mockResolvedValue({ data: [], error: undefined })
+    edges.value = [
+      {
+        id: 'edge',
+        source: 'trigger',
+        target: 'n1',
+        data: { sourceKind: 'trigger' },
+      },
+    ]
+    findNode.mockReturnValue({
+      id: 'trigger',
+      data: {
+        trigger: {
+          event_action: 'opened',
+          repository_full_name: null,
+        },
+      },
+    })
+    const wrapper = mountAction({ name: 'Triage', playbookId: 'pb-1' })
+    await flushPromises()
+    const button = wrapper.get('[data-testid="enable-switch"]')
+    expect((button.element as HTMLButtonElement).disabled).toBe(true)
+    expect(button.attributes('title')).toBe('Complete the connected Trigger')
+    expect(wrapper.text()).toContain('Trigger incomplete')
   })
 
   it('keeps whitespace-only names incomplete', async () => {
@@ -237,6 +275,15 @@ describe('ActionNode', () => {
         data: { sourceKind: 'trigger' },
       },
     ]
+    findNode.mockReturnValue({
+      id: 'trigger',
+      data: {
+        trigger: {
+          event_action: 'opened',
+          repository_full_name: 'octo/repo',
+        },
+      },
+    })
     await flushPromises()
     await wrapper.get('[data-testid="enable-switch"]').trigger('click')
     await flushPromises()

@@ -8,8 +8,10 @@ export type ActionFields = {
   enabled: boolean
 }
 export type SyncStatus = ActionNodeRead['sync_status']
-export type ActionInvalidReason = 'incomplete' | 'no-trigger'
+export type ActionInvalidReason =
+  'incomplete' | 'no-trigger' | 'trigger-incomplete'
 export type LinkedEdge = {
+  source: string
   target: string
   data?: { sourceKind?: string }
 }
@@ -83,8 +85,25 @@ export function actionInvalidReason(
   nodeId: string,
   fields: Pick<ActionFields, 'name' | 'playbookId'>,
   edges: LinkedEdge[],
+  triggerOf: (nodeId: string) => Record<string, unknown> | undefined,
 ): ActionInvalidReason | null {
   if (!isActionComplete(fields)) return 'incomplete'
-  if (!hasLinkedTrigger(nodeId, edges)) return 'no-trigger'
+  const triggerEdge = edges.find(
+    (edge) => edge.target === nodeId && edge.data?.sourceKind === 'trigger',
+  )
+  if (!triggerEdge) return 'no-trigger'
+  const trigger = triggerOf(triggerEdge.source)?.trigger
+  if (typeof trigger !== 'object' || trigger === null) {
+    return 'trigger-incomplete'
+  }
+  const triggerData = trigger as Record<string, unknown>
+  if (
+    typeof triggerData.event_action !== 'string' ||
+    triggerData.event_action.trim() === '' ||
+    typeof triggerData.repository_full_name !== 'string' ||
+    triggerData.repository_full_name.trim() === ''
+  ) {
+    return 'trigger-incomplete'
+  }
   return null
 }
