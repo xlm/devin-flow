@@ -22,6 +22,7 @@ from devin_flow.models import (
     Edge,
     EventAction,
     Invocation,
+    OutcomeNode,
     TriggerNode,
 )
 
@@ -585,6 +586,7 @@ def test_create_edges_returns_full_shape(unit_client: TestClient) -> None:
         "id": response.json()["id"],
         "source": {"id": trigger_id, "kind": "trigger"},
         "target": {"id": action_id, "kind": "action"},
+        "outcome_count": None,
     }
 
 
@@ -998,6 +1000,30 @@ def test_canvas_counts_invocations_per_action(
     assert moved.json()["invocation_count"] == 2
 
 
+def add_invocation(
+    session: Session,
+    action_id: UUID,
+    session_id: str,
+    *,
+    pull_requests: list[dict[str, object]] | None = None,
+    structured_output: dict[str, object] | None = None,
+) -> Invocation:
+    now = datetime.now(UTC)
+    invocation = Invocation(
+        session_id=session_id,
+        automation_id="auto-1",
+        action_node_id=action_id,
+        status="exit",
+        pull_requests=pull_requests or [],
+        structured_output=structured_output,
+        session_created_at=now,
+        session_updated_at=now,
+    )
+    session.add(invocation)
+    session.commit()
+    return invocation
+
+
 def test_create_outcome_node_with_kind(unit_client: TestClient) -> None:
     response = unit_client.post(
         "/api/canvas/nodes/outcome",
@@ -1040,3 +1066,51 @@ def test_outcome_fields_only_apply_to_outcome_nodes(
     )
     assert response.status_code == 422
     assert response.json()["detail"] == "outcome fields apply only to outcome nodes"
+
+
+def test_canvas_edges_report_outcome_counts(
+    unit_client: TestClient, unit_session: Session
+) -> None:
+    action_id = UUID(create_node(unit_client, "action"))
+    dup_outcome = OutcomeNode(position_x=5, position_y=6, kind="duplicate")
+    pr_outcome = OutcomeNode(position_x=7, position_y=8, kind="pull_request")
+    unset_outcome = OutcomeNode(position_x=9, position_y=10)
+    unit_session.add_all([dup_outcome, pr_outcome, unset_outcome])
+    unit_session.commit()
+    add_invocation(
+        unit_session,
+        action_id,
+        "s-1",
+        pull_requests=[{"pr_url": "https://github.com/a/b/pull/1"}],
+        structured_output={"outcome": "duplicate"},
+    )
+    add_invocation(
+        unit_session,
+        action_id,
+        "s-2",
+        pull_requests=[{"pr_url": "https://github.com/a/b/pull/2"}],
+    )
+    add_invocation(unit_session, action_id, "s-3")
+    trigger_id = create_node(unit_client, "trigger")
+    edges = {
+        edge["target"]["id"]: edge
+        for edge in [
+            create_edge(
+                unit_client, str(action_id), "action", str(node.id), "outcome"
+            ).json()
+            for node in (dup_outcome, pr_outcome, unset_outcome)
+        ]
+    }
+    assert (
+        create_edge(
+            unit_client, trigger_id, "trigger", str(action_id), "action"
+        ).status_code
+        == 201
+    )
+    canvas_edges = unit_client.get("/api/canvas").json()["edges"]
+    by_target = {edge["target"]["id"]: edge for edge in canvas_edges}
+    assert by_target[str(dup_outcome.id)]["outcome_count"] == 1
+    assert by_target[str(pr_outcome.id)]["outcome_count"] == 2
+    assert by_target[str(unset_outcome.id)]["outcome_count"] == 0
+    assert by_target[str(action_id)]["outcome_count"] is None
+    assert {e["id"] for e in canvas_edges} >= {e["id"] for e in edges.values()}

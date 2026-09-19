@@ -41,6 +41,16 @@
             "title": "Name",
             "type": "string"
           },
+          "outcome": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OutcomeRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "playbook_id": {
             "anyOf": [
               {
@@ -263,6 +273,17 @@
             "title": "Id",
             "type": "string"
           },
+          "outcome_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome Count"
+          },
           "source": {
             "$ref": "#/components/schemas/NodeRef"
           },
@@ -332,6 +353,16 @@
             ],
             "title": "Name"
           },
+          "outcome": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OutcomeUpdate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "playbook_id": {
             "anyOf": [
               {
@@ -392,6 +423,16 @@
             ],
             "title": "Kind",
             "type": "string"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OutcomeRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "position": {
             "$ref": "#/components/schemas/Position"
@@ -464,6 +505,16 @@
             ],
             "title": "Name"
           },
+          "outcome": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OutcomeUpdate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "playbook_id": {
             "anyOf": [
               {
@@ -511,6 +562,129 @@
           }
         },
         "title": "NodeUpdate",
+        "type": "object"
+      },
+      "OutcomeInvocationRead": {
+        "properties": {
+          "duplicate_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duplicate Of"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "pull_requests": {
+            "items": {
+              "$ref": "#/components/schemas/PullRequestLink"
+            },
+            "title": "Pull Requests",
+            "type": "array"
+          },
+          "session_created_at": {
+            "format": "date-time",
+            "title": "Session Created At",
+            "type": "string"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "title",
+          "url",
+          "status",
+          "session_created_at",
+          "pull_requests",
+          "duplicate_of"
+        ],
+        "title": "OutcomeInvocationRead",
+        "type": "object"
+      },
+      "OutcomeRead": {
+        "properties": {
+          "kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "pull_request",
+                  "duplicate",
+                  "not_reproducible",
+                  "not_a_bug"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "OutcomeRead",
+        "type": "object"
+      },
+      "OutcomeUpdate": {
+        "properties": {
+          "kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "pull_request",
+                  "duplicate",
+                  "not_reproducible",
+                  "not_a_bug"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          }
+        },
+        "title": "OutcomeUpdate",
         "type": "object"
       },
       "PlaybookOption": {
@@ -570,6 +744,30 @@
           "y"
         ],
         "title": "Position",
+        "type": "object"
+      },
+      "PullRequestLink": {
+        "properties": {
+          "state": {
+            "enum": [
+              "open",
+              "merged",
+              "closed",
+              "other"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "state"
+        ],
+        "title": "PullRequestLink",
         "type": "object"
       },
       "Repository": {
@@ -1373,6 +1571,60 @@
           }
         },
         "summary": "Refresh Invocations"
+      }
+    },
+    "/api/outcome-nodes/{node_id}/invocations": {
+      "get": {
+        "operationId": "list_outcome_invocations_api_outcome_nodes__node_id__invocations_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Node Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OutcomeInvocationRead"
+                  },
+                  "title": "Response List Outcome Invocations Api Outcome Nodes  Node Id  Invocations Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Outcome node not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Outcome Invocations"
       }
     }
   }

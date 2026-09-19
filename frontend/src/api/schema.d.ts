@@ -176,6 +176,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/outcome-nodes/{node_id}/invocations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Outcome Invocations */
+        get: operations["list_outcome_invocations_api_outcome_nodes__node_id__invocations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -203,6 +220,7 @@ export interface components {
             kind: "trigger" | "action" | "outcome";
             /** Name */
             name: string;
+            outcome?: components["schemas"]["OutcomeRead"] | null;
             /** Playbook Id */
             playbook_id: string | null;
             position: components["schemas"]["Position"];
@@ -266,6 +284,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Outcome Count */
+            outcome_count?: number | null;
             source: components["schemas"]["NodeRef"];
             target: components["schemas"]["NodeRef"];
         };
@@ -291,6 +311,7 @@ export interface components {
         NodeCreate: {
             /** Name */
             name?: string | null;
+            outcome?: components["schemas"]["OutcomeUpdate"] | null;
             /** Playbook Id */
             playbook_id?: string | null;
             position: components["schemas"]["Position"];
@@ -310,6 +331,7 @@ export interface components {
              * @enum {string}
              */
             kind: "trigger" | "action" | "outcome";
+            outcome?: components["schemas"]["OutcomeRead"] | null;
             position: components["schemas"]["Position"];
             trigger?: components["schemas"]["TriggerRead"] | null;
         };
@@ -332,12 +354,48 @@ export interface components {
             enabled?: boolean | null;
             /** Name */
             name?: string | null;
+            outcome?: components["schemas"]["OutcomeUpdate"] | null;
             /** Playbook Id */
             playbook_id?: string | null;
             position?: components["schemas"]["Position"] | null;
             /** Prompt */
             prompt?: string | null;
             trigger?: components["schemas"]["TriggerUpdate"] | null;
+        };
+        /** OutcomeInvocationRead */
+        OutcomeInvocationRead: {
+            /** Duplicate Of */
+            duplicate_of: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Pull Requests */
+            pull_requests: components["schemas"]["PullRequestLink"][];
+            /**
+             * Session Created At
+             * Format: date-time
+             */
+            session_created_at: string;
+            /** Session Id */
+            session_id: string;
+            /** Status */
+            status: string;
+            /** Title */
+            title: string | null;
+            /** Url */
+            url: string | null;
+        };
+        /** OutcomeRead */
+        OutcomeRead: {
+            /** Kind */
+            kind: ("pull_request" | "duplicate" | "not_reproducible" | "not_a_bug") | null;
+        };
+        /** OutcomeUpdate */
+        OutcomeUpdate: {
+            /** Kind */
+            kind?: ("pull_request" | "duplicate" | "not_reproducible" | "not_a_bug") | null;
         };
         /** PlaybookOption */
         PlaybookOption: {
@@ -361,6 +419,16 @@ export interface components {
             x: number;
             /** Y */
             y: number;
+        };
+        /** PullRequestLink */
+        PullRequestLink: {
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "open" | "merged" | "closed" | "other";
+            /** Url */
+            url: string;
         };
         /** Repository */
         Repository: {
@@ -920,6 +988,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_outcome_invocations_api_outcome_nodes__node_id__invocations_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                node_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OutcomeInvocationRead"][];
+                };
+            };
+            /** @description Outcome node not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

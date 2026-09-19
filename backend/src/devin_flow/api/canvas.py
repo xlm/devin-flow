@@ -42,6 +42,7 @@ from devin_flow.models import (
     SyncStatus,
     TriggerNode,
 )
+from devin_flow.outcomes import matches
 
 router = APIRouter(prefix="/canvas")
 SessionDep = Annotated[Session, Depends(get_session)]
@@ -129,6 +130,7 @@ class EdgeRead(BaseModel):
     id: UUID
     source: NodeRef
     target: NodeRef
+    outcome_count: int | None = None
 
 
 class EdgeCreate(BaseModel):
@@ -208,11 +210,12 @@ def apply_action_fields(node: NodeBase, payload: ActionFieldsBase) -> None:
             node.enabled = payload.enabled
 
 
-def edge_read(edge: Edge) -> EdgeRead:
+def edge_read(edge: Edge, outcome_count: int | None = None) -> EdgeRead:
     return EdgeRead(
         id=edge.id,
         source=NodeRef(id=edge.source_id, kind=edge.source_kind),
         target=NodeRef(id=edge.target_id, kind=edge.target_kind),
+        outcome_count=outcome_count,
     )
 
 
@@ -245,6 +248,30 @@ def get_canvas(session: SessionDep) -> CanvasRead:
             )
         ).all()
     )
+    edges = session.exec(select(Edge).order_by(col(Edge.created_at))).all()
+    outcome_kind_by_id = {
+        node.id: node.kind for node in session.exec(select(OutcomeNode)).all()
+    }
+    action_ids = [edge.source_id for edge in edges if edge.target_kind == "outcome"]
+    by_action: dict[UUID, list[Invocation]] = {}
+    for invocation in (
+        session.exec(
+            select(Invocation).where(col(Invocation.action_node_id).in_(action_ids))
+        ).all()
+        if action_ids
+        else []
+    ):
+        by_action.setdefault(invocation.action_node_id, []).append(invocation)
+
+    def outcome_count(edge: Edge) -> int | None:
+        if edge.target_kind != "outcome":
+            return None
+        return sum(
+            1
+            for invocation in by_action.get(edge.source_id, [])
+            if matches(invocation, outcome_kind_by_id.get(edge.target_id))
+        )
+
     nodes = {
         "trigger": [
             node_read(node, "trigger")
@@ -267,12 +294,11 @@ def get_canvas(session: SessionDep) -> CanvasRead:
             ).all()
         ],
     }
-    edges = session.exec(select(Edge).order_by(col(Edge.created_at))).all()
     return CanvasRead(
         trigger_nodes=nodes["trigger"],
         action_nodes=nodes["action"],
         outcome_nodes=nodes["outcome"],
-        edges=[edge_read(edge) for edge in edges],
+        edges=[edge_read(edge, outcome_count(edge)) for edge in edges],
     )
 
 
