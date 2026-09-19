@@ -8,6 +8,14 @@ frontend. The backend serves the built SPA in production.
 - uv (Python 3.13 is pinned via `.python-version`)
 - Node 24 + pnpm (pinned via `.node-version` and `packageManager`)
 - Docker (Postgres 18 for local dev and for the full test suite)
+- A Devin GitHub connection whose Automation scope is **All installed
+  repos**. By default Devin Automations only fire on private
+  repositories, so a Flow whose Trigger points at a public repo would
+  never run. A Devin admin sets this once per connection: Settings ->
+  Connections -> GitHub, open the connection's menu, set **Automation
+  scope** to **All installed repos**. Public-repo triggers carry a higher
+  prompt-injection risk, so keep Trigger conditions narrow. See
+  https://docs.devin.ai/product-guides/automations#github-triggers.
 
 ## Setup
 
