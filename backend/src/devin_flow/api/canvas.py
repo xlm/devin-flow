@@ -1,9 +1,10 @@
+import re
 from datetime import UTC, datetime
 from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response
-from pydantic import BaseModel, FiniteFloat, StringConstraints
+from pydantic import AfterValidator, BaseModel, FiniteFloat
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, col, delete, select
 
@@ -36,17 +37,15 @@ class Position(BaseModel):
 REPOSITORY_FULL_NAME_PATTERN = (
     r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?/(?!\.{1,2}$)[A-Za-z0-9._-]{1,100}$"
 )
-RepositoryFullName = Annotated[
-    str,
-    StringConstraints(
-        pattern=(
-            r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?/"
-            r"(?:[A-Za-z0-9_-]|"
-            r"(?:[A-Za-z0-9_-][A-Za-z0-9._-]|\.[A-Za-z0-9_-])|"
-            r"[A-Za-z0-9._-]{3,100})$"
-        )
-    ),
-]
+
+
+def check_repository_full_name(value: str) -> str:
+    if re.fullmatch(REPOSITORY_FULL_NAME_PATTERN, value) is None:
+        raise ValueError("must look like owner/repo")
+    return value
+
+
+RepositoryFullName = Annotated[str, AfterValidator(check_repository_full_name)]
 
 
 class TriggerRead(BaseModel):
