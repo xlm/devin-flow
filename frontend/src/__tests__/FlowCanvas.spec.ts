@@ -278,6 +278,80 @@ describe('FlowCanvas', () => {
     wrapper.unmount()
   })
 
+  it('ignores stale drag save completions', async () => {
+    const node = {
+      id: 'trigger',
+      position: { x: 1, y: 2 },
+      data: { kind: 'trigger' },
+    } as Node
+    mocks.findNode.mockReturnValue(node)
+    let resolveFirst: ((value: ReturnType<typeof response>) => void) | undefined
+    let resolveSecond:
+      ((value: ReturnType<typeof response>) => void) | undefined
+    mocks.PATCH.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirst = resolve
+        }),
+    ).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSecond = resolve
+        }),
+    )
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    mocks.handlers.dragStart?.({ node })
+    node.position = { x: 8, y: 9 }
+    const firstSave = mocks.handlers.dragStop?.({ node })
+    mocks.handlers.dragStart?.({ node })
+    node.position = { x: 10, y: 11 }
+    const secondSave = mocks.handlers.dragStop?.({ node })
+    resolveSecond?.(response(undefined))
+    await secondSave
+    resolveFirst?.(response(undefined, { detail: 'save failed' }, 500))
+    await firstSave
+    expect(node.position).toEqual({ x: 10, y: 11 })
+    wrapper.unmount()
+  })
+
+  it('ignores stale drag save failures', async () => {
+    const node = {
+      id: 'trigger',
+      position: { x: 1, y: 2 },
+      data: { kind: 'trigger' },
+    } as Node
+    mocks.findNode.mockReturnValue(node)
+    let rejectFirst: ((reason?: unknown) => void) | undefined
+    let resolveSecond:
+      ((value: ReturnType<typeof response>) => void) | undefined
+    mocks.PATCH.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectFirst = reject
+        }),
+    ).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSecond = resolve
+        }),
+    )
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    mocks.handlers.dragStart?.({ node })
+    node.position = { x: 8, y: 9 }
+    const firstSave = mocks.handlers.dragStop?.({ node })
+    mocks.handlers.dragStart?.({ node })
+    node.position = { x: 10, y: 11 }
+    const secondSave = mocks.handlers.dragStop?.({ node })
+    resolveSecond?.(response(undefined))
+    await secondSave
+    rejectFirst?.(new Error('down'))
+    await firstSave
+    expect(node.position).toEqual({ x: 10, y: 11 })
+    wrapper.unmount()
+  })
+
   it('deletes nodes and restores them on non-404 failures', async () => {
     const wrapper = mount(FlowCanvas)
     await flushPromises()
@@ -294,6 +368,71 @@ describe('FlowCanvas', () => {
     await flushPromises()
     expect(mocks.addNodes).toHaveBeenCalledWith([
       expect.objectContaining({ id: 'trigger' }),
+    ])
+    wrapper.unmount()
+  })
+
+  it('skips cascaded edge deletes when removing a node', async () => {
+    mocks.GET.mockResolvedValue(
+      response({
+        ...canvas,
+        edges: [
+          canvas.edges[0],
+          {
+            id: 'outcome-edge',
+            source: { id: 'action', kind: 'action' },
+            target: { id: 'outcome', kind: 'outcome' },
+          },
+        ],
+      }),
+    )
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    mocks.handlers.edgesChange?.([
+      { type: 'remove', id: 'edge' },
+      { type: 'remove', id: 'outcome-edge' },
+    ])
+    mocks.handlers.nodesChange?.([{ type: 'remove', id: 'action' }])
+    await flushPromises()
+    expect(mocks.DELETE).toHaveBeenCalledTimes(1)
+    expect(mocks.DELETE).toHaveBeenCalledWith(
+      '/api/canvas/nodes/{kind}/{node_id}',
+      { params: { path: { kind: 'action', node_id: 'action' } } },
+    )
+    wrapper.unmount()
+  })
+
+  it('restores a node and its edges when cascade deletion fails', async () => {
+    mocks.GET.mockResolvedValue(
+      response({
+        ...canvas,
+        edges: [
+          canvas.edges[0],
+          {
+            id: 'outcome-edge',
+            source: { id: 'action', kind: 'action' },
+            target: { id: 'outcome', kind: 'outcome' },
+          },
+        ],
+      }),
+    )
+    mocks.DELETE.mockResolvedValue(
+      response(undefined, { detail: 'delete failed' }, 500),
+    )
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    mocks.handlers.edgesChange?.([
+      { type: 'remove', id: 'edge' },
+      { type: 'remove', id: 'outcome-edge' },
+    ])
+    mocks.handlers.nodesChange?.([{ type: 'remove', id: 'action' }])
+    await flushPromises()
+    expect(mocks.addNodes).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'action' }),
+    ])
+    expect(mocks.addEdges).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'edge' }),
+      expect.objectContaining({ id: 'outcome-edge' }),
     ])
     wrapper.unmount()
   })
