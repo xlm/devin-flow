@@ -48,6 +48,23 @@ actual Devin integration.
 - A failed node DELETE makes the frontend reload the whole Canvas from GET
   rather than patch local state. Expect one extra GET, not a local undo.
 
+## Verifying a FlowCanvas change
+
+The Vitest suite mocks `@vue-flow/core`, so a green frontend gate proves the
+component logic and nothing about how Vue Flow renders it. Treat any change
+to `FlowCanvas.vue` as unverified until it has run in the real browser.
+
+1. Populate the Canvas with a configured Trigger connected to an Action that
+   has a name and Playbook, matching a real user board rather than empty
+   nodes.
+2. Repeat the mutating gesture (Refresh, reload, connect, delete) at least
+   twice without a page reload. Vue Flow re-validates existing edges
+   through `isValidConnection` every time the `edges` prop is replaced, so
+   the second render can differ from the first (PR #33 dropped edges on
+   alternate Refresh clicks this way).
+3. Finish when the rendered graph and its labels match GET after every
+   repetition and the console shows no new warnings.
+
 ## Load-error recovery
 
 With persisted nodes present, stop the backend process and confirm its port
