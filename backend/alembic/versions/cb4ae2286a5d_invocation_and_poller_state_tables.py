@@ -27,6 +27,7 @@ def upgrade() -> None:
         sa.Column("last_success_at", sa.DateTime(timezone=True), nullable=True),
         sa.PrimaryKeyConstraint("id"),
     )
+    op.execute("INSERT INTO poller_state (id, last_success_at) VALUES (1, NULL)")
     op.create_table(
         "invocation",
         sa.Column("id", sa.Uuid(), nullable=False),

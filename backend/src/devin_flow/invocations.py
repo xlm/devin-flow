@@ -40,7 +40,9 @@ def apply_session(invocation: Invocation, session: DevinSession, now: datetime) 
 
 
 def get_poller_state(session: Session) -> PollerState:
-    state = session.get(PollerState, 1)
+    # the row lock serializes overlapping poll cycles (lifespan task, manual
+    # refresh, other workers) until this session commits
+    state = session.exec(select(PollerState).with_for_update()).first()
     if state is None:
         state = PollerState()
         session.add(state)
