@@ -95,6 +95,32 @@ def test_list_sessions_maps_upstream_failure_to_502(tmp_path: Path) -> None:
     upstream.http.close()
 
 
+def test_list_repositories_proxies_response(tmp_path: Path) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/v3beta1/organizations/org-test/repositories"
+        return httpx.Response(
+            200,
+            json={"items": [{"repo_path": "octo/repo", "repo_name": "repo"}]},
+        )
+
+    client, upstream = make_client(tmp_path, httpx.MockTransport(handler))
+    response = client.get("/api/devin/repositories")
+    assert response.status_code == 200
+    assert response.json() == [{"repo_path": "octo/repo", "repo_name": "repo"}]
+    upstream.http.close()
+
+
+def test_list_repositories_maps_upstream_failure_to_502(tmp_path: Path) -> None:
+    client, upstream = make_client(
+        tmp_path,
+        httpx.MockTransport(lambda request: httpx.Response(500, text="server error")),
+    )
+    response = client.get("/api/devin/repositories")
+    assert response.status_code == 502
+    assert response.json() == {"detail": "devin api returned HTTP 500"}
+    upstream.http.close()
+
+
 def test_create_session_maps_upstream_failure_to_502(tmp_path: Path) -> None:
     client, upstream = make_client(
         tmp_path,
@@ -115,6 +141,21 @@ def test_upstream_failure_does_not_expose_token(tmp_path: Path) -> None:
         ),
     )
     response = client.get("/api/devin/sessions")
+    assert response.status_code == 502
+    assert token not in response.text
+    assert response.json() == {"detail": "devin api returned HTTP 500"}
+    upstream.http.close()
+
+
+def test_repository_upstream_failure_does_not_expose_token(tmp_path: Path) -> None:
+    token = "secret-token"
+    client, upstream = make_client(
+        tmp_path,
+        httpx.MockTransport(
+            lambda request: httpx.Response(500, text=f"Authorization: Bearer {token}")
+        ),
+    )
+    response = client.get("/api/devin/repositories")
     assert response.status_code == 502
     assert token not in response.text
     assert response.json() == {"detail": "devin api returned HTTP 500"}

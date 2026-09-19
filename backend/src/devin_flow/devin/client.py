@@ -32,6 +32,13 @@ class Playbook(BaseModel):
     structured_output_schema: dict[str, Any] | None = None
 
 
+class Repository(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    repo_path: str
+    repo_name: str
+
+
 class PlaybookCreate(BaseModel):
     title: str = Field(min_length=1)
     body: str = Field(min_length=1)
@@ -107,6 +114,33 @@ class DevinClient:
                 )
                 if not page.get("has_next_page"):
                     return playbooks
+                params["after"] = page["end_cursor"]
+
+    def _beta_url(self, path: str) -> httpx.URL:
+        base = self.http.base_url
+        prefix = base.path.rstrip("/").removesuffix("/v3")
+        return base.copy_with(path=f"{prefix}/v3beta1{path}")
+
+    def list_repositories(self) -> list[Repository]:
+        with _upstream_errors():
+            repositories: list[Repository] = []
+            params: dict[str, str | int] = {
+                "first": 100,
+                "load_indexing_status": "false",
+            }
+            while True:
+                response = self.http.get(
+                    self._beta_url(f"/organizations/{self.org_id}/repositories"),
+                    params=params,
+                )
+                response.raise_for_status()
+                page = response.json()
+                repositories.extend(
+                    Repository.model_validate(repository)
+                    for repository in page["items"]
+                )
+                if not page.get("has_next_page"):
+                    return repositories
                 params["after"] = page["end_cursor"]
 
     def create_playbook(self, payload: PlaybookCreate) -> Playbook:

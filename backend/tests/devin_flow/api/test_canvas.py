@@ -7,7 +7,7 @@ from httpx import Response
 from sqlmodel import Session
 
 from devin_flow.api import canvas as canvas_api
-from devin_flow.models import ActionNode, Edge
+from devin_flow.models import ActionNode, Edge, EventAction
 
 
 def create_node(client: TestClient, kind: str, x: float = 1, y: float = 2) -> str:
@@ -58,6 +58,187 @@ def test_create_nodes_in_kind_lists(unit_client: TestClient) -> None:
         1,
     ]
     assert canvas["trigger_nodes"][0]["position"] == {"x": 1, "y": 2}
+    assert canvas["trigger_nodes"][0]["trigger"] == {
+        "event_action": None,
+        "repository_full_name": None,
+    }
+    assert canvas["action_nodes"][0]["trigger"] is None
+
+
+def test_event_action_is_exported() -> None:
+    assert EventAction
+
+
+def test_create_trigger_with_fields_and_patch_independently(
+    unit_client: TestClient,
+) -> None:
+    response = unit_client.post(
+        "/api/canvas/nodes/trigger",
+        json={
+            "position": {"x": 1, "y": 2},
+            "trigger": {
+                "event_action": "opened",
+                "repository_full_name": "octo/repo",
+            },
+        },
+    )
+    assert response.status_code == 201
+    node_id = response.json()["id"]
+    assert response.json()["trigger"] == {
+        "event_action": "opened",
+        "repository_full_name": "octo/repo",
+    }
+    response = unit_client.patch(
+        f"/api/canvas/nodes/trigger/{node_id}",
+        json={"trigger": {"event_action": "closed"}},
+    )
+    assert response.status_code == 200
+    assert response.json()["trigger"] == {
+        "event_action": "closed",
+        "repository_full_name": "octo/repo",
+    }
+    response = unit_client.patch(
+        f"/api/canvas/nodes/trigger/{node_id}",
+        json={"trigger": {"repository_full_name": "octo/other"}},
+    )
+    assert response.json()["trigger"] == {
+        "event_action": "closed",
+        "repository_full_name": "octo/other",
+    }
+
+
+def test_patch_trigger_explicit_null_clears_only_one_field(
+    unit_client: TestClient,
+) -> None:
+    node_id = unit_client.post(
+        "/api/canvas/nodes/trigger",
+        json={
+            "position": {"x": 1, "y": 2},
+            "trigger": {
+                "event_action": "opened",
+                "repository_full_name": "octo/repo",
+            },
+        },
+    ).json()["id"]
+    response = unit_client.patch(
+        f"/api/canvas/nodes/trigger/{node_id}",
+        json={"trigger": {"repository_full_name": None}},
+    )
+    assert response.status_code == 200
+    assert response.json()["trigger"] == {
+        "event_action": "opened",
+        "repository_full_name": None,
+    }
+
+
+def test_position_only_patch_leaves_trigger_fields(
+    unit_client: TestClient,
+) -> None:
+    node_id = unit_client.post(
+        "/api/canvas/nodes/trigger",
+        json={
+            "position": {"x": 1, "y": 2},
+            "trigger": {
+                "event_action": "opened",
+                "repository_full_name": "octo/repo",
+            },
+        },
+    ).json()["id"]
+    response = unit_client.patch(
+        f"/api/canvas/nodes/trigger/{node_id}",
+        json={"position": {"x": 3, "y": 4}},
+    )
+    assert response.json()["position"] == {"x": 3, "y": 4}
+    assert response.json()["trigger"] == {
+        "event_action": "opened",
+        "repository_full_name": "octo/repo",
+    }
+
+
+@pytest.mark.parametrize("kind", ["action", "outcome"])
+def test_trigger_fields_only_apply_to_trigger_nodes(
+    unit_client: TestClient, kind: str
+) -> None:
+    response = unit_client.post(
+        f"/api/canvas/nodes/{kind}",
+        json={
+            "position": {"x": 1, "y": 2},
+            "trigger": {"event_action": "opened"},
+        },
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"] == "trigger fields apply only to trigger nodes"
+    node_id = create_node(unit_client, kind)
+    response = unit_client.patch(
+        f"/api/canvas/nodes/{kind}/{node_id}",
+        json={"trigger": {"event_action": "opened"}},
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"] == "trigger fields apply only to trigger nodes"
+
+
+@pytest.mark.parametrize(
+    "repository",
+    [
+        "octo",
+        "octo/",
+        "/repo",
+        "octo/repo/extra",
+        "-octo/repo",
+        "octo-/repo",
+        "octo/.",
+        "octo/..",
+        "octo/re po",
+        "octo/re;po",
+        "Ｏcto/repo",
+        "octo/répo",
+        "octo//repo",
+        r"octo\repo",
+        "octo/repo\n",
+        "a" * 40 + "/repo",
+        "octo/" + "r" * 101,
+    ],
+)
+def test_repository_full_name_rejects_invalid_values(
+    unit_client: TestClient, repository: str
+) -> None:
+    response = unit_client.post(
+        "/api/canvas/nodes/trigger",
+        json={
+            "position": {"x": 1, "y": 2},
+            "trigger": {"repository_full_name": repository},
+        },
+    )
+    assert response.status_code == 422
+    assert unit_client.get("/api/canvas").json()["trigger_nodes"] == []
+
+
+@pytest.mark.parametrize(
+    "repository",
+    ["octo/repo", "octo-org/my.repo_name-1", "a/b", "a" * 39 + "/repo"],
+)
+def test_repository_full_name_accepts_valid_values(
+    unit_client: TestClient, repository: str
+) -> None:
+    response = unit_client.post(
+        "/api/canvas/nodes/trigger",
+        json={
+            "position": {"x": 1, "y": 2},
+            "trigger": {"repository_full_name": repository},
+        },
+    )
+    assert response.status_code == 201
+
+
+def test_event_action_validation_returns_422(unit_client: TestClient) -> None:
+    response = unit_client.post(
+        "/api/canvas/nodes/trigger",
+        json={
+            "position": {"x": 1, "y": 2},
+            "trigger": {"event_action": "reopened"},
+        },
+    )
+    assert response.status_code == 422
 
 
 def test_action_node_defaults_sync_status(unit_session: Session) -> None:

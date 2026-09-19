@@ -3,7 +3,7 @@ from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response
-from pydantic import BaseModel, FiniteFloat
+from pydantic import BaseModel, FiniteFloat, StringConstraints
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, col, delete, select
 
@@ -15,7 +15,14 @@ from devin_flow.canvas import (
     check_edge_uniqueness,
 )
 from devin_flow.db import get_session
-from devin_flow.models import NODE_MODELS, Edge, NodeBase, NodeKind
+from devin_flow.models import (
+    NODE_MODELS,
+    Edge,
+    EventAction,
+    NodeBase,
+    NodeKind,
+    TriggerNode,
+)
 
 router = APIRouter(prefix="/canvas")
 SessionDep = Annotated[Session, Depends(get_session)]
@@ -26,18 +33,47 @@ class Position(BaseModel):
     y: FiniteFloat
 
 
+REPOSITORY_FULL_NAME_PATTERN = (
+    r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?/(?!\.{1,2}$)[A-Za-z0-9._-]{1,100}$"
+)
+RepositoryFullName = Annotated[
+    str,
+    StringConstraints(
+        pattern=(
+            r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?/"
+            r"(?:[A-Za-z0-9_-]|"
+            r"(?:[A-Za-z0-9_-][A-Za-z0-9._-]|\.[A-Za-z0-9_-])|"
+            r"[A-Za-z0-9._-]{3,100})$"
+        )
+    ),
+]
+
+
+class TriggerRead(BaseModel):
+    event_action: EventAction | None
+    repository_full_name: str | None
+
+
+class TriggerUpdate(BaseModel):
+    event_action: EventAction | None = None
+    repository_full_name: RepositoryFullName | None = None
+
+
 class NodeRead(BaseModel):
     id: UUID
     kind: NodeKind
     position: Position
+    trigger: TriggerRead | None = None
 
 
 class NodeCreate(BaseModel):
     position: Position
+    trigger: TriggerUpdate | None = None
 
 
-class NodeMove(BaseModel):
-    position: Position
+class NodeUpdate(BaseModel):
+    position: Position | None = None
+    trigger: TriggerUpdate | None = None
 
 
 class EdgeRead(BaseModel):
@@ -69,6 +105,14 @@ def node_read(node: NodeBase, kind: NodeKind) -> NodeRead:
         id=node.id,
         kind=kind,
         position=Position(x=node.position_x, y=node.position_y),
+        trigger=(
+            TriggerRead(
+                event_action=node.event_action,
+                repository_full_name=node.repository_full_name,
+            )
+            if isinstance(node, TriggerNode)
+            else None
+        ),
     )
 
 
@@ -113,8 +157,19 @@ def get_canvas(session: SessionDep) -> CanvasRead:
     responses=ERROR_RESPONSES,
 )
 def create_node(kind: NodeKind, payload: NodeCreate, session: SessionDep) -> NodeRead:
+    if payload.trigger is not None and kind != "trigger":
+        raise HTTPException(422, "trigger fields apply only to trigger nodes")
     node = NODE_MODELS[kind](
-        position_x=payload.position.x, position_y=payload.position.y
+        position_x=payload.position.x,
+        position_y=payload.position.y,
+        **(
+            {
+                "event_action": payload.trigger.event_action,
+                "repository_full_name": payload.trigger.repository_full_name,
+            }
+            if payload.trigger is not None
+            else {}
+        ),
     )
     session.add(node)
     session.commit()
@@ -127,14 +182,23 @@ def create_node(kind: NodeKind, payload: NodeCreate, session: SessionDep) -> Nod
     response_model=NodeRead,
     responses=ERROR_RESPONSES,
 )
-def move_node(
-    kind: NodeKind, node_id: UUID, payload: NodeMove, session: SessionDep
+def update_node(
+    kind: NodeKind, node_id: UUID, payload: NodeUpdate, session: SessionDep
 ) -> NodeRead:
     node = get_node(session, kind, node_id)
     if node is None:
         raise HTTPException(404, "node not found")
-    node.position_x = payload.position.x
-    node.position_y = payload.position.y
+    if payload.trigger is not None and kind != "trigger":
+        raise HTTPException(422, "trigger fields apply only to trigger nodes")
+    if payload.position is not None:
+        node.position_x = payload.position.x
+        node.position_y = payload.position.y
+    if payload.trigger is not None and isinstance(node, TriggerNode):
+        fields_set = payload.trigger.model_fields_set
+        if "event_action" in fields_set:
+            node.event_action = payload.trigger.event_action
+        if "repository_full_name" in fields_set:
+            node.repository_full_name = payload.trigger.repository_full_name
     node.updated_at = datetime.now(UTC)
     session.add(node)
     session.commit()

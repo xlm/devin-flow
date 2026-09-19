@@ -12,6 +12,7 @@ from devin_flow.devin.client import (
     DevinUpstreamError,
     Playbook,
     PlaybookCreate,
+    Repository,
     SessionCreate,
     create_client,
 )
@@ -413,6 +414,113 @@ def test_list_playbooks_rejects_malformed_success(
     client = make_client(httpx.MockTransport(lambda request: response))
     with pytest.raises(DevinUpstreamError) as error:
         client.list_playbooks()
+    assert error.value.status_code is None
+    assert error.value.detail == "malformed devin response"
+    client.http.close()
+
+
+@pytest.mark.parametrize(
+    "base_url", ["https://devin.example/v3", "https://devin.example"]
+)
+def test_list_repositories_uses_beta_path_and_authorization(base_url: str) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/v3beta1/organizations/org-test/repositories"
+        assert request.headers["Authorization"] == "Bearer secret"
+        assert request.url.params["first"] == "100"
+        assert request.url.params["load_indexing_status"] == "false"
+        return httpx.Response(
+            200,
+            json={"items": [{"repo_path": "octo/repo", "repo_name": "repo"}]},
+        )
+
+    client = DevinClient(
+        httpx.Client(
+            transport=httpx.MockTransport(handler),
+            base_url=base_url,
+            headers={"Authorization": "Bearer secret"},
+        ),
+        "org-test",
+    )
+    assert client.list_repositories() == [
+        Repository(repo_path="octo/repo", repo_name="repo")
+    ]
+    client.http.close()
+
+
+def test_list_repositories_follows_cursor() -> None:
+    calls: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        if "after" not in request.url.params:
+            return httpx.Response(
+                200,
+                json={
+                    "items": [{"repo_path": "octo/one", "repo_name": "one"}],
+                    "end_cursor": "cursor-1",
+                    "has_next_page": True,
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "items": [{"repo_path": "octo/two", "repo_name": "two"}],
+                "has_next_page": False,
+            },
+        )
+
+    client = make_client(httpx.MockTransport(handler))
+    assert client.list_repositories() == [
+        Repository(repo_path="octo/one", repo_name="one"),
+        Repository(repo_path="octo/two", repo_name="two"),
+    ]
+    assert calls[1].url.params["after"] == "cursor-1"
+    client.http.close()
+
+
+@pytest.mark.parametrize("status_code", [400, 500])
+def test_list_repositories_upstream_http_error_includes_status(
+    status_code: int,
+) -> None:
+    client = make_client(
+        httpx.MockTransport(
+            lambda request: httpx.Response(status_code, text="upstream failed")
+        )
+    )
+    with pytest.raises(DevinUpstreamError) as error:
+        client.list_repositories()
+    assert error.value.status_code == status_code
+    assert error.value.detail == f"devin api returned HTTP {status_code}"
+    client.http.close()
+
+
+def test_list_repositories_transport_error_has_no_status() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("connection refused", request=request)
+
+    client = make_client(httpx.MockTransport(handler))
+    with pytest.raises(DevinUpstreamError) as error:
+        client.list_repositories()
+    assert error.value.status_code is None
+    assert error.value.detail == "devin api unreachable"
+    client.http.close()
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        httpx.Response(200, text="not json"),
+        httpx.Response(200, json={"unexpected": []}),
+        httpx.Response(200, json={"items": [{}]}),
+        httpx.Response(200, json={"items": [], "has_next_page": True}),
+    ],
+)
+def test_list_repositories_rejects_malformed_success(
+    response: httpx.Response,
+) -> None:
+    client = make_client(httpx.MockTransport(lambda request: response))
+    with pytest.raises(DevinUpstreamError) as error:
+        client.list_repositories()
     assert error.value.status_code is None
     assert error.value.detail == "malformed devin response"
     client.http.close()
