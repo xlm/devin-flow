@@ -7,7 +7,6 @@ test.beforeEach(async ({ request }) => {
 
 test('spec 1: empty board loads and palette creates nodes', async ({
   page,
-  request,
 }) => {
   await page.goto('/')
   await expect(page.getByText('API: ok')).toBeVisible()
@@ -30,7 +29,7 @@ test('spec 1: empty board loads and palette creates nodes', async ({
     page.locator('[data-testid=canvas-node][data-kind=outcome]'),
   ).toHaveCount(1)
 
-  const saved = await canvas(request)
+  const saved = await canvas()
   expect(saved.trigger_nodes).toHaveLength(1)
   expect(saved.action_nodes).toHaveLength(1)
   expect(saved.outcome_nodes).toHaveLength(1)

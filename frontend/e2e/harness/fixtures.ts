@@ -1,4 +1,3 @@
-import type { APIRequestContext } from '@playwright/test'
 import {
   apiClient,
   createEdge,
@@ -22,24 +21,17 @@ const positions: Record<NodeKind, { x: number; y: number }> = {
   outcome: { x: 800, y: 80 },
 }
 
-export async function seedBasic(
-  request: APIRequestContext,
-): Promise<BasicFixture> {
-  const trigger = await createNode(request, 'trigger', positions.trigger)
-  const action = await createNode(request, 'action', positions.action)
+export async function seedBasic(): Promise<BasicFixture> {
+  const trigger = await createNode('trigger', positions.trigger)
+  const action = await createNode('action', positions.action)
   await createEdge(
-    request,
     { id: trigger.id, kind: 'trigger' },
     { id: action.id, kind: 'action' },
   )
   return { triggerId: trigger.id, actionId: action.id }
 }
 
-export async function configureEnabled(
-  request: APIRequestContext,
-  fixture: BasicFixture,
-): Promise<void> {
-  void request
+export async function configureEnabled(fixture: BasicFixture): Promise<void> {
   const { error: triggerError } = await apiClient.PATCH(
     '/api/canvas/nodes/{kind}/{node_id}',
     {
@@ -81,27 +73,22 @@ export async function configureEnabled(
   if (enabledError) throw new Error('failed to enable action')
 }
 
-export async function seedConfigured(
-  request: APIRequestContext,
-): Promise<BasicFixture> {
-  const fixture = await seedBasic(request)
-  await configureEnabled(request, fixture)
+export async function seedConfigured(): Promise<BasicFixture> {
+  const fixture = await seedBasic()
+  await configureEnabled(fixture)
   return fixture
 }
 
-export async function seedOutcomeGraph(
-  request: APIRequestContext,
-): Promise<OutcomeFixture> {
-  const fixture = await seedConfigured(request)
+export async function seedOutcomeGraph(): Promise<OutcomeFixture> {
+  const fixture = await seedConfigured()
   const outcomeIds: string[] = []
   for (let index = 0; index < 4; index += 1) {
-    const outcome = await createNode(request, 'outcome', {
+    const outcome = await createNode('outcome', {
       x: positions.outcome.x,
       y: positions.outcome.y + index * 170,
     })
     outcomeIds.push(outcome.id)
     await createEdge(
-      request,
       { id: fixture.actionId, kind: 'action' },
       { id: outcome.id, kind: 'outcome' },
     )

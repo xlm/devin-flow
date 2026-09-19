@@ -10,7 +10,7 @@ test('spec 4: configuring and enabling an Action provisions automation', async (
   page,
   request,
 }) => {
-  const fixture = await seedBasic(request)
+  const fixture = await seedBasic()
   await page.goto('/')
   const trigger = page.locator(
     `.vue-flow__node[data-id="${fixture.triggerId}"]`,
@@ -62,7 +62,7 @@ test('spec 4: configuring and enabling an Action provisions automation', async (
       String(call.path).endsWith('/automations/auto-1'),
   )
   expect(updates.at(-1)?.body).toMatchObject({ enabled: true })
-  const saved = await canvas(request)
+  const saved = await canvas()
   expect(saved.action_nodes[0].automation_id).toBe('auto-1')
   expect(saved.action_nodes[0].sync_status).toBe('enabled')
 })

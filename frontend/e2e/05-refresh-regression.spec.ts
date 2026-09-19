@@ -20,7 +20,7 @@ test('spec 5: Refresh keeps the edge and invocation count', async ({
   page,
   request,
 }) => {
-  const fixture: BasicFixture = await seedConfigured(request)
+  const fixture: BasicFixture = await seedConfigured()
   const now = Math.floor(Date.now() / 1000)
   await setSessions(request, [
     {
@@ -48,10 +48,10 @@ test('spec 5: Refresh keeps the edge and invocation count', async ({
   await refresh(page)
   await expect(page.locator('.vue-flow__edge')).toHaveCount(1)
   await expect(page.locator('.vue-flow__edge-text')).toHaveText('2 invocations')
-  expect((await canvas(request)).action_nodes[0].invocation_count).toBe(2)
+  expect((await canvas()).action_nodes[0].invocation_count).toBe(2)
   await page.waitForTimeout(600)
   await refresh(page)
   await expect(page.locator('.vue-flow__edge')).toHaveCount(1)
   await expect(page.locator('.vue-flow__edge-text')).toHaveText('2 invocations')
-  expect((await canvas(request)).action_nodes[0].invocation_count).toBe(2)
+  expect((await canvas()).action_nodes[0].invocation_count).toBe(2)
 })
