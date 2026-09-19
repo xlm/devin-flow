@@ -159,6 +159,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/invocations/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refresh Invocations */
+        post: operations["refresh_invocations_api_invocations_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -174,6 +191,11 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /**
+             * Invocation Count
+             * @default 0
+             */
+            invocation_count: number;
             /**
              * Kind
              * @enum {string}
@@ -208,12 +230,27 @@ export interface components {
         };
         /** DevinSession */
         DevinSession: {
+            /** Automation Id */
+            automation_id?: string | null;
+            /** Created At */
+            created_at?: number | null;
+            /**
+             * Pull Requests
+             * @default []
+             */
+            pull_requests: components["schemas"]["SessionPullRequest"][];
             /** Session Id */
             session_id: string;
             /** Status */
             status: string;
+            /** Structured Output */
+            structured_output?: {
+                [key: string]: unknown;
+            } | null;
             /** Title */
             title?: string | null;
+            /** Updated At */
+            updated_at?: number | null;
             /** Url */
             url?: string | null;
         };
@@ -309,6 +346,15 @@ export interface components {
             /** Title */
             title: string;
         };
+        /** PollResult */
+        PollResult: {
+            /** Listed */
+            listed: number;
+            /** Refreshed */
+            refreshed: number;
+            /** Upserted */
+            upserted: number;
+        };
         /** Position */
         Position: {
             /** X */
@@ -327,6 +373,13 @@ export interface components {
         SessionCreate: {
             /** Prompt */
             prompt: string;
+        };
+        /** SessionPullRequest */
+        SessionPullRequest: {
+            /** Pr State */
+            pr_state?: string | null;
+            /** Pr Url */
+            pr_url: string;
         };
         /** TriggerRead */
         TriggerRead: {
@@ -829,6 +882,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    refresh_invocations_api_invocations_refresh_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PollResult"];
+                };
+            };
+            /** @description Devin API failure */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Devin API not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
