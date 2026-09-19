@@ -29,7 +29,12 @@ const saveError = ref(false)
 const repositoryInvalid = ref(false)
 let saveChain = Promise.resolve()
 
-const complete = computed(() => Boolean(eventAction.value && repository.value))
+const complete = computed(() =>
+  Boolean(
+    props.data.trigger?.event_action &&
+    props.data.trigger?.repository_full_name,
+  ),
+)
 const repositoryOptions = computed(() => {
   const values = repositories.value ? [...repositories.value] : []
   if (repository.value && !values.includes(repository.value)) {
@@ -68,11 +73,11 @@ function revert(snapshot: TriggerRead) {
 }
 
 function save(patch: TriggerUpdate) {
-  const snapshot: TriggerRead = {
-    event_action: props.data.trigger?.event_action ?? null,
-    repository_full_name: props.data.trigger?.repository_full_name ?? null,
-  }
   const next = saveChain.then(async () => {
+    const snapshot: TriggerRead = {
+      event_action: props.data.trigger?.event_action ?? null,
+      repository_full_name: props.data.trigger?.repository_full_name ?? null,
+    }
     try {
       const { data, error } = await client.PATCH(
         '/api/canvas/nodes/{kind}/{node_id}',
@@ -125,7 +130,7 @@ onMounted(() => void loadRepositories())
         class="nodrag rounded-md border bg-background px-2 py-1 text-xs"
         @change="save({ event_action: eventAction || null })"
       >
-        <option value="" disabled>Select event</option>
+        <option value="">Select event</option>
         <option value="opened">opened</option>
         <option value="closed">closed</option>
       </select>
@@ -143,7 +148,7 @@ onMounted(() => void loadRepositories())
           class="nodrag rounded-md border bg-background px-2 py-1 text-xs"
           @change="save({ repository_full_name: repository || null })"
         >
-          <option value="" disabled>Select repository</option>
+          <option value="">Select repository</option>
           <option v-for="repo in repositoryOptions" :key="repo" :value="repo">
             {{ repo }}
           </option>

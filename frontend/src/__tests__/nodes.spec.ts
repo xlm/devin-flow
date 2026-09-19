@@ -74,7 +74,18 @@ const components = [
 ] as const
 
 function mountNode(component: Component) {
-  return mount(component, { props: { id: 'n1' } as never })
+  const props =
+    component === TriggerNode
+      ? {
+          id: 'n1',
+          data: {
+            kind: 'trigger',
+            label: 'Trigger',
+            trigger: { event_action: null, repository_full_name: null },
+          },
+        }
+      : { id: 'n1' }
+  return mount(component, { props } as never)
 }
 
 describe('canvas nodes', () => {
