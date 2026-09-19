@@ -1,5 +1,11 @@
 import type { APIRequestContext } from '@playwright/test'
-import { createEdge, createNode, type NodeKind, type Session } from './api.js'
+import {
+  apiClient,
+  createEdge,
+  createNode,
+  type NodeKind,
+  type Session,
+} from './api.js'
 
 export type BasicFixture = {
   triggerId: string
@@ -33,10 +39,14 @@ export async function configureEnabled(
   request: APIRequestContext,
   fixture: BasicFixture,
 ): Promise<void> {
-  const triggerResponse = await request.patch(
-    `/api/canvas/nodes/trigger/${fixture.triggerId}`,
+  void request
+  const { error: triggerError } = await apiClient.PATCH(
+    '/api/canvas/nodes/{kind}/{node_id}',
     {
-      data: {
+      params: {
+        path: { kind: 'trigger', node_id: fixture.triggerId },
+      },
+      body: {
         trigger: {
           event_action: 'opened',
           repository_full_name: 'acme/widgets',
@@ -44,25 +54,31 @@ export async function configureEnabled(
       },
     },
   )
-  if (!triggerResponse.ok()) throw new Error('failed to configure trigger')
-  const fields = await request.patch(
-    `/api/canvas/nodes/action/${fixture.actionId}`,
+  if (triggerError) throw new Error('failed to configure trigger')
+  const { error: fieldsError } = await apiClient.PATCH(
+    '/api/canvas/nodes/{kind}/{node_id}',
     {
-      data: {
+      params: {
+        path: { kind: 'action', node_id: fixture.actionId },
+      },
+      body: {
         name: 'Triage issue',
         playbook_id: 'pb-triage',
         prompt: 'Triage it.',
       },
     },
   )
-  if (!fields.ok()) throw new Error('failed to configure action')
-  const enabled = await request.patch(
-    `/api/canvas/nodes/action/${fixture.actionId}`,
+  if (fieldsError) throw new Error('failed to configure action')
+  const { error: enabledError } = await apiClient.PATCH(
+    '/api/canvas/nodes/{kind}/{node_id}',
     {
-      data: { enabled: true },
+      params: {
+        path: { kind: 'action', node_id: fixture.actionId },
+      },
+      body: { enabled: true },
     },
   )
-  if (!enabled.ok()) throw new Error('failed to enable action')
+  if (enabledError) throw new Error('failed to enable action')
 }
 
 export async function seedConfigured(
