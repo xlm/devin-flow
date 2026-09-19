@@ -1,6 +1,13 @@
 import type { components } from '@/api/schema'
 
-export type NodeKind = components['schemas']['NodeRead']['kind']
+type Schemas = components['schemas']
+
+export type NodeKind = Schemas['NodeRead']['kind']
+export type Position = Schemas['Position']
+export type NodeRef = Schemas['NodeRef']
+export type NodeRead = Schemas['NodeRead']
+export type EdgeRead = Schemas['EdgeRead']
+export type EdgeCreate = Schemas['EdgeCreate']
 
 export type CanvasEdge = {
   source: string
@@ -20,8 +27,8 @@ export function kindOf(node: {
 }
 
 export function connectError(
-  source: { id: string; kind: NodeKind },
-  target: { id: string; kind: NodeKind },
+  source: NodeRef,
+  target: NodeRef,
   edges: EdgeWithSourceKind[],
 ): string | null {
   if (!allowedPairs.has(`${source.kind}:${target.kind}`)) {

@@ -22,7 +22,12 @@ import {
   connectError,
   kindOf,
   type CanvasEdge,
+  type EdgeCreate,
+  type EdgeRead,
   type NodeKind,
+  type NodeRead,
+  type NodeRef,
+  type Position,
 } from '@/lib/connectRules'
 import { isNodeKind, NODE_KIND_MIME, nodeLabel } from '@/lib/nodeKinds'
 
@@ -56,11 +61,7 @@ const { mode, icon, cycleMode } = useTheme()
 
 let resizeTimer: ReturnType<typeof setTimeout> | undefined
 
-function mapNode(node: {
-  id: string
-  kind: NodeKind
-  position: { x: number; y: number }
-}): Node {
+function mapNode(node: NodeRead): Node {
   return {
     id: node.id,
     type: node.kind,
@@ -69,11 +70,7 @@ function mapNode(node: {
   }
 }
 
-function mapEdge(edge: {
-  id: string
-  source: { id: string; kind: NodeKind }
-  target: { id: string; kind: NodeKind }
-}): Edge {
+function mapEdge(edge: EdgeRead): Edge {
   return {
     id: edge.id,
     source: edge.source.id,
@@ -137,7 +134,7 @@ function loadCanvas(): Promise<void> {
 async function doSaveNodePosition(
   node: Node,
   kind: NodeKind,
-  position: { x: number; y: number },
+  position: Position,
   generation: number,
 ) {
   try {
@@ -255,19 +252,23 @@ function edgeCandidates(): Array<CanvasEdge & { sourceKind: NodeKind }> {
   return candidates
 }
 
-type NodeRef = { id: string; kind: NodeKind }
-
-function resolveConnection(
-  connection: Connection,
-): { source: NodeRef; target: NodeRef } | null {
+function resolveConnection(connection: Connection): EdgeCreate | null {
   const source = findNode(connection.source)
   const target = findNode(connection.target)
   const sourceKind = source && kindOf(source)
   const targetKind = target && kindOf(target)
   if (!sourceKind || !targetKind) return null
+  const sourceRef: NodeRef = {
+    id: connection.source,
+    kind: sourceKind,
+  }
+  const targetRef: NodeRef = {
+    id: connection.target,
+    kind: targetKind,
+  }
   return {
-    source: { id: connection.source, kind: sourceKind },
-    target: { id: connection.target, kind: targetKind },
+    source: sourceRef,
+    target: targetRef,
   }
 }
 
@@ -298,7 +299,7 @@ async function saveConnection(connection: Connection) {
   }
 }
 
-async function createNode(kind: NodeKind, position: { x: number; y: number }) {
+async function createNode(kind: NodeKind, position: Position) {
   try {
     const { data } = await client.POST('/api/canvas/nodes/{kind}', {
       params: { path: { kind } },
