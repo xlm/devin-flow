@@ -51,6 +51,7 @@ test('spec 4: configuring and enabling an Action provisions automation', async (
     (call) => call.method === 'POST' && call.path.endsWith('/automations'),
   )
   expect(automationCalls).toHaveLength(1)
+  expect(automationCalls[0].authorization).toBe('Bearer e2e-fake-token')
   const body = automationCalls[0].body as {
     metadata: Record<string, string>
   }

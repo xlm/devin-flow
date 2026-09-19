@@ -12,6 +12,7 @@ export type StubCall = {
   method: string
   path: string
   query: Record<string, string | string[]>
+  authorization: string | null
   body: unknown
 }
 
@@ -139,6 +140,7 @@ export class StubDevin {
       method: request.method ?? 'GET',
       path: url.pathname,
       query: queryObject(url),
+      authorization: request.headers.authorization ?? null,
       body,
     })
 
