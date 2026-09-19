@@ -64,7 +64,12 @@ def test_refresh_runs_one_cycle_and_returns_counts(
     install_upstream(unit_client, httpx.MockTransport(handler))
     response = unit_client.post("/api/invocations/refresh")
     assert response.status_code == 200
-    assert response.json() == {"listed": 1, "upserted": 1, "refreshed": 1}
+    assert response.json() == {
+        "listed": 1,
+        "upserted": 1,
+        "refreshed": 1,
+        "synced": 0,
+    }
     statuses = {
         i.session_id: i.status for i in unit_session.exec(select(Invocation)).all()
     }

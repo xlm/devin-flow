@@ -1965,7 +1965,7 @@ describe('FlowCanvas', () => {
     await button.trigger('click')
     expect(button.attributes('disabled')).toBeDefined()
     await button.trigger('click')
-    finish(response({ listed: 1, upserted: 1, refreshed: 0 }))
+    finish(response({ listed: 1, upserted: 1, refreshed: 0, synced: 0 }))
     await flushPromises()
     expect(button.attributes('disabled')).toBeUndefined()
     expect(mocks.POST).toHaveBeenCalledTimes(1)

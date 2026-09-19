@@ -410,6 +410,8 @@ export interface components {
             listed: number;
             /** Refreshed */
             refreshed: number;
+            /** Synced */
+            synced: number;
             /** Upserted */
             upserted: number;
         };

@@ -715,6 +715,10 @@
             "title": "Refreshed",
             "type": "integer"
           },
+          "synced": {
+            "title": "Synced",
+            "type": "integer"
+          },
           "upserted": {
             "title": "Upserted",
             "type": "integer"
@@ -723,7 +727,8 @@
         "required": [
           "listed",
           "upserted",
-          "refreshed"
+          "refreshed",
+          "synced"
         ],
         "title": "PollResult",
         "type": "object"

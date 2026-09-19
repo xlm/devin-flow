@@ -1,7 +1,9 @@
+import logging
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlmodel import Session, select
+from sqlmodel import Session, col, select
 
 from devin_flow.devin import DevinClient
 from devin_flow.devin.client import (
@@ -19,6 +21,8 @@ from devin_flow.devin.client import (
 from devin_flow.models import ActionNode, Edge, TriggerNode
 
 METADATA_KEY = "devin_flow_action_id"
+
+logger = logging.getLogger(__name__)
 
 
 def is_trigger_complete(trigger: TriggerNode) -> bool:
@@ -172,3 +176,29 @@ def sync_action(session: Session, client: DevinClient, action_id: UUID) -> None:
     finally:
         session.add(action)
         session.commit()
+
+
+def actions_to_sync(session: Session) -> Sequence[ActionNode]:
+    # tombstoned Actions are retried only while an Automation still needs
+    # disabling
+    return session.exec(
+        select(ActionNode)
+        .where(
+            col(ActionNode.sync_status).in_(["pending", "error"]),
+            (col(ActionNode.deleted_at).is_(None))
+            | (col(ActionNode.automation_id).is_not(None)),
+        )
+        .order_by(col(ActionNode.updated_at))
+    ).all()
+
+
+def retry_syncs(session: Session, client: DevinClient) -> int:
+    # one attempt per Action per cycle; one failure must not stop the rest
+    actions = actions_to_sync(session)
+    for action in actions:
+        try:
+            sync_action(session, client, action.id)
+        except Exception:
+            logger.exception("sync of action %s failed", action.id)
+            session.rollback()
+    return len(actions)

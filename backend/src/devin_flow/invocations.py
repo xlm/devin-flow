@@ -7,6 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel
 from sqlmodel import Session, col, select
 
+from devin_flow.automations import retry_syncs
 from devin_flow.db import get_engine
 from devin_flow.devin import DevinClient, get_devin_client
 from devin_flow.devin.client import TERMINAL_SESSION_STATUSES, DevinSession
@@ -23,6 +24,7 @@ class PollResult(BaseModel):
     listed: int
     upserted: int
     refreshed: int
+    synced: int
 
 
 def _timestamp(value: int | None, fallback: datetime) -> datetime:
@@ -90,6 +92,9 @@ def upsert_invocation(
 
 def poll_once(session: Session, client: DevinClient) -> PollResult:
     started = datetime.now(UTC)
+    # retry before taking the poller_state row lock so automations created by
+    # the retry are already owned in automation_owners below
+    synced = retry_syncs(session, client)
     state = get_poller_state(session)
     created_after = (
         None
@@ -128,7 +133,9 @@ def poll_once(session: Session, client: DevinClient) -> PollResult:
     state.last_success_at = started
     session.add(state)
     session.commit()
-    return PollResult(listed=len(listed), upserted=upserted, refreshed=len(stale))
+    return PollResult(
+        listed=len(listed), upserted=upserted, refreshed=len(stale), synced=synced
+    )
 
 
 def run_poll_cycle() -> PollResult:
