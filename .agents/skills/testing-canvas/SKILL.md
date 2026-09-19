@@ -23,6 +23,8 @@ does not cover.
 
 1. Follow the repository blueprint database/startup commands. Confirm the
    database revision is current and Vite `/api/health` returns ok.
+   Use `docker compose up -d --wait db` before migration on a fresh database.
+   Starting the container without waiting can race Postgres initialization.
    When restarting, inspect listening process IDs. Terminating a shell can
    leave FastAPI reloader or Vite children holding the original ports.
 2. Create nodes by dragging palette cards onto the Canvas. When the palette
@@ -30,6 +32,13 @@ does not cover.
    positions. Retain a label-to-ID map. Use a dedicated empty local Canvas
    or preserve unrelated rows. Seed at least one edge and leave another
    compatible pair unconnected. Finish when GET matches the intended fixture.
+
+For fixture-only demos, reload the browser to refresh Canvas counts. The
+`Refresh invocations` toolbar button invokes an upstream poll even when the
+background poller is disabled. Keep fixture Actions disabled and use direct
+local database inserts when no upstream automation creation is permitted.
+The seed command currently leaves an empty Canvas, so prepare dedicated nodes
+when necessary and remove them along with the temporary Invocation rows.
 
 ## Browser gestures and assertions
 
