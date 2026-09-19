@@ -327,6 +327,9 @@
       },
       "HealthResponse": {
         "properties": {
+          "polling": {
+            "$ref": "#/components/schemas/PollingStatus"
+          },
           "status": {
             "const": "ok",
             "title": "Status",
@@ -334,7 +337,8 @@
           }
         },
         "required": [
-          "status"
+          "status",
+          "polling"
         ],
         "title": "HealthResponse",
         "type": "object"
@@ -731,6 +735,42 @@
           "synced"
         ],
         "title": "PollResult",
+        "type": "object"
+      },
+      "PollingStatus": {
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "interval_seconds": {
+            "title": "Interval Seconds",
+            "type": "number"
+          },
+          "last_success_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Success At"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled",
+          "interval_seconds",
+          "last_success_at",
+          "stale"
+        ],
+        "title": "PollingStatus",
         "type": "object"
       },
       "Position": {

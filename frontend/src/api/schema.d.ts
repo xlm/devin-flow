@@ -301,6 +301,7 @@ export interface components {
         };
         /** HealthResponse */
         HealthResponse: {
+            polling: components["schemas"]["PollingStatus"];
             /**
              * Status
              * @constant
@@ -414,6 +415,17 @@ export interface components {
             synced: number;
             /** Upserted */
             upserted: number;
+        };
+        /** PollingStatus */
+        PollingStatus: {
+            /** Enabled */
+            enabled: boolean;
+            /** Interval Seconds */
+            interval_seconds: number;
+            /** Last Success At */
+            last_success_at: string | null;
+            /** Stale */
+            stale: boolean;
         };
         /** Position */
         Position: {
