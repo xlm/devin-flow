@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, provide, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, provide, ref } from 'vue'
 import {
   VueFlow,
   useVueFlow,
@@ -71,6 +71,7 @@ const {
   onEdgesChange,
   onConnect,
   screenToFlowCoordinate,
+  updateNodeInternals,
 } = useVueFlow()
 const { mode, icon, cycleMode } = useTheme()
 
@@ -156,6 +157,11 @@ async function fetchCanvas() {
     edges.value = loadedEdges
     loadedNodes.forEach((node) => nodeSnapshots.set(node.id, copyNode(node)))
     loadedEdges.forEach((edge) => edgeSnapshots.set(edge.id, copyEdge(edge)))
+    // replaced node objects start without dimensions or handle bounds, and
+    // the resize observer stays silent when the DOM size is unchanged, so
+    // edges would not render until the next re-measure
+    await nextTick()
+    updateNodeInternals()
   } catch {
     loadError.value = true
     nodes.value = []
