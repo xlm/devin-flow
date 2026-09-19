@@ -3,7 +3,7 @@ from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, FiniteFloat
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, col, delete, select
 
@@ -22,8 +22,8 @@ SessionDep = Annotated[Session, Depends(get_session)]
 
 
 class Position(BaseModel):
-    x: float
-    y: float
+    x: FiniteFloat
+    y: FiniteFloat
 
 
 class NodeRead(BaseModel):

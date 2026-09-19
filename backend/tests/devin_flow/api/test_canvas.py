@@ -89,6 +89,30 @@ def test_move_node_updates_position(unit_client: TestClient) -> None:
     assert response.json()["position"] == {"x": 4, "y": 5}
 
 
+def test_non_finite_create_position_is_rejected(unit_client: TestClient) -> None:
+    response = unit_client.post(
+        "/api/canvas/nodes/trigger",
+        content='{"position":{"x":1e400,"y":0}}',
+        headers={"content-type": "application/json"},
+    )
+    assert response.status_code == 422
+    assert unit_client.get("/api/canvas").json()["trigger_nodes"] == []
+
+
+def test_non_finite_move_position_is_rejected(unit_client: TestClient) -> None:
+    node_id = create_node(unit_client, "trigger")
+    response = unit_client.patch(
+        f"/api/canvas/nodes/trigger/{node_id}",
+        content='{"position":{"x":1e400,"y":0}}',
+        headers={"content-type": "application/json"},
+    )
+    assert response.status_code == 422
+    assert unit_client.get("/api/canvas").json()["trigger_nodes"][0]["position"] == {
+        "x": 1,
+        "y": 2,
+    }
+
+
 def test_move_and_delete_missing_or_wrong_kind_are_not_found(
     unit_client: TestClient,
 ) -> None:
