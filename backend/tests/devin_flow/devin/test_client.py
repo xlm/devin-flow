@@ -23,6 +23,7 @@ from devin_flow.devin.client import (
     PlaybookCreate,
     Repository,
     SessionCreate,
+    SessionPullRequest,
     create_client,
 )
 
@@ -133,6 +134,104 @@ def test_list_sessions_parses_response_and_passes_limit() -> None:
             url="https://devin.example/session-1",
         )
     ]
+    client.http.close()
+
+
+def test_list_sessions_sends_flat_filters_and_follows_cursor() -> None:
+    calls: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        assert request.url.params.get_list("automation_ids") == ["auto-1", "auto-2"]
+        assert request.url.params["created_after"] == "1700000000"
+        if "after" not in request.url.params:
+            return httpx.Response(
+                200,
+                json={
+                    "items": [
+                        {
+                            "session_id": "session-1",
+                            "status": "running",
+                            "automation_id": "auto-1",
+                            "pull_requests": [
+                                {"pr_url": "https://gh.example/1", "pr_state": "open"}
+                            ],
+                            "created_at": 1700000100,
+                            "updated_at": 1700000200,
+                        }
+                    ],
+                    "has_next_page": True,
+                    "end_cursor": "cursor-1",
+                },
+            )
+        assert request.url.params["after"] == "cursor-1"
+        return httpx.Response(
+            200,
+            json={
+                "items": [{"session_id": "session-2", "status": "exit"}],
+                "has_next_page": False,
+                "end_cursor": None,
+            },
+        )
+
+    client = make_client(httpx.MockTransport(handler))
+    sessions = client.list_sessions(
+        automation_ids=["auto-1", "auto-2"],
+        created_after=1700000000,
+        paginate=True,
+    )
+    assert [s.session_id for s in sessions] == ["session-1", "session-2"]
+    assert sessions[0].pull_requests == [
+        SessionPullRequest(pr_url="https://gh.example/1", pr_state="open")
+    ]
+    assert sessions[0].created_at == 1700000100
+    assert len(calls) == 2
+    client.http.close()
+
+
+def test_list_sessions_without_paginate_stops_after_first_page() -> None:
+    calls: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        assert "automation_ids" not in request.url.params
+        return httpx.Response(
+            200,
+            json={"items": [], "has_next_page": True, "end_cursor": "cursor-1"},
+        )
+
+    client = make_client(httpx.MockTransport(handler))
+    assert client.list_sessions() == []
+    assert len(calls) == 1
+    client.http.close()
+
+
+def test_get_session_fetches_one_session() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/organizations/org-test/sessions/session-9"
+        return httpx.Response(
+            200,
+            json={
+                "session_id": "session-9",
+                "status": "exit",
+                "structured_output": {"outcome": "duplicate"},
+            },
+        )
+
+    client = make_client(httpx.MockTransport(handler))
+    assert client.get_session("session-9") == DevinSession(
+        session_id="session-9",
+        status="exit",
+        structured_output={"outcome": "duplicate"},
+    )
+    client.http.close()
+
+
+def test_get_session_upstream_error_includes_status() -> None:
+    client = make_client(httpx.MockTransport(lambda request: httpx.Response(404)))
+    with pytest.raises(DevinUpstreamError) as error:
+        client.get_session("missing")
+    assert error.value.status_code == 404
     client.http.close()
 
 

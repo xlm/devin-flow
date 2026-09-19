@@ -8,6 +8,17 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from devin_flow.config import Settings, get_settings
 
+# v3 session status enum: new, claimed, running, exit, error, suspended,
+# resuming. Suspended sessions can resume, so only exit and error are final.
+TERMINAL_SESSION_STATUSES = frozenset({"exit", "error"})
+
+
+class SessionPullRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    pr_url: str
+    pr_state: str | None = None
+
 
 class DevinSession(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -16,6 +27,11 @@ class DevinSession(BaseModel):
     status: str
     title: str | None = None
     url: str | None = None
+    automation_id: str | None = None
+    pull_requests: list[SessionPullRequest] = []
+    structured_output: dict[str, Any] | None = None
+    created_at: int | None = None
+    updated_at: int | None = None
 
 
 class SessionCreate(BaseModel):
@@ -131,17 +147,44 @@ class DevinClient:
         self.http = http
         self.org_id = org_id
 
-    def list_sessions(self, limit: int = 100) -> list[DevinSession]:
+    def list_sessions(
+        self,
+        limit: int = 100,
+        *,
+        automation_ids: list[str] | None = None,
+        created_after: int | None = None,
+        paginate: bool = False,
+    ) -> list[DevinSession]:
+        # the v3 API reads list filters as repeated flat query keys
+        # (automation_ids=a&automation_ids=b) and epoch seconds for created_after
+        with _upstream_errors():
+            sessions: list[DevinSession] = []
+            params: dict[str, str | int | list[str]] = {"first": limit}
+            if automation_ids is not None:
+                params["automation_ids"] = automation_ids
+            if created_after is not None:
+                params["created_after"] = created_after
+            while True:
+                response = self.http.get(
+                    f"/organizations/{self.org_id}/sessions",
+                    params=params,
+                )
+                response.raise_for_status()
+                page = response.json()
+                sessions.extend(
+                    DevinSession.model_validate(session) for session in page["items"]
+                )
+                if not (paginate and page.get("has_next_page")):
+                    return sessions
+                params["after"] = page["end_cursor"]
+
+    def get_session(self, session_id: str) -> DevinSession:
         with _upstream_errors():
             response = self.http.get(
-                f"/organizations/{self.org_id}/sessions",
-                params={"first": limit},
+                f"/organizations/{self.org_id}/sessions/{session_id}"
             )
             response.raise_for_status()
-            return [
-                DevinSession.model_validate(session)
-                for session in response.json()["items"]
-            ]
+            return DevinSession.model_validate(response.json())
 
     def create_session(self, payload: SessionCreate) -> DevinSession:
         with _upstream_errors():
