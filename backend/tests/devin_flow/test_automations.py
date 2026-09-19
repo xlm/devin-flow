@@ -80,15 +80,10 @@ def test_build_prompt_with_and_without_extra_prompt(unit_session: Session) -> No
     with_prompt = action()
     no_prompt = action()
     no_prompt.prompt = "  "
-    assert build_prompt(with_prompt) == "Inspect the issue\n\n@playbook:pb-1"
-    assert build_prompt(no_prompt) == "@playbook:pb-1"
-    no_playbook = action(playbook_id=None)
-    try:
-        build_prompt(no_playbook)
-    except ValueError as exc:
-        assert str(exc) == "action requires a playbook"
-    else:
-        raise AssertionError("expected missing playbook to fail")
+    assert build_prompt(with_prompt.prompt, "pb-1") == (
+        "Inspect the issue\n\n@playbook:pb-1"
+    )
+    assert build_prompt(no_prompt.prompt, "pb-1") == "@playbook:pb-1"
 
 
 def test_completion_and_flow_invalid_reasons(unit_session: Session) -> None:
@@ -163,7 +158,7 @@ def test_build_payload_rejects_incomplete_trigger(unit_session: Session) -> None
     try:
         build_automation_payload(node, incomplete)
     except ValueError as exc:
-        assert str(exc) == "trigger is incomplete"
+        assert str(exc) == "action or trigger is incomplete"
     else:
         raise AssertionError("expected incomplete trigger to fail")
 
@@ -236,6 +231,27 @@ def test_sync_disables_disconnected_action(unit_session: Session) -> None:
     stored = unit_session.get(ActionNode, node.id)
     assert stored is not None
     assert stored.sync_status == "disabled"
+
+
+def test_sync_disables_incomplete_action(unit_session: Session) -> None:
+    node = action()
+    node.automation_id = "auto-existing"
+    node.playbook_id = None
+    source = trigger()
+    unit_session.add_all([node, source])
+    unit_session.commit()
+    connect(unit_session, source, node)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "PATCH"
+        assert json.loads(request.read()) == {"enabled": False}
+        return httpx.Response(200, json=automation_response("auto-existing"))
+
+    sync_action(unit_session, make_client(httpx.MockTransport(handler)), node.id)
+    stored = unit_session.get(ActionNode, node.id)
+    assert stored is not None
+    assert stored.sync_status == "disabled"
+    assert stored.sync_error is None
 
 
 def test_sync_unprovisioned_action_makes_no_request(unit_session: Session) -> None:
