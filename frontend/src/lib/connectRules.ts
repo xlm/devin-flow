@@ -11,6 +11,10 @@ export type EdgeCreate = Schemas['EdgeCreate']
 export type TriggerRead = Schemas['TriggerRead']
 export type TriggerUpdate = Schemas['TriggerUpdate']
 export type EventAction = NonNullable<TriggerRead['event_action']>
+export type OutcomeRead = Schemas['OutcomeRead']
+export type OutcomeUpdate = Schemas['OutcomeUpdate']
+export type OutcomeKind = NonNullable<OutcomeRead['kind']>
+export type OutcomeInvocationRead = Schemas['OutcomeInvocationRead']
 
 export type CanvasEdge = {
   source: string
