@@ -11,10 +11,14 @@ import {
 } from '@/lib/nodeKinds'
 import type { NodeKind } from '@/lib/connectRules'
 
-const props = defineProps<{
-  id: string
-  kind: NodeKind
-}>()
+const props = withDefaults(
+  defineProps<{
+    id: string
+    kind: NodeKind
+    complete?: boolean
+  }>(),
+  { complete: false },
+)
 
 const { removeNodes } = useVueFlow()
 </script>
@@ -34,13 +38,18 @@ const { removeNodes } = useVueFlow()
   <div
     data-testid="canvas-node"
     :data-kind="props.kind"
-    data-incomplete="true"
-    class="min-w-40 rounded-md border-2 border-dashed border-l-4 bg-card px-3 py-2 text-card-foreground"
-    :class="nodeAccentClass(props.kind)"
+    :data-incomplete="String(!props.complete)"
+    class="min-w-40 rounded-md border-2 border-l-4 bg-card px-3 py-2 text-card-foreground"
+    :class="[nodeAccentClass(props.kind), !props.complete && 'border-dashed']"
   >
     <div class="text-sm font-medium">{{ nodeLabel(props.kind) }}</div>
-    <span class="text-xs uppercase text-muted-foreground">Incomplete</span>
-    <div class="text-xs text-muted-foreground">{{ nodeHint(props.kind) }}</div>
+    <slot />
+    <span class="text-xs uppercase text-muted-foreground">{{
+      props.complete ? 'Ready' : 'Incomplete'
+    }}</span>
+    <div v-if="!props.complete" class="text-xs text-muted-foreground">
+      {{ nodeHint(props.kind) }}
+    </div>
   </div>
   <Handle
     v-if="NODE_HANDLES[props.kind].target"

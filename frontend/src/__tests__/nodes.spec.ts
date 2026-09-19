@@ -5,6 +5,12 @@ import type { Component } from 'vue'
 
 const mocks = vi.hoisted(() => ({
   removeNodes: vi.fn(),
+  updateNodeData: vi.fn(),
+  GET: vi.fn(),
+}))
+
+vi.mock('@/api/client', () => ({
+  client: { GET: mocks.GET },
 }))
 
 vi.mock('@vue-flow/core', () => ({
@@ -24,7 +30,10 @@ vi.mock('@vue-flow/core', () => ({
     },
   }),
   Position: { Left: 'left', Right: 'right', Top: 'top' },
-  useVueFlow: () => ({ removeNodes: mocks.removeNodes }),
+  useVueFlow: () => ({
+    removeNodes: mocks.removeNodes,
+    updateNodeData: mocks.updateNodeData,
+  }),
 }))
 
 vi.mock('@vue-flow/node-toolbar', () => ({
@@ -71,6 +80,11 @@ function mountNode(component: Component) {
 describe('canvas nodes', () => {
   beforeEach(() => {
     mocks.removeNodes.mockReset()
+    mocks.updateNodeData.mockReset()
+    mocks.GET.mockResolvedValue({
+      data: [],
+      error: undefined,
+    })
   })
 
   it.each(components)(

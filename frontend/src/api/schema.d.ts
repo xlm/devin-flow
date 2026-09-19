@@ -86,8 +86,25 @@ export interface paths {
         delete: operations["delete_node_api_canvas_nodes__kind___node_id__delete"];
         options?: never;
         head?: never;
-        /** Move Node */
-        patch: operations["move_node_api_canvas_nodes__kind___node_id__patch"];
+        /** Update Node */
+        patch: operations["update_node_api_canvas_nodes__kind___node_id__patch"];
+        trace?: never;
+    };
+    "/api/devin/repositories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Repositories */
+        get: operations["list_repositories_api_devin_repositories_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/devin/sessions": {
@@ -187,10 +204,7 @@ export interface components {
         /** NodeCreate */
         NodeCreate: {
             position: components["schemas"]["Position"];
-        };
-        /** NodeMove */
-        NodeMove: {
-            position: components["schemas"]["Position"];
+            trigger?: components["schemas"]["TriggerUpdate"] | null;
         };
         /** NodeRead */
         NodeRead: {
@@ -205,6 +219,7 @@ export interface components {
              */
             kind: "trigger" | "action" | "outcome";
             position: components["schemas"]["Position"];
+            trigger?: components["schemas"]["TriggerRead"] | null;
         };
         /** NodeRef */
         NodeRef: {
@@ -219,6 +234,11 @@ export interface components {
              */
             kind: "trigger" | "action" | "outcome";
         };
+        /** NodeUpdate */
+        NodeUpdate: {
+            position?: components["schemas"]["Position"] | null;
+            trigger?: components["schemas"]["TriggerUpdate"] | null;
+        };
         /** Position */
         Position: {
             /** X */
@@ -226,10 +246,31 @@ export interface components {
             /** Y */
             y: number;
         };
+        /** Repository */
+        Repository: {
+            /** Repo Name */
+            repo_name: string;
+            /** Repo Path */
+            repo_path: string;
+        };
         /** SessionCreate */
         SessionCreate: {
             /** Prompt */
             prompt: string;
+        };
+        /** TriggerRead */
+        TriggerRead: {
+            /** Event Action */
+            event_action: ("opened" | "closed") | null;
+            /** Repository Full Name */
+            repository_full_name: string | null;
+        };
+        /** TriggerUpdate */
+        TriggerUpdate: {
+            /** Event Action */
+            event_action?: ("opened" | "closed") | null;
+            /** Repository Full Name */
+            repository_full_name?: string | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -472,7 +513,7 @@ export interface operations {
             };
         };
     };
-    move_node_api_canvas_nodes__kind___node_id__patch: {
+    update_node_api_canvas_nodes__kind___node_id__patch: {
         parameters: {
             query?: never;
             header?: never;
@@ -484,7 +525,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["NodeMove"];
+                "application/json": components["schemas"]["NodeUpdate"];
             };
         };
         responses: {
@@ -522,6 +563,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_repositories_api_devin_repositories_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Repository"][];
+                };
+            };
+            /** @description Devin API failure */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Devin API not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };

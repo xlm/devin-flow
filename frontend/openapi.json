@@ -163,24 +163,22 @@
         "properties": {
           "position": {
             "$ref": "#/components/schemas/Position"
+          },
+          "trigger": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TriggerUpdate"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
           "position"
         ],
         "title": "NodeCreate",
-        "type": "object"
-      },
-      "NodeMove": {
-        "properties": {
-          "position": {
-            "$ref": "#/components/schemas/Position"
-          }
-        },
-        "required": [
-          "position"
-        ],
-        "title": "NodeMove",
         "type": "object"
       },
       "NodeRead": {
@@ -201,6 +199,16 @@
           },
           "position": {
             "$ref": "#/components/schemas/Position"
+          },
+          "trigger": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TriggerRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -235,6 +243,32 @@
         "title": "NodeRef",
         "type": "object"
       },
+      "NodeUpdate": {
+        "properties": {
+          "position": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Position"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "trigger": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TriggerUpdate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "NodeUpdate",
+        "type": "object"
+      },
       "Position": {
         "properties": {
           "x": {
@@ -253,6 +287,24 @@
         "title": "Position",
         "type": "object"
       },
+      "Repository": {
+        "properties": {
+          "repo_name": {
+            "title": "Repo Name",
+            "type": "string"
+          },
+          "repo_path": {
+            "title": "Repo Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repo_path",
+          "repo_name"
+        ],
+        "title": "Repository",
+        "type": "object"
+      },
       "SessionCreate": {
         "properties": {
           "prompt": {
@@ -266,6 +318,75 @@
           "prompt"
         ],
         "title": "SessionCreate",
+        "type": "object"
+      },
+      "TriggerRead": {
+        "properties": {
+          "event_action": {
+            "anyOf": [
+              {
+                "enum": [
+                  "opened",
+                  "closed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Action"
+          },
+          "repository_full_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repository Full Name"
+          }
+        },
+        "required": [
+          "event_action",
+          "repository_full_name"
+        ],
+        "title": "TriggerRead",
+        "type": "object"
+      },
+      "TriggerUpdate": {
+        "properties": {
+          "event_action": {
+            "anyOf": [
+              {
+                "enum": [
+                  "opened",
+                  "closed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Action"
+          },
+          "repository_full_name": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?/(?:[A-Za-z0-9_-]|[A-Za-z0-9._-]{2,100})$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repository Full Name"
+          }
+        },
+        "title": "TriggerUpdate",
         "type": "object"
       },
       "ValidationError": {
@@ -586,7 +707,7 @@
         "summary": "Delete Node"
       },
       "patch": {
-        "operationId": "move_node_api_canvas_nodes__kind___node_id__patch",
+        "operationId": "update_node_api_canvas_nodes__kind___node_id__patch",
         "parameters": [
           {
             "in": "path",
@@ -617,7 +738,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/NodeMove"
+                "$ref": "#/components/schemas/NodeUpdate"
               }
             }
           },
@@ -665,7 +786,49 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Move Node"
+        "summary": "Update Node"
+      }
+    },
+    "/api/devin/repositories": {
+      "get": {
+        "operationId": "list_repositories_api_devin_repositories_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Repository"
+                  },
+                  "title": "Response List Repositories Api Devin Repositories Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Devin API failure"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Devin API not configured"
+          }
+        },
+        "summary": "List Repositories"
       }
     },
     "/api/devin/sessions": {
