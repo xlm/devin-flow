@@ -37,7 +37,7 @@ class OutcomeNode(NodeBase, table=True):
     __tablename__ = "outcome_node"
 
 
-NODE_MODELS: dict[str, type[NodeBase]] = {
+NODE_MODELS: dict[NodeKind, type[NodeBase]] = {
     "trigger": TriggerNode,
     "action": ActionNode,
     "outcome": OutcomeNode,
