@@ -10,7 +10,7 @@ from collections.abc import Sequence
 
 import sqlalchemy as sa
 import sqlmodel
-from alembic import op
+from alembic import context, op
 
 from devin_flow.outcomes import derive_outcome_kinds
 
@@ -34,6 +34,12 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("invocation_id", "kind"),
     )
+    if context.is_offline_mode():
+        op.execute(
+            "-- invocation_outcome backfill needs an online upgrade "
+            "(reads invocation rows in Python)"
+        )
+        return
     invocation = sa.table(
         "invocation",
         sa.column("id", sa.Uuid()),
