@@ -9,7 +9,9 @@ test('spec 1: empty board loads and palette creates nodes', async ({
   page,
 }) => {
   await page.goto('/')
-  await expect(page.getByText('API: ok')).toBeVisible()
+  await expect(page.locator('[data-testid=api-status]')).toHaveText(
+    'Polling off',
+  )
   await expect(page.locator('[data-testid=palette-trigger]')).toBeVisible()
   await expect(page.locator('[data-testid=palette-action]')).toBeVisible()
   await expect(page.locator('[data-testid=palette-outcome]')).toBeVisible()
