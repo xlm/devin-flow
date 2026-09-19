@@ -32,6 +32,19 @@
     "summary": {
       "type": "string",
       "maxLength": 500
+    },
+    "issue_url": {
+      "type": "string",
+      "format": "uri",
+      "description": "URL of the triggering GitHub issue."
+    },
+    "issue_number": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "issue_title": {
+      "type": "string",
+      "maxLength": 500
     }
   }
 }
