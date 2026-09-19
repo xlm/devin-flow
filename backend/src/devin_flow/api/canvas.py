@@ -1,4 +1,5 @@
 import re
+from contextlib import suppress
 from datetime import UTC, datetime
 from typing import Annotated, Any
 from uuid import UUID
@@ -8,7 +9,14 @@ from pydantic import AfterValidator, BaseModel, Field, FiniteFloat
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, col, delete, select
 
-from devin_flow.api.devin import ErrorResponse
+from devin_flow.api.devin import DevinClientDep, ErrorResponse
+from devin_flow.automations import (
+    connected_action,
+    connected_trigger,
+    flow_invalid_reason,
+    mark_pending,
+    sync_action,
+)
 from devin_flow.canvas import (
     ConnectError,
     NodeRef,
@@ -16,6 +24,11 @@ from devin_flow.canvas import (
     check_edge_uniqueness,
 )
 from devin_flow.db import get_session
+from devin_flow.devin.client import (
+    AutomationUpdate,
+    DevinNotConfiguredError,
+    DevinUpstreamError,
+)
 from devin_flow.models import (
     NODE_MODELS,
     ActionNode,
@@ -23,6 +36,7 @@ from devin_flow.models import (
     EventAction,
     NodeBase,
     NodeKind,
+    SyncStatus,
     TriggerNode,
 )
 
@@ -70,12 +84,17 @@ class ActionFields(BaseModel):
     name: str | None = Field(default=None, max_length=200)
     playbook_id: str | None = Field(default=None, min_length=1, max_length=200)
     prompt: str | None = Field(default=None, max_length=20_000)
+    enabled: bool | None = None
 
 
 class ActionNodeRead(NodeRead):
     name: str
     playbook_id: str | None
     prompt: str
+    enabled: bool
+    sync_status: SyncStatus
+    sync_error: str | None
+    automation_id: str | None
 
 
 class NodeCreate(ActionFields):
@@ -124,6 +143,10 @@ def node_read(node: NodeBase, kind: NodeKind) -> NodeRead | ActionNodeRead:
             name=node.name,
             playbook_id=node.playbook_id,
             prompt=node.prompt,
+            enabled=node.enabled,
+            sync_status=node.sync_status,
+            sync_error=node.sync_error,
+            automation_id=node.automation_id,
         )
     return NodeRead(
         trigger=(
@@ -143,13 +166,14 @@ def apply_action_fields(node: NodeBase, payload: ActionFields) -> None:
         "name",
         "playbook_id",
         "prompt",
+        "enabled",
     }
     if not fields:
         return
     if not isinstance(node, ActionNode):
         raise HTTPException(
             422,
-            "only action nodes have name, playbook_id and prompt",
+            "only action nodes have name, playbook_id, prompt and enabled",
         )
     if "name" in fields:
         node.name = payload.name or ""
@@ -157,6 +181,8 @@ def apply_action_fields(node: NodeBase, payload: ActionFields) -> None:
         node.playbook_id = payload.playbook_id
     if "prompt" in fields:
         node.prompt = payload.prompt or ""
+    if "enabled" in fields and payload.enabled is not None:
+        node.enabled = payload.enabled
 
 
 def edge_read(edge: Edge) -> EdgeRead:
@@ -229,7 +255,11 @@ def create_node(
     responses=ERROR_RESPONSES,
 )
 def update_node(
-    kind: NodeKind, node_id: UUID, payload: NodeUpdate, session: SessionDep
+    kind: NodeKind,
+    node_id: UUID,
+    payload: NodeUpdate,
+    session: SessionDep,
+    client: DevinClientDep,
 ) -> NodeRead | ActionNodeRead:
     node = get_node(session, kind, node_id)
     if node is None:
@@ -246,18 +276,55 @@ def update_node(
         if "repository_full_name" in fields_set:
             node.repository_full_name = payload.trigger.repository_full_name
     apply_action_fields(node, payload)
+    action_fields = payload.model_fields_set & {
+        "name",
+        "playbook_id",
+        "prompt",
+        "enabled",
+    }
+    if isinstance(node, ActionNode) and payload.enabled is True:
+        reason = flow_invalid_reason(node, connected_trigger(session, node.id))
+        if reason is not None:
+            session.rollback()
+            raise HTTPException(409, f"cannot enable: {reason}")
     node.updated_at = datetime.now(UTC)
     session.add(node)
     session.commit()
+    if isinstance(node, ActionNode) and action_fields:
+        mark_pending(node)
+        session.add(node)
+        session.commit()
+        sync_action(session, client, node.id)
+    elif isinstance(node, TriggerNode) and payload.trigger is not None:
+        action = connected_action(session, node.id)
+        if action is not None:
+            mark_pending(action)
+            session.add(action)
+            session.commit()
+            sync_action(session, client, action.id)
     session.refresh(node)
     return node_read(node, kind)
 
 
 @router.delete("/nodes/{kind}/{node_id}", status_code=204, responses=ERROR_RESPONSES)
-def delete_node(kind: NodeKind, node_id: UUID, session: SessionDep) -> Response:
+def delete_node(
+    kind: NodeKind,
+    node_id: UUID,
+    session: SessionDep,
+    client: DevinClientDep,
+) -> Response:
     node = get_node(session, kind, node_id, for_update=True)
     if node is None:
         raise HTTPException(404, "node not found")
+    action = (
+        connected_action(session, node.id) if isinstance(node, TriggerNode) else None
+    )
+    if isinstance(node, ActionNode) and node.automation_id is not None:
+        with suppress(DevinUpstreamError, DevinNotConfiguredError):
+            client.update_automation(
+                node.automation_id,
+                AutomationUpdate(enabled=False),
+            )
     session.exec(
         delete(Edge).where(
             (col(Edge.source_id) == node_id) | (col(Edge.target_id) == node_id)
@@ -265,6 +332,11 @@ def delete_node(kind: NodeKind, node_id: UUID, session: SessionDep) -> Response:
     )
     session.delete(node)
     session.commit()
+    if action is not None:
+        mark_pending(action)
+        session.add(action)
+        session.commit()
+        sync_action(session, client, action.id)
     return Response(status_code=204)
 
 
@@ -274,7 +346,9 @@ def delete_node(kind: NodeKind, node_id: UUID, session: SessionDep) -> Response:
     status_code=201,
     responses=ERROR_RESPONSES,
 )
-def create_edge(payload: EdgeCreate, session: SessionDep) -> EdgeRead:
+def create_edge(
+    payload: EdgeCreate, session: SessionDep, client: DevinClientDep
+) -> EdgeRead:
     try:
         check_edge_kinds(payload.source.kind, payload.target.kind)
     except ConnectError as exc:
@@ -307,14 +381,29 @@ def create_edge(payload: EdgeCreate, session: SessionDep) -> EdgeRead:
         session.rollback()
         raise HTTPException(409, "edge conflicts with an existing edge") from exc
     session.refresh(edge)
+    if edge.source_kind == "trigger":
+        action = session.get(ActionNode, edge.target_id)
+        if action is not None:
+            mark_pending(action)
+            session.add(action)
+            session.commit()
+            sync_action(session, client, action.id)
     return edge_read(edge)
 
 
 @router.delete("/edges/{edge_id}", status_code=204, responses=ERROR_RESPONSES)
-def delete_edge(edge_id: UUID, session: SessionDep) -> Response:
+def delete_edge(edge_id: UUID, session: SessionDep, client: DevinClientDep) -> Response:
     edge = session.get(Edge, edge_id)
     if edge is None:
         raise HTTPException(404, "edge not found")
+    action_id = edge.target_id if edge.source_kind == "trigger" else None
     session.delete(edge)
     session.commit()
+    if action_id is not None:
+        action = session.get(ActionNode, action_id)
+        if action is not None:
+            mark_pending(action)
+            session.add(action)
+            session.commit()
+            sync_action(session, client, action.id)
     return Response(status_code=204)
