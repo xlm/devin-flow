@@ -1,9 +1,11 @@
-# Devin credentials come from the shell or the root .env (compose reads it);
-# Settings refuses to load without them, so every backend service needs them
+# Devin variables pass through from the shell or the root .env (compose reads
+# it); left optional here so `docker compose up -d db` works without them,
+# Settings rejects empty credentials when migrate, app or seed starts
 x-backend-env: &backend-env
   DATABASE_URL: postgresql+psycopg://devin:devin@db:5432/devin_flow
-  DEVIN_API_TOKEN: ${DEVIN_API_TOKEN:?set DEVIN_API_TOKEN in .env}
-  DEVIN_ORG_ID: ${DEVIN_ORG_ID:?set DEVIN_ORG_ID in .env}
+  DEVIN_API_TOKEN: ${DEVIN_API_TOKEN:-}
+  DEVIN_ORG_ID: ${DEVIN_ORG_ID:-}
+  DEVIN_API_BASE_URL: ${DEVIN_API_BASE_URL:-https://api.devin.ai/v3}
 
 services:
   db:
