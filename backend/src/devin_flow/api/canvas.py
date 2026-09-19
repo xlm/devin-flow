@@ -35,6 +35,7 @@ from devin_flow.models import (
     Edge,
     EventAction,
     Invocation,
+    InvocationOutcome,
     NodeBase,
     NodeKind,
     OutcomeKind,
@@ -42,7 +43,6 @@ from devin_flow.models import (
     SyncStatus,
     TriggerNode,
 )
-from devin_flow.outcomes import matches
 
 router = APIRouter(prefix="/canvas")
 SessionDep = Annotated[Session, Depends(get_session)]
@@ -277,24 +277,34 @@ def get_canvas(session: SessionDep) -> CanvasRead:
         node.id: node.kind for node in session.exec(select(OutcomeNode)).all()
     }
     action_ids = [edge.source_id for edge in edges if edge.target_kind == "outcome"]
-    by_action: dict[UUID, list[Invocation]] = {}
-    for invocation in (
-        session.exec(
-            select(Invocation).where(col(Invocation.action_node_id).in_(action_ids))
-        ).all()
+    outcome_counts = (
+        {
+            (action_id, kind): count
+            for action_id, kind, count in session.exec(
+                select(
+                    col(Invocation.action_node_id),
+                    col(InvocationOutcome.kind),
+                    func.count(),
+                )
+                .join(
+                    InvocationOutcome,
+                    col(InvocationOutcome.invocation_id) == col(Invocation.id),
+                )
+                .where(col(Invocation.action_node_id).in_(action_ids))
+                .group_by(col(Invocation.action_node_id), col(InvocationOutcome.kind))
+            ).all()
+        }
         if action_ids
-        else []
-    ):
-        by_action.setdefault(invocation.action_node_id, []).append(invocation)
+        else {}
+    )
 
     def outcome_count(edge: Edge) -> int | None:
         if edge.target_kind != "outcome":
             return None
-        return sum(
-            1
-            for invocation in by_action.get(edge.source_id, [])
-            if matches(invocation, outcome_kind_by_id.get(edge.target_id))
-        )
+        kind = outcome_kind_by_id.get(edge.target_id)
+        if kind is None:
+            return 0
+        return outcome_counts.get((edge.source_id, kind), 0)
 
     nodes = {
         "trigger": [

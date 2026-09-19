@@ -8,6 +8,7 @@ from devin_flow.models import Invocation
 from devin_flow.outcomes import (
     IssueRef,
     bucket_pr_state,
+    derive_outcome_kinds,
     duplicate_of,
     issue_ref,
     matches,
@@ -115,6 +116,14 @@ def test_invocation_matching_neither() -> None:
     inv = invocation()
     assert outcome_kinds(inv) == frozenset()
     assert not matches(inv, "pull_request")
+
+
+def test_derive_outcome_kinds_from_raw_fields() -> None:
+    assert derive_outcome_kinds(
+        [{"pr_url": "https://github.com/a/b/pull/1"}],
+        {"outcome": "duplicate"},
+    ) == frozenset({"pull_request", "duplicate"})
+    assert derive_outcome_kinds([], {"outcome": "fixed"}) == frozenset()
 
 
 def test_matches_with_none_kind_is_always_false() -> None:

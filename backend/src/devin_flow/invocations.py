@@ -11,7 +11,13 @@ from devin_flow.automations import retry_syncs
 from devin_flow.db import get_engine
 from devin_flow.devin import DevinClient, get_devin_client
 from devin_flow.devin.client import TERMINAL_SESSION_STATUSES, DevinSession
-from devin_flow.models import ActionNode, Invocation, PollerState
+from devin_flow.models import (
+    ActionNode,
+    Invocation,
+    InvocationOutcome,
+    PollerState,
+)
+from devin_flow.outcomes import outcome_kinds
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +70,21 @@ def automation_owners(session: Session) -> dict[str, UUID]:
     }
 
 
+def record_outcomes(session: Session, invocation: Invocation) -> None:
+    derived = outcome_kinds(invocation)
+    rows = session.exec(
+        select(InvocationOutcome).where(
+            InvocationOutcome.invocation_id == invocation.id
+        )
+    ).all()
+    existing = {row.kind for row in rows}
+    for row in rows:
+        if row.kind not in derived:
+            session.delete(row)
+    for kind in derived - existing:
+        session.add(InvocationOutcome(invocation_id=invocation.id, kind=kind))
+
+
 def upsert_invocation(
     session: Session,
     devin_session: DevinSession,
@@ -87,6 +108,7 @@ def upsert_invocation(
     invocation.action_node_id = action_node_id
     apply_session(invocation, devin_session, now)
     session.add(invocation)
+    record_outcomes(session, invocation)
     return invocation
 
 
@@ -130,6 +152,7 @@ def poll_once(session: Session, client: DevinClient) -> PollResult:
     for invocation in stale:
         apply_session(invocation, client.get_session(invocation.session_id), started)
         session.add(invocation)
+        record_outcomes(session, invocation)
     state.last_success_at = started
     session.add(state)
     session.commit()
