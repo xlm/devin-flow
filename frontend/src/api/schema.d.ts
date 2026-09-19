@@ -158,18 +158,12 @@ export interface components {
         };
         /** EdgeRead */
         EdgeRead: {
-            /** Automation Id */
-            automation_id: string | null;
             /**
              * Id
              * Format: uuid
              */
             id: string;
             source: components["schemas"]["NodeRef"];
-            /** Sync Error */
-            sync_error: string | null;
-            /** Sync Status */
-            sync_status: string;
             target: components["schemas"]["NodeRef"];
         };
         /** ErrorResponse */

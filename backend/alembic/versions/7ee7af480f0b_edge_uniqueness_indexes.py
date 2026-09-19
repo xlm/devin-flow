@@ -21,48 +21,44 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     """Upgrade schema."""
     op.create_index(
-        "ux_edge_live_pair",
+        "ux_edge_pair",
         "edge",
         ["source_id", "target_id"],
         unique=True,
-        postgresql_where=sa.text("deleted_at IS NULL"),
-        sqlite_where=sa.text("deleted_at IS NULL"),
     )
     op.create_index(
-        "ux_edge_live_trigger_source",
+        "ux_edge_trigger_source",
         "edge",
         ["source_id"],
         unique=True,
-        postgresql_where=sa.text("source_kind = 'trigger' AND deleted_at IS NULL"),
-        sqlite_where=sa.text("source_kind = 'trigger' AND deleted_at IS NULL"),
+        postgresql_where=sa.text("source_kind = 'trigger'"),
+        sqlite_where=sa.text("source_kind = 'trigger'"),
     )
     op.create_index(
-        "ux_edge_live_trigger_target",
+        "ux_edge_trigger_target",
         "edge",
         ["target_id"],
         unique=True,
-        postgresql_where=sa.text("source_kind = 'trigger' AND deleted_at IS NULL"),
-        sqlite_where=sa.text("source_kind = 'trigger' AND deleted_at IS NULL"),
+        postgresql_where=sa.text("source_kind = 'trigger'"),
+        sqlite_where=sa.text("source_kind = 'trigger'"),
     )
 
 
 def downgrade() -> None:
     """Downgrade schema."""
     op.drop_index(
-        "ux_edge_live_trigger_target",
+        "ux_edge_trigger_target",
         table_name="edge",
-        postgresql_where=sa.text("source_kind = 'trigger' AND deleted_at IS NULL"),
-        sqlite_where=sa.text("source_kind = 'trigger' AND deleted_at IS NULL"),
+        postgresql_where=sa.text("source_kind = 'trigger'"),
+        sqlite_where=sa.text("source_kind = 'trigger'"),
     )
     op.drop_index(
-        "ux_edge_live_trigger_source",
+        "ux_edge_trigger_source",
         table_name="edge",
-        postgresql_where=sa.text("source_kind = 'trigger' AND deleted_at IS NULL"),
-        sqlite_where=sa.text("source_kind = 'trigger' AND deleted_at IS NULL"),
+        postgresql_where=sa.text("source_kind = 'trigger'"),
+        sqlite_where=sa.text("source_kind = 'trigger'"),
     )
     op.drop_index(
-        "ux_edge_live_pair",
+        "ux_edge_pair",
         table_name="edge",
-        postgresql_where=sa.text("deleted_at IS NULL"),
-        sqlite_where=sa.text("deleted_at IS NULL"),
     )

@@ -44,9 +44,6 @@ class EdgeRead(BaseModel):
     id: UUID
     source: NodeRef
     target: NodeRef
-    automation_id: str | None
-    sync_status: str
-    sync_error: str | None
 
 
 class EdgeCreate(BaseModel):
@@ -80,9 +77,6 @@ def edge_read(edge: Edge) -> EdgeRead:
         id=edge.id,
         source=NodeRef(id=edge.source_id, kind=edge.source_kind),
         target=NodeRef(id=edge.target_id, kind=edge.target_kind),
-        automation_id=edge.automation_id,
-        sync_status=edge.sync_status,
-        sync_error=edge.sync_error,
     )
 
 
@@ -103,11 +97,7 @@ def get_canvas(session: SessionDep) -> CanvasRead:
         ]
         for kind, model in NODE_MODELS.items()
     }
-    edges = session.exec(
-        select(Edge)
-        .where(col(Edge.deleted_at).is_(None))
-        .order_by(col(Edge.created_at))
-    ).all()
+    edges = session.exec(select(Edge).order_by(col(Edge.created_at))).all()
     return CanvasRead(
         trigger_nodes=nodes["trigger"],
         action_nodes=nodes["action"],
@@ -188,7 +178,7 @@ def create_edge(payload: EdgeCreate, session: SessionDep) -> EdgeRead:
         is None
     ):
         raise HTTPException(404, "target node not found")
-    existing = session.exec(select(Edge).where(col(Edge.deleted_at).is_(None))).all()
+    existing = session.exec(select(Edge)).all()
     try:
         check_edge_uniqueness(existing, payload.source, payload.target)
     except ConnectError as exc:
@@ -212,7 +202,7 @@ def create_edge(payload: EdgeCreate, session: SessionDep) -> EdgeRead:
 @router.delete("/edges/{edge_id}", status_code=204, responses=ERROR_RESPONSES)
 def delete_edge(edge_id: UUID, session: SessionDep) -> Response:
     edge = session.get(Edge, edge_id)
-    if edge is None or edge.deleted_at is not None:
+    if edge is None:
         raise HTTPException(404, "edge not found")
     session.delete(edge)
     session.commit()

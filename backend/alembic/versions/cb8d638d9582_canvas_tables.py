@@ -28,6 +28,10 @@ def upgrade() -> None:
         sa.Column("position_y", sa.Float(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("automation_id", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+        sa.Column("sync_status", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("sync_error", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_table(
@@ -37,10 +41,6 @@ def upgrade() -> None:
         sa.Column("source_kind", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
         sa.Column("target_id", sa.Uuid(), nullable=False),
         sa.Column("target_kind", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-        sa.Column("automation_id", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-        sa.Column("sync_status", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-        sa.Column("sync_error", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id"),
