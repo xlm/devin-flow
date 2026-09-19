@@ -2,10 +2,10 @@ from datetime import UTC, datetime
 from typing import Any, cast
 from uuid import UUID, uuid4
 
-from sqlalchemy import JSON
+from sqlalchemy import JSON, String
 from sqlmodel import Field, SQLModel
 
-from devin_flow.models.canvas import TIMESTAMP
+from devin_flow.models.canvas import TIMESTAMP, OutcomeKind
 
 JSON_TYPE = cast("type[Any]", JSON())
 
@@ -34,6 +34,17 @@ class Invocation(SQLModel, table=True):
         default_factory=lambda: datetime.now(UTC),
         sa_type=TIMESTAMP,
     )
+
+
+class InvocationOutcome(SQLModel, table=True):
+    """Link table: one row per OutcomeKind derived from an Invocation."""
+
+    __tablename__ = "invocation_outcome"
+
+    invocation_id: UUID = Field(
+        foreign_key="invocation.id", primary_key=True, ondelete="CASCADE"
+    )
+    kind: OutcomeKind = Field(primary_key=True, sa_type=cast("type[Any]", String()))
 
 
 class PollerState(SQLModel, table=True):

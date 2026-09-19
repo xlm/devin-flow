@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
+from uuid import UUID
 
 import httpx
 import pytest
@@ -15,7 +16,14 @@ from devin_flow.invocations import (
     poll_once,
     run_poll_cycle,
 )
-from devin_flow.models import ActionNode, Edge, Invocation, PollerState, TriggerNode
+from devin_flow.models import (
+    ActionNode,
+    Edge,
+    Invocation,
+    InvocationOutcome,
+    PollerState,
+    TriggerNode,
+)
 
 
 def at(epoch: int) -> datetime:
@@ -63,6 +71,17 @@ def session_payload(
         "created_at": 1700000000,
         "updated_at": 1700000100,
         **extra,
+    }
+
+
+def outcome_rows(session: Session, invocation_id: UUID) -> set[str]:
+    return {
+        row.kind
+        for row in session.exec(
+            select(InvocationOutcome).where(
+                InvocationOutcome.invocation_id == invocation_id
+            )
+        ).all()
     }
 
 
@@ -124,6 +143,9 @@ def test_first_poll_lists_all_owned_automations(unit_session: Session) -> None:
     assert first.structured_output is None
     assert first.session_created_at == at(1700000000)
     assert first.session_updated_at == at(1700000100)
+    assert outcome_rows(unit_session, invocations[0].id) == {"pull_request"}
+    assert outcome_rows(unit_session, invocations[1].id) == set()
+    assert outcome_rows(unit_session, invocations[2].id) == set()
     state = unit_session.get(PollerState, 1)
     assert state is not None and state.last_success_at is not None
 
@@ -248,6 +270,45 @@ def test_poll_refreshes_non_terminal_invocations(unit_session: Session) -> None:
     ]
     assert refreshed.structured_output == {"outcome": "duplicate"}
     assert refreshed.session_updated_at == at(1700001000)
+    assert outcome_rows(unit_session, refreshed.id) == {
+        "pull_request",
+        "duplicate",
+    }
+
+
+def test_upsert_replaces_stale_outcome_rows(unit_session: Session) -> None:
+    action = add_action(unit_session, "auto-1")
+    payloads = [
+        session_payload(
+            "s-1",
+            "auto-1",
+            pull_requests=[{"pr_url": "https://gh.example/1"}],
+        ),
+        session_payload(
+            "s-1",
+            "auto-1",
+            status="exit",
+            structured_output={"outcome": "duplicate"},
+        ),
+    ]
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"items": [payloads.pop(0)], "has_next_page": False},
+        )
+
+    client = make_client(httpx.MockTransport(handler))
+    poll_once(unit_session, client)
+    invocation = unit_session.exec(
+        select(Invocation).where(Invocation.session_id == "s-1")
+    ).one()
+    assert invocation.action_node_id == action.id
+    assert outcome_rows(unit_session, invocation.id) == {"pull_request"}
+
+    poll_once(unit_session, client)
+    unit_session.expire_all()
+    assert outcome_rows(unit_session, invocation.id) == {"duplicate"}
 
 
 def test_poll_retries_failed_syncs_before_listing(unit_session: Session) -> None:

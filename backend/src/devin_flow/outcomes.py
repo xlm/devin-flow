@@ -8,7 +8,7 @@ from a `#N` reference in the session title.
 """
 
 import re
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 from pydantic import BaseModel
 
@@ -35,10 +35,10 @@ def bucket_pr_state(state: object) -> PrState:
     return "other"
 
 
-def pull_request_links(invocation: Invocation) -> list[PullRequestLink]:
+def _links(pull_requests: list[dict[str, Any]]) -> list[PullRequestLink]:
     links: list[PullRequestLink] = []
     seen: set[str] = set()
-    for entry in invocation.pull_requests:
+    for entry in pull_requests:
         url = entry.get("pr_url")
         if not isinstance(url, str) or not url or url in seen:
             continue
@@ -49,16 +49,22 @@ def pull_request_links(invocation: Invocation) -> list[PullRequestLink]:
     return links
 
 
-def structured_outcome(invocation: Invocation) -> str | None:
-    output = invocation.structured_output
+def pull_request_links(invocation: Invocation) -> list[PullRequestLink]:
+    return _links(invocation.pull_requests)
+
+
+def _structured_outcome(output: object) -> str | None:
     if not isinstance(output, dict):
         return None
     outcome = output.get("outcome")
     return outcome if isinstance(outcome, str) else None
 
 
-def duplicate_of(invocation: Invocation) -> str | None:
-    output = invocation.structured_output
+def structured_outcome(invocation: Invocation) -> str | None:
+    return _structured_outcome(invocation.structured_output)
+
+
+def _duplicate_of(output: object) -> str | None:
     if not isinstance(output, dict):
         return None
     value = output.get("duplicate_of")
@@ -99,14 +105,24 @@ def issue_ref(
     return None
 
 
-def outcome_kinds(invocation: Invocation) -> frozenset[OutcomeKind]:
+def duplicate_of(invocation: Invocation) -> str | None:
+    return _duplicate_of(invocation.structured_output)
+
+
+def derive_outcome_kinds(
+    pull_requests: list[dict[str, Any]], structured_output: object
+) -> frozenset[OutcomeKind]:
     kinds: set[OutcomeKind] = set()
-    if pull_request_links(invocation):
+    if _links(pull_requests):
         kinds.add("pull_request")
-    structured = structured_outcome(invocation)
+    structured = _structured_outcome(structured_output)
     if structured in STRUCTURED_OUTCOMES:
         kinds.add(cast("OutcomeKind", structured))
     return frozenset(kinds)
+
+
+def outcome_kinds(invocation: Invocation) -> frozenset[OutcomeKind]:
+    return derive_outcome_kinds(invocation.pull_requests, invocation.structured_output)
 
 
 def matches(invocation: Invocation, kind: OutcomeKind | None) -> bool:
