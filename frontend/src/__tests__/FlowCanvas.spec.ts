@@ -1282,6 +1282,44 @@ describe('FlowCanvas', () => {
     wrapper.unmount()
   })
 
+  it('refreshes Action sync state after deleting a Trigger', async () => {
+    const refreshed = {
+      ...canvas,
+      action_nodes: [
+        {
+          ...canvas.action_nodes[0],
+          sync_status: 'disabled',
+        },
+      ],
+    }
+    mocks.GET.mockResolvedValueOnce(response(canvas)).mockResolvedValueOnce(
+      response(refreshed),
+    )
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    mocks.handlers.nodesChange?.([{ type: 'remove', id: 'trigger' }])
+    await flushPromises()
+    expect(mocks.GET).toHaveBeenCalledTimes(2)
+    expect(vueFlow(wrapper).props('nodes')).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'action',
+          data: expect.objectContaining({ syncStatus: 'disabled' }),
+        }),
+      ]),
+    )
+    wrapper.unmount()
+  })
+
+  it('does not refresh sync state after deleting an Outcome', async () => {
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    mocks.handlers.nodesChange?.([{ type: 'remove', id: 'outcome' }])
+    await flushPromises()
+    expect(mocks.GET).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+
   it('adds a created node after a reload that started before its POST', async () => {
     const refetched = {
       trigger_nodes: [],
