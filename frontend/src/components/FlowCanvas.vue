@@ -33,11 +33,11 @@ const edgeSnapshots = new Map<string, Edge>()
 const saveGenerations = new Map<string, number>()
 const saveChains = new Map<string, Promise<void>>()
 const cascadedNodeIds = new Set<string>()
+let reloadPromise: Promise<void> | undefined
 
 const {
   fitView,
   findNode,
-  addNodes,
   addEdges,
   getEdges,
   onNodeDragStop,
@@ -125,19 +125,13 @@ async function loadCanvas() {
   }
 }
 
-function rollbackEdges(nodeId: string, connectedEdges: Edge[]) {
-  const restorableEdges = connectedEdges.filter((edge) => {
-    if (!edgeSnapshots.has(edge.id)) return false
-    const otherId = edge.source === nodeId ? edge.target : edge.source
-    if (!findNode(otherId)) {
-      edgeSnapshots.delete(edge.id)
-      return false
-    }
-    return true
-  })
-  if (restorableEdges.length > 0) {
-    addEdges(restorableEdges.map(copyEdge))
+function reloadCanvas(): Promise<void> {
+  if (!reloadPromise) {
+    reloadPromise = loadCanvas().finally(() => {
+      reloadPromise = undefined
+    })
   }
+  return reloadPromise
 }
 
 async function doSaveNodePosition(
@@ -202,23 +196,22 @@ async function removeNode(change: Extract<NodeChange, { type: 'remove' }>) {
     cascadedNodeIds.delete(change.id)
     return
   }
-  const connectedEdges = [...edgeSnapshots.values()].filter(
-    (edge) => edge.source === snapshot.id || edge.target === snapshot.id,
-  )
   try {
     const { error, response } = await client.DELETE(
       '/api/canvas/nodes/{kind}/{node_id}',
       { params: { path: { kind, node_id: snapshot.id } } },
     )
     if (error && response?.status !== 404) {
-      addNodes([copyNode(snapshot)])
-      rollbackEdges(snapshot.id, connectedEdges)
+      await reloadCanvas()
     } else {
-      connectedEdges.forEach((edge) => edgeSnapshots.delete(edge.id))
+      edgeSnapshots.forEach((edge) => {
+        if (edge.source === snapshot.id || edge.target === snapshot.id) {
+          edgeSnapshots.delete(edge.id)
+        }
+      })
     }
   } catch {
-    addNodes([copyNode(snapshot)])
-    rollbackEdges(snapshot.id, connectedEdges)
+    await reloadCanvas()
   } finally {
     cascadedNodeIds.delete(snapshot.id)
   }

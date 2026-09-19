@@ -504,7 +504,18 @@ describe('FlowCanvas', () => {
     wrapper.unmount()
   })
 
-  it('deletes nodes and restores them on non-404 failures', async () => {
+  it('reloads the canvas after a failed node delete', async () => {
+    const refetched = {
+      trigger_nodes: [],
+      action_nodes: [
+        { id: 'action', kind: 'action', position: { x: 3, y: 4 } },
+      ],
+      outcome_nodes: [],
+      edges: [],
+    }
+    mocks.GET.mockResolvedValueOnce(response(canvas)).mockResolvedValueOnce(
+      response(refetched),
+    )
     mocks.DELETE.mockResolvedValue(
       response(undefined, { detail: 'delete failed' }, 500),
     )
@@ -512,16 +523,16 @@ describe('FlowCanvas', () => {
     await flushPromises()
     mocks.handlers.nodesChange?.([{ type: 'remove', id: 'trigger' }])
     await flushPromises()
-    expect(mocks.DELETE).toHaveBeenCalledWith(
-      '/api/canvas/nodes/{kind}/{node_id}',
-      { params: { path: { kind: 'trigger', node_id: 'trigger' } } },
-    )
-    mocks.handlers.nodesChange?.([{ type: 'remove', id: 'trigger' }])
-    await flushPromises()
-    expect(mocks.addNodes).toHaveBeenCalledWith([
-      expect.objectContaining({ id: 'trigger' }),
+    expect(mocks.GET).toHaveBeenCalledTimes(2)
+    expect(vueFlow(wrapper).props('nodes')).toEqual([
+      {
+        id: 'action',
+        type: undefined,
+        position: { x: 3, y: 4 },
+        data: { kind: 'action', label: 'Action' },
+      },
     ])
-    expect(mocks.addEdges).not.toHaveBeenCalled()
+    expect(vueFlow(wrapper).props('edges')).toEqual([])
     wrapper.unmount()
   })
 
@@ -555,8 +566,64 @@ describe('FlowCanvas', () => {
     wrapper.unmount()
   })
 
-  it('restores a node and its edges when cascade deletion fails', async () => {
-    mocks.GET.mockResolvedValue(
+  it('reloads the surviving graph when one node delete fails', async () => {
+    const refetched = {
+      trigger_nodes: [],
+      action_nodes: [
+        { id: 'action', kind: 'action', position: { x: 3, y: 4 } },
+      ],
+      outcome_nodes: [],
+      edges: [],
+    }
+    mocks.GET.mockResolvedValueOnce(response(canvas)).mockResolvedValueOnce(
+      response(refetched),
+    )
+    mocks.DELETE.mockResolvedValueOnce(
+      response(undefined),
+    ).mockResolvedValueOnce(
+      response(undefined, { detail: 'delete failed' }, 500),
+    )
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    mocks.handlers.nodesChange?.([
+      { type: 'remove', id: 'trigger' },
+      { type: 'remove', id: 'action' },
+    ])
+    await flushPromises()
+    expect(mocks.GET).toHaveBeenCalledTimes(2)
+    expect(vueFlow(wrapper).props('nodes')).toHaveLength(1)
+    expect(vueFlow(wrapper).props('nodes')[0]).toEqual({
+      id: 'action',
+      type: undefined,
+      position: { x: 3, y: 4 },
+      data: { kind: 'action', label: 'Action' },
+    })
+    expect(vueFlow(wrapper).props('edges')).toEqual([])
+    wrapper.unmount()
+  })
+
+  it('reloads both nodes and edges when both node deletes fail', async () => {
+    mocks.GET.mockResolvedValueOnce(response(canvas)).mockResolvedValueOnce(
+      response(canvas),
+    )
+    mocks.DELETE.mockResolvedValue(
+      response(undefined, { detail: 'delete failed' }, 500),
+    )
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    mocks.handlers.nodesChange?.([
+      { type: 'remove', id: 'trigger' },
+      { type: 'remove', id: 'action' },
+    ])
+    await flushPromises()
+    expect(mocks.GET).toHaveBeenCalledTimes(2)
+    expect(vueFlow(wrapper).props('nodes')).toHaveLength(3)
+    expect(vueFlow(wrapper).props('edges')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('treats node delete 404 and thrown errors as expected', async () => {
+    mocks.GET.mockResolvedValueOnce(
       response({
         ...canvas,
         edges: [
@@ -569,62 +636,6 @@ describe('FlowCanvas', () => {
         ],
       }),
     )
-    mocks.DELETE.mockResolvedValue(
-      response(undefined, { detail: 'delete failed' }, 500),
-    )
-    const wrapper = mount(FlowCanvas)
-    await flushPromises()
-    const loadedNodes = vueFlow(wrapper).props('nodes') as Node[]
-    mocks.findNode.mockImplementation((id: string) =>
-      loadedNodes.find((node) => node.id === id),
-    )
-    mocks.handlers.edgesChange?.([
-      { type: 'remove', id: 'edge' },
-      { type: 'remove', id: 'outcome-edge' },
-    ])
-    mocks.handlers.nodesChange?.([{ type: 'remove', id: 'action' }])
-    await flushPromises()
-    expect(mocks.addNodes).toHaveBeenCalledWith([
-      expect.objectContaining({ id: 'action' }),
-    ])
-    expect(mocks.addEdges).toHaveBeenCalledWith([
-      expect.objectContaining({ id: 'edge' }),
-      expect.objectContaining({ id: 'outcome-edge' }),
-    ])
-    mocks.addNodes.mockClear()
-    mocks.addEdges.mockClear()
-    mocks.DELETE.mockRejectedValue(new Error('down'))
-    mocks.handlers.nodesChange?.([{ type: 'remove', id: 'action' }])
-    await flushPromises()
-    expect(mocks.addEdges).toHaveBeenCalledWith([
-      expect.objectContaining({ id: 'edge' }),
-      expect.objectContaining({ id: 'outcome-edge' }),
-    ])
-    wrapper.unmount()
-  })
-
-  it('does not restore edges when a peer node was deleted', async () => {
-    mocks.DELETE.mockResolvedValueOnce(
-      response(undefined),
-    ).mockResolvedValueOnce(
-      response(undefined, { detail: 'delete failed' }, 500),
-    )
-    const wrapper = mount(FlowCanvas)
-    await flushPromises()
-    mocks.handlers.edgesChange?.([{ type: 'remove', id: 'edge' }])
-    mocks.handlers.nodesChange?.([
-      { type: 'remove', id: 'trigger' },
-      { type: 'remove', id: 'action' },
-    ])
-    await flushPromises()
-    expect(mocks.addNodes).toHaveBeenCalledWith([
-      expect.objectContaining({ id: 'action' }),
-    ])
-    expect(mocks.addEdges).not.toHaveBeenCalled()
-    wrapper.unmount()
-  })
-
-  it('treats node delete 404 and throws as expected', async () => {
     const wrapper = mount(FlowCanvas)
     await flushPromises()
     mocks.DELETE.mockResolvedValue(
@@ -632,17 +643,15 @@ describe('FlowCanvas', () => {
     )
     mocks.handlers.nodesChange?.([{ type: 'remove', id: 'trigger' }])
     await flushPromises()
-    expect(mocks.addNodes).not.toHaveBeenCalled()
+    expect(mocks.GET).toHaveBeenCalledTimes(1)
     mocks.DELETE.mockRejectedValue({ status: 404 })
     mocks.handlers.nodesChange?.([{ type: 'remove', id: 'trigger' }])
     await flushPromises()
-    expect(mocks.addNodes).toHaveBeenCalledWith([
-      expect.objectContaining({ id: 'trigger' }),
-    ])
+    expect(mocks.GET).toHaveBeenCalledTimes(2)
     mocks.DELETE.mockRejectedValue(new Error('down'))
     mocks.handlers.nodesChange?.([{ type: 'remove', id: 'trigger' }])
     await flushPromises()
-    expect(mocks.addNodes).toHaveBeenCalledTimes(2)
+    expect(mocks.GET).toHaveBeenCalledTimes(3)
     wrapper.unmount()
   })
 
@@ -692,23 +701,6 @@ describe('FlowCanvas', () => {
     mocks.handlers.edgesChange?.([{ type: 'remove', id: 'missing' }])
     await flushPromises()
     expect(mocks.DELETE).toHaveBeenCalledTimes(1)
-    wrapper.unmount()
-  })
-
-  it('does not restore an already-deleted edge with a failed node delete', async () => {
-    const wrapper = mount(FlowCanvas)
-    await flushPromises()
-    mocks.handlers.edgesChange?.([{ type: 'remove', id: 'edge' }])
-    await flushPromises()
-    mocks.DELETE.mockResolvedValue(
-      response(undefined, { detail: 'delete failed' }, 500),
-    )
-    mocks.handlers.nodesChange?.([{ type: 'remove', id: 'action' }])
-    await flushPromises()
-    expect(mocks.addNodes).toHaveBeenCalledWith([
-      expect.objectContaining({ id: 'action' }),
-    ])
-    expect(mocks.addEdges).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 
