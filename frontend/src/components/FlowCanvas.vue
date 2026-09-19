@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import {
   VueFlow,
   useVueFlow,
@@ -15,6 +15,8 @@ import { ControlButton, Controls } from '@vue-flow/controls'
 import { MiniMap } from '@vue-flow/minimap'
 import { client } from '@/api/client'
 import { Button } from '@/components/ui/button'
+import NodePalette from '@/components/NodePalette.vue'
+import { nodeTypes } from '@/components/nodes/nodeTypes'
 import { useTheme } from '@/composables/useTheme'
 import {
   connectError,
@@ -22,12 +24,15 @@ import {
   type CanvasEdge,
   type NodeKind,
 } from '@/lib/connectRules'
+import { isNodeKind, NODE_KIND_MIME, nodeLabel } from '@/lib/nodeKinds'
 
 const RESIZE_DEBOUNCE_MS = 100
 
 const nodes = ref<Node[]>([])
 const edges = ref<Edge[]>([])
 const loadError = ref(false)
+const loading = ref(false)
+const creationBlocked = computed(() => loading.value || loadError.value)
 const nodeSnapshots = new Map<string, Node>()
 const edgeSnapshots = new Map<string, Edge>()
 const saveGenerations = new Map<string, number>()
@@ -39,25 +44,17 @@ const {
   fitView,
   findNode,
   addEdges,
+  addNodes,
   getEdges,
   onNodeDragStop,
   onNodesChange,
   onEdgesChange,
   onConnect,
+  screenToFlowCoordinate,
 } = useVueFlow()
 const { mode, icon, cycleMode } = useTheme()
 
 let resizeTimer: ReturnType<typeof setTimeout> | undefined
-
-function nodeType(kind: NodeKind): string | undefined {
-  if (kind === 'trigger') return 'input'
-  if (kind === 'outcome') return 'output'
-  return undefined
-}
-
-function nodeLabel(kind: NodeKind): string {
-  return kind[0].toUpperCase() + kind.slice(1)
-}
 
 function mapNode(node: {
   id: string
@@ -66,7 +63,7 @@ function mapNode(node: {
 }): Node {
   return {
     id: node.id,
-    type: nodeType(node.kind),
+    type: node.kind,
     position: { ...node.position },
     data: { kind: node.kind, label: nodeLabel(node.kind) },
   }
@@ -95,6 +92,7 @@ function copyEdge(edge: Edge): Edge {
 
 async function fetchCanvas() {
   loadError.value = false
+  loading.value = true
   nodeSnapshots.clear()
   edgeSnapshots.clear()
   saveGenerations.clear()
@@ -122,6 +120,8 @@ async function fetchCanvas() {
     loadError.value = true
     nodes.value = []
     edges.value = []
+  } finally {
+    loading.value = false
   }
 }
 
@@ -298,6 +298,44 @@ async function saveConnection(connection: Connection) {
   }
 }
 
+async function createNode(kind: NodeKind, position: { x: number; y: number }) {
+  try {
+    const { data } = await client.POST('/api/canvas/nodes/{kind}', {
+      params: { path: { kind } },
+      body: { position },
+    })
+    if (data) {
+      if (loadPromise) await loadPromise
+      if (loadError.value || findNode(data.id)) return
+      const node = mapNode(data)
+      nodeSnapshots.set(node.id, copyNode(node))
+      addNodes([node])
+    }
+  } catch {
+    // The node was never added locally, so there is nothing to revert.
+  }
+}
+
+function onDragOver(event: DragEvent) {
+  if (creationBlocked.value) return
+  if (!event.dataTransfer?.types.includes(NODE_KIND_MIME)) return
+  event.preventDefault()
+  event.dataTransfer.dropEffect = 'move'
+}
+
+function onDrop(event: DragEvent) {
+  if (creationBlocked.value) return
+  if (!event.dataTransfer?.types.includes(NODE_KIND_MIME)) return
+  const kind = event.dataTransfer.getData(NODE_KIND_MIME)
+  if (!isNodeKind(kind)) return
+  event.preventDefault()
+  const position = screenToFlowCoordinate({
+    x: event.clientX,
+    y: event.clientY,
+  })
+  void createNode(kind, position)
+}
+
 onNodeDragStop(saveNodePosition)
 onNodesChange((changes) => {
   changes
@@ -337,49 +375,59 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="relative h-screen w-screen">
+  <div class="flex h-screen w-screen">
+    <NodePalette :disabled="creationBlocked" />
     <div
-      v-if="loadError"
-      role="alert"
-      data-testid="load-error"
-      class="absolute top-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-3 rounded-md border border-destructive bg-background px-4 py-2 text-sm text-destructive shadow"
+      class="relative min-w-0 flex-1"
+      data-testid="canvas-drop-zone"
+      @dragover="onDragOver"
+      @drop="onDrop"
     >
-      <span>Could not load the Canvas.</span>
-      <Button
-        size="sm"
-        variant="outline"
-        data-testid="load-retry"
-        @click="loadCanvas"
+      <div
+        v-if="loadError"
+        role="alert"
+        data-testid="load-error"
+        class="absolute top-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-3 rounded-md border border-destructive bg-background px-4 py-2 text-sm text-destructive shadow"
       >
-        Retry
-      </Button>
-    </div>
-    <VueFlow
-      :nodes="nodes"
-      :edges="edges"
-      fit-view-on-init
-      :is-valid-connection="validConnection"
-    >
-      <Background />
-      <Controls position="top-left">
-        <ControlButton
-          :title="`Theme: ${mode}`"
-          :aria-label="`Theme: ${mode}`"
-          data-testid="theme-toggle"
-          @click="cycleMode"
+        <span>Could not load the Canvas.</span>
+        <Button
+          size="sm"
+          variant="outline"
+          data-testid="load-retry"
+          @click="loadCanvas"
         >
-          <component :is="icon" />
-        </ControlButton>
-      </Controls>
-      <MiniMap
-        position="bottom-right"
-        pannable
-        zoomable
-        node-color="var(--muted-foreground)"
-        node-stroke-color="var(--border)"
-        mask-color="var(--vf-minimap-mask)"
-        mask-stroke-color="var(--border)"
-      />
-    </VueFlow>
+          Retry
+        </Button>
+      </div>
+      <VueFlow
+        class="h-full"
+        :nodes="nodes"
+        :edges="edges"
+        :node-types="nodeTypes"
+        fit-view-on-init
+        :is-valid-connection="validConnection"
+      >
+        <Background />
+        <Controls position="top-left">
+          <ControlButton
+            :title="`Theme: ${mode}`"
+            :aria-label="`Theme: ${mode}`"
+            data-testid="theme-toggle"
+            @click="cycleMode"
+          >
+            <component :is="icon" />
+          </ControlButton>
+        </Controls>
+        <MiniMap
+          position="bottom-right"
+          pannable
+          zoomable
+          node-color="var(--muted-foreground)"
+          node-stroke-color="var(--border)"
+          mask-color="var(--vf-minimap-mask)"
+          mask-stroke-color="var(--border)"
+        />
+      </VueFlow>
+    </div>
   </div>
 </template>

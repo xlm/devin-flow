@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, h, ref } from 'vue'
 import type { Edge, Node } from '@vue-flow/core'
+import { NODE_KIND_MIME } from '@/lib/nodeKinds'
 
 type DragHandler = (event: { node: Node }) => void | Promise<void>
 type ChangeHandler = (changes: { type: string; id: string }[]) => void
@@ -18,6 +19,8 @@ const mocks = vi.hoisted(() => {
     POST: vi.fn(),
     PATCH: vi.fn(),
     DELETE: vi.fn(),
+    screenToFlowCoordinate: vi.fn(),
+    removeNodes: vi.fn(),
     handlers: {} as {
       dragStop?: DragHandler
       nodesChange?: ChangeHandler
@@ -42,6 +45,7 @@ vi.mock('@vue-flow/core', () => ({
     props: {
       nodes: { type: Array, default: () => [] },
       edges: { type: Array, default: () => [] },
+      nodeTypes: { type: Object, default: () => ({}) },
       isValidConnection: { type: Function, default: undefined },
     },
     setup:
@@ -55,6 +59,8 @@ vi.mock('@vue-flow/core', () => ({
     addNodes: mocks.addNodes,
     addEdges: mocks.addEdges,
     getEdges: mocks.getEdges,
+    screenToFlowCoordinate: mocks.screenToFlowCoordinate,
+    removeNodes: mocks.removeNodes,
     onNodeDragStop: (handler: (event: { node: Node }) => void) => {
       mocks.handlers.dragStop = handler
     },
@@ -139,6 +145,7 @@ describe('FlowCanvas', () => {
     mocks.POST.mockResolvedValue(response(undefined))
     mocks.PATCH.mockResolvedValue(response(undefined))
     mocks.DELETE.mockResolvedValue(response(undefined))
+    mocks.screenToFlowCoordinate.mockReturnValue({ x: 0, y: 0 })
     mocks.findNode.mockImplementation(() => undefined)
     mocks.getEdges.value.length = 0
     mocks.getEdges.value.push({
@@ -173,19 +180,19 @@ describe('FlowCanvas', () => {
     expect(vueFlow(wrapper).props('nodes')).toEqual([
       {
         id: 'trigger',
-        type: 'input',
+        type: 'trigger',
         position: { x: 1, y: 2 },
         data: { kind: 'trigger', label: 'Trigger' },
       },
       {
         id: 'action',
-        type: undefined,
+        type: 'action',
         position: { x: 3, y: 4 },
         data: { kind: 'action', label: 'Action' },
       },
       {
         id: 'outcome',
-        type: 'output',
+        type: 'outcome',
         position: { x: 5, y: 6 },
         data: { kind: 'outcome', label: 'Outcome' },
       },
@@ -202,6 +209,192 @@ describe('FlowCanvas', () => {
     wrapper.unmount()
   })
 
+  it('creates a node from a palette drop and stores its snapshot', async () => {
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    mocks.screenToFlowCoordinate.mockReturnValue({ x: 40, y: 50 })
+    mocks.POST.mockResolvedValue(
+      response({ id: 'new', kind: 'action', position: { x: 40, y: 50 } }),
+    )
+    const dataTransfer = {
+      types: [NODE_KIND_MIME],
+      getData: vi.fn().mockReturnValue('action'),
+      dropEffect: '',
+    }
+    const event = new Event('drop', { bubbles: true, cancelable: true })
+    Object.defineProperty(event, 'dataTransfer', { value: dataTransfer })
+    Object.defineProperty(event, 'clientX', { value: 100 })
+    Object.defineProperty(event, 'clientY', { value: 200 })
+    wrapper
+      .find('[data-testid="canvas-drop-zone"]')
+      .element.dispatchEvent(event)
+    await flushPromises()
+    expect(mocks.POST).toHaveBeenCalledWith('/api/canvas/nodes/{kind}', {
+      params: { path: { kind: 'action' } },
+      body: { position: { x: 40, y: 50 } },
+    })
+    expect(mocks.addNodes).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'new', type: 'action' }),
+    ])
+    mocks.handlers.nodesChange?.([{ type: 'remove', id: 'new' }])
+    await flushPromises()
+    expect(mocks.DELETE).toHaveBeenCalledWith(
+      '/api/canvas/nodes/{kind}/{node_id}',
+      { params: { path: { kind: 'action', node_id: 'new' } } },
+    )
+    wrapper.unmount()
+  })
+
+  it('blocks palette drops while the canvas is loading', async () => {
+    let resolveLoad: ((value: ReturnType<typeof response>) => void) | undefined
+    mocks.GET.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveLoad = resolve
+        }),
+    )
+    const wrapper = mount(FlowCanvas)
+    const dropZone = wrapper.find('[data-testid="canvas-drop-zone"]')
+    const dataTransfer = {
+      types: [NODE_KIND_MIME],
+      getData: vi.fn().mockReturnValue('action'),
+      dropEffect: '',
+    }
+    const dragOverEvent = new Event('dragover', {
+      bubbles: true,
+      cancelable: true,
+    })
+    Object.defineProperty(dragOverEvent, 'dataTransfer', {
+      value: dataTransfer,
+    })
+    dropZone.element.dispatchEvent(dragOverEvent)
+    expect(dragOverEvent.defaultPrevented).toBe(false)
+    const dropEvent = new Event('drop', {
+      bubbles: true,
+      cancelable: true,
+    })
+    Object.defineProperty(dropEvent, 'dataTransfer', { value: dataTransfer })
+    Object.defineProperty(dropEvent, 'clientX', { value: 100 })
+    Object.defineProperty(dropEvent, 'clientY', { value: 200 })
+    dropZone.element.dispatchEvent(dropEvent)
+    await flushPromises()
+    expect(mocks.POST).not.toHaveBeenCalled()
+    expect(
+      wrapper.find('[data-testid="palette-action"]').attributes('draggable'),
+    ).toBe('false')
+    resolveLoad?.(response(canvas))
+    await flushPromises()
+    expect(
+      wrapper.find('[data-testid="palette-action"]').attributes('draggable'),
+    ).toBe('true')
+    mocks.POST.mockResolvedValue(
+      response({ id: 'new', kind: 'action', position: { x: 0, y: 0 } }),
+    )
+    const secondDrop = new Event('drop', {
+      bubbles: true,
+      cancelable: true,
+    })
+    Object.defineProperty(secondDrop, 'dataTransfer', { value: dataTransfer })
+    Object.defineProperty(secondDrop, 'clientX', { value: 100 })
+    Object.defineProperty(secondDrop, 'clientY', { value: 200 })
+    dropZone.element.dispatchEvent(secondDrop)
+    await flushPromises()
+    expect(mocks.POST).toHaveBeenCalledWith(
+      '/api/canvas/nodes/{kind}',
+      expect.objectContaining({ params: { path: { kind: 'action' } } }),
+    )
+    wrapper.unmount()
+  })
+
+  it('accepts only node palette drag events', async () => {
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    const dropZone = wrapper.find('[data-testid="canvas-drop-zone"]')
+    const dataTransfer = {
+      types: [NODE_KIND_MIME],
+      getData: vi.fn().mockReturnValue('action'),
+      dropEffect: '',
+    }
+    const dragOverEvent = new Event('dragover', {
+      bubbles: true,
+      cancelable: true,
+    })
+    Object.defineProperty(dragOverEvent, 'dataTransfer', {
+      value: dataTransfer,
+    })
+    dropZone.element.dispatchEvent(dragOverEvent)
+    expect(dragOverEvent.defaultPrevented).toBe(true)
+    expect(dataTransfer.dropEffect).toBe('move')
+    const unrelatedTransfer = {
+      types: ['text/plain'],
+      getData: vi.fn().mockReturnValue('action'),
+      dropEffect: '',
+    }
+    const unrelatedDragOver = new Event('dragover', {
+      bubbles: true,
+      cancelable: true,
+    })
+    Object.defineProperty(unrelatedDragOver, 'dataTransfer', {
+      value: unrelatedTransfer,
+    })
+    dropZone.element.dispatchEvent(unrelatedDragOver)
+    expect(unrelatedDragOver.defaultPrevented).toBe(false)
+    const unrelatedDrop = new Event('drop', {
+      bubbles: true,
+      cancelable: true,
+    })
+    Object.defineProperty(unrelatedDrop, 'dataTransfer', {
+      value: unrelatedTransfer,
+    })
+    dropZone.element.dispatchEvent(unrelatedDrop)
+    await flushPromises()
+    expect(mocks.POST).not.toHaveBeenCalled()
+    const invalidTransfer = {
+      types: [NODE_KIND_MIME],
+      getData: vi.fn().mockReturnValue('bogus'),
+      dropEffect: '',
+    }
+    const invalidDrop = new Event('drop', {
+      bubbles: true,
+      cancelable: true,
+    })
+    Object.defineProperty(invalidDrop, 'dataTransfer', {
+      value: invalidTransfer,
+    })
+    dropZone.element.dispatchEvent(invalidDrop)
+    await flushPromises()
+    expect(mocks.POST).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('does not add nodes when node creation fails', async () => {
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    const dataTransfer = {
+      types: [NODE_KIND_MIME],
+      getData: vi.fn().mockReturnValue('action'),
+      dropEffect: '',
+    }
+    const dispatchDrop = () => {
+      const event = new Event('drop', { bubbles: true, cancelable: true })
+      Object.defineProperty(event, 'dataTransfer', { value: dataTransfer })
+      Object.defineProperty(event, 'clientX', { value: 100 })
+      Object.defineProperty(event, 'clientY', { value: 200 })
+      wrapper
+        .find('[data-testid="canvas-drop-zone"]')
+        .element.dispatchEvent(event)
+    }
+    mocks.POST.mockResolvedValue(response(undefined, { detail: 'failed' }, 500))
+    dispatchDrop()
+    await flushPromises()
+    expect(mocks.addNodes).not.toHaveBeenCalled()
+    mocks.POST.mockRejectedValue(new Error('down'))
+    dispatchDrop()
+    await flushPromises()
+    expect(mocks.addNodes).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
   it('leaves an empty canvas when loading fails', async () => {
     mocks.GET.mockRejectedValue(new Error('down'))
     const wrapper = mount(FlowCanvas)
@@ -209,6 +402,47 @@ describe('FlowCanvas', () => {
     expect(vueFlow(wrapper).props('nodes')).toEqual([])
     expect(vueFlow(wrapper).props('edges')).toEqual([])
     expect(wrapper.find('[data-testid="load-error"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('blocks palette drops after a failed load until retry succeeds', async () => {
+    mocks.GET.mockRejectedValueOnce(new Error('down'))
+    mocks.GET.mockResolvedValueOnce(response(canvas))
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    const dropZone = wrapper.find('[data-testid="canvas-drop-zone"]')
+    const dataTransfer = {
+      types: [NODE_KIND_MIME],
+      getData: vi.fn().mockReturnValue('action'),
+      dropEffect: '',
+    }
+    const dispatchDrop = () => {
+      const event = new Event('drop', { bubbles: true, cancelable: true })
+      Object.defineProperty(event, 'dataTransfer', { value: dataTransfer })
+      Object.defineProperty(event, 'clientX', { value: 100 })
+      Object.defineProperty(event, 'clientY', { value: 200 })
+      dropZone.element.dispatchEvent(event)
+    }
+    dispatchDrop()
+    await flushPromises()
+    expect(mocks.POST).not.toHaveBeenCalled()
+    expect(
+      wrapper.find('[data-testid="palette-action"]').attributes('draggable'),
+    ).toBe('false')
+    await wrapper.find('[data-testid="load-retry"]').trigger('click')
+    await flushPromises()
+    expect(
+      wrapper.find('[data-testid="palette-action"]').attributes('draggable'),
+    ).toBe('true')
+    mocks.POST.mockResolvedValue(
+      response({ id: 'new', kind: 'action', position: { x: 0, y: 0 } }),
+    )
+    dispatchDrop()
+    await flushPromises()
+    expect(mocks.POST).toHaveBeenCalledWith(
+      '/api/canvas/nodes/{kind}',
+      expect.objectContaining({ params: { path: { kind: 'action' } } }),
+    )
     wrapper.unmount()
   })
 
@@ -548,12 +782,184 @@ describe('FlowCanvas', () => {
     expect(vueFlow(wrapper).props('nodes')).toEqual([
       {
         id: 'action',
-        type: undefined,
+        type: 'action',
         position: { x: 3, y: 4 },
         data: { kind: 'action', label: 'Action' },
       },
     ])
     expect(vueFlow(wrapper).props('edges')).toEqual([])
+    wrapper.unmount()
+  })
+
+  it('adds a created node after a reload that started before its POST', async () => {
+    const refetched = {
+      trigger_nodes: [],
+      action_nodes: [],
+      outcome_nodes: [],
+      edges: [],
+    }
+    let resolveReload:
+      ((value: ReturnType<typeof response>) => void) | undefined
+    mocks.GET.mockResolvedValueOnce(response(canvas)).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveReload = resolve
+        }),
+    )
+    mocks.DELETE.mockResolvedValue(
+      response(undefined, { detail: 'delete failed' }, 500),
+    )
+    let resolvePost: ((value: ReturnType<typeof response>) => void) | undefined
+    mocks.POST.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolvePost = resolve
+        }),
+    )
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    const dropZone = wrapper.find('[data-testid="canvas-drop-zone"]')
+    const dataTransfer = {
+      types: [NODE_KIND_MIME],
+      getData: vi.fn().mockReturnValue('action'),
+      dropEffect: '',
+    }
+    const drop = new Event('drop', { bubbles: true, cancelable: true })
+    Object.defineProperty(drop, 'dataTransfer', { value: dataTransfer })
+    Object.defineProperty(drop, 'clientX', { value: 100 })
+    Object.defineProperty(drop, 'clientY', { value: 200 })
+    dropZone.element.dispatchEvent(drop)
+    await flushPromises()
+    expect(mocks.POST).toHaveBeenCalled()
+    expect(mocks.addNodes).not.toHaveBeenCalled()
+    mocks.handlers.nodesChange?.([{ type: 'remove', id: 'trigger' }])
+    await flushPromises()
+    expect(mocks.GET).toHaveBeenCalledTimes(2)
+    resolvePost?.(
+      response({ id: 'new', kind: 'action', position: { x: 0, y: 0 } }),
+    )
+    await flushPromises()
+    expect(mocks.addNodes).not.toHaveBeenCalled()
+    resolveReload?.(response(refetched))
+    await flushPromises()
+    expect(mocks.addNodes).toHaveBeenCalledTimes(1)
+    mocks.DELETE.mockResolvedValue(response(undefined))
+    mocks.handlers.nodesChange?.([{ type: 'remove', id: 'new' }])
+    await flushPromises()
+    expect(mocks.DELETE).toHaveBeenLastCalledWith(
+      '/api/canvas/nodes/{kind}/{node_id}',
+      { params: { path: { kind: 'action', node_id: 'new' } } },
+    )
+    wrapper.unmount()
+  })
+
+  it('does not duplicate a created node included in a reload', async () => {
+    const refetched = {
+      trigger_nodes: [],
+      action_nodes: [{ id: 'new', kind: 'action', position: { x: 0, y: 0 } }],
+      outcome_nodes: [],
+      edges: [],
+    }
+    let resolveReload:
+      ((value: ReturnType<typeof response>) => void) | undefined
+    mocks.GET.mockResolvedValueOnce(response(canvas)).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveReload = resolve
+        }),
+    )
+    mocks.DELETE.mockResolvedValue(
+      response(undefined, { detail: 'delete failed' }, 500),
+    )
+    let resolvePost: ((value: ReturnType<typeof response>) => void) | undefined
+    mocks.POST.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolvePost = resolve
+        }),
+    )
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    const drop = new Event('drop', { bubbles: true, cancelable: true })
+    Object.defineProperty(drop, 'dataTransfer', {
+      value: {
+        types: [NODE_KIND_MIME],
+        getData: vi.fn().mockReturnValue('action'),
+        dropEffect: '',
+      },
+    })
+    Object.defineProperty(drop, 'clientX', { value: 100 })
+    Object.defineProperty(drop, 'clientY', { value: 200 })
+    wrapper.find('[data-testid="canvas-drop-zone"]').element.dispatchEvent(drop)
+    await flushPromises()
+    expect(mocks.POST).toHaveBeenCalled()
+    expect(mocks.addNodes).not.toHaveBeenCalled()
+    mocks.handlers.nodesChange?.([{ type: 'remove', id: 'trigger' }])
+    await flushPromises()
+    expect(mocks.GET).toHaveBeenCalledTimes(2)
+    resolvePost?.(
+      response({ id: 'new', kind: 'action', position: { x: 0, y: 0 } }),
+    )
+    await flushPromises()
+    expect(mocks.addNodes).not.toHaveBeenCalled()
+    mocks.findNode.mockReturnValue({
+      id: 'new',
+      type: 'action',
+      position: { x: 0, y: 0 },
+      data: { kind: 'action', label: 'Action' },
+    })
+    resolveReload?.(response(refetched))
+    await flushPromises()
+    expect(mocks.addNodes).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('does not add a created node when the reload fails', async () => {
+    let rejectReload: ((reason?: unknown) => void) | undefined
+    mocks.GET.mockResolvedValueOnce(response(canvas)).mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectReload = reject
+        }),
+    )
+    mocks.DELETE.mockResolvedValue(
+      response(undefined, { detail: 'delete failed' }, 500),
+    )
+    let resolvePost: ((value: ReturnType<typeof response>) => void) | undefined
+    mocks.POST.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolvePost = resolve
+        }),
+    )
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    const drop = new Event('drop', { bubbles: true, cancelable: true })
+    Object.defineProperty(drop, 'dataTransfer', {
+      value: {
+        types: [NODE_KIND_MIME],
+        getData: vi.fn().mockReturnValue('action'),
+        dropEffect: '',
+      },
+    })
+    Object.defineProperty(drop, 'clientX', { value: 100 })
+    Object.defineProperty(drop, 'clientY', { value: 200 })
+    wrapper.find('[data-testid="canvas-drop-zone"]').element.dispatchEvent(drop)
+    await flushPromises()
+    expect(mocks.POST).toHaveBeenCalled()
+    expect(mocks.addNodes).not.toHaveBeenCalled()
+    mocks.handlers.nodesChange?.([{ type: 'remove', id: 'trigger' }])
+    await flushPromises()
+    expect(mocks.GET).toHaveBeenCalledTimes(2)
+    resolvePost?.(
+      response({ id: 'new', kind: 'action', position: { x: 0, y: 0 } }),
+    )
+    await flushPromises()
+    expect(mocks.addNodes).not.toHaveBeenCalled()
+    rejectReload?.(new Error('down'))
+    await flushPromises()
+    expect(mocks.addNodes).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="load-error"]').exists()).toBe(true)
     wrapper.unmount()
   })
 
@@ -615,7 +1021,7 @@ describe('FlowCanvas', () => {
     expect(vueFlow(wrapper).props('nodes')).toHaveLength(1)
     expect(vueFlow(wrapper).props('nodes')[0]).toEqual({
       id: 'action',
-      type: undefined,
+      type: 'action',
       position: { x: 3, y: 4 },
       data: { kind: 'action', label: 'Action' },
     })
