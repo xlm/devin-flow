@@ -7,6 +7,7 @@ from devin_flow.devin import DevinClient, get_devin_client
 from devin_flow.devin.client import (
     DevinSession,
     DevinUpstreamError,
+    Repository,
     SessionCreate,
 )
 
@@ -39,6 +40,24 @@ def list_sessions(
 ) -> list[DevinSession]:
     try:
         return client.list_sessions(limit=limit)
+    except DevinUpstreamError as exc:
+        raise upstream_error(exc) from exc
+
+
+@router.get(
+    "/devin/repositories",
+    response_model=list[Repository],
+    responses={
+        502: {"model": ErrorResponse, "description": "Devin API failure"},
+        503: {
+            "model": ErrorResponse,
+            "description": "Devin API not configured",
+        },
+    },
+)
+def list_repositories(client: DevinClientDep) -> list[Repository]:
+    try:
+        return client.list_repositories()
     except DevinUpstreamError as exc:
         raise upstream_error(exc) from exc
 

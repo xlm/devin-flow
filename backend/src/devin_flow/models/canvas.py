@@ -2,10 +2,11 @@ from datetime import UTC, datetime
 from typing import Any, Literal, cast
 from uuid import UUID, uuid4
 
-from sqlalchemy import DateTime, Index, text
+from sqlalchemy import DateTime, Index, String, text
 from sqlmodel import Field, SQLModel
 
 NodeKind = Literal["trigger", "action", "outcome"]
+EventAction = Literal["opened", "closed"]
 TIMESTAMP = cast(
     "type[Any]", DateTime(timezone=True)
 )  # sqlmodel types sa_type as a class but SQLAlchemy accepts a configured instance
@@ -27,6 +28,10 @@ class NodeBase(SQLModel):
 
 class TriggerNode(NodeBase, table=True):
     __tablename__ = "trigger_node"
+    event_action: EventAction | None = Field(
+        default=None, sa_type=cast("type[Any]", String())
+    )
+    repository_full_name: str | None = None
 
 
 class ActionNode(NodeBase, table=True):
