@@ -590,6 +590,13 @@ const selectedOutcomeId = ref<string | null>(null)
 const selectedOutcomeKind = ref<OutcomeKind | null>(null)
 
 onNodeClick((event) => {
+  const target = event.event?.target
+  if (
+    target instanceof Element &&
+    target.closest('select, option, button, input, a')
+  ) {
+    return
+  }
   if (kindOf(event.node) !== 'outcome') return
   selectedOutcomeId.value = event.node.id
   selectedOutcomeKind.value =
