@@ -7,6 +7,7 @@ from sqlmodel import Field, SQLModel
 
 NodeKind = Literal["trigger", "action", "outcome"]
 EventAction = Literal["opened", "closed"]
+OutcomeKind = Literal["pull_request", "duplicate", "not_reproducible", "not_a_bug"]
 SyncStatus = Literal[
     "unprovisioned",
     "pending",
@@ -55,6 +56,7 @@ class ActionNode(NodeBase, table=True):
 
 class OutcomeNode(NodeBase, table=True):
     __tablename__ = "outcome_node"
+    kind: OutcomeKind | None = Field(default=None, sa_type=cast("type[Any]", String()))
 
 
 NODE_MODELS: dict[NodeKind, type[NodeBase]] = {

@@ -37,6 +37,7 @@ from devin_flow.models import (
     Invocation,
     NodeBase,
     NodeKind,
+    OutcomeKind,
     OutcomeNode,
     SyncStatus,
     TriggerNode,
@@ -75,11 +76,20 @@ class TriggerUpdate(BaseModel):
     repository_full_name: RepositoryFullName | None = None
 
 
+class OutcomeRead(BaseModel):
+    kind: OutcomeKind | None
+
+
+class OutcomeUpdate(BaseModel):
+    kind: OutcomeKind | None = None
+
+
 class NodeRead(BaseModel):
     id: UUID
     kind: NodeKind
     position: Position
     trigger: TriggerRead | None = None
+    outcome: OutcomeRead | None = None
 
 
 class ActionFieldsBase(BaseModel):
@@ -106,11 +116,13 @@ class ActionNodeRead(NodeRead):
 class NodeCreate(ActionFieldsBase):
     position: Position
     trigger: TriggerUpdate | None = None
+    outcome: OutcomeUpdate | None = None
 
 
 class NodeUpdate(ActionFields):
     position: Position | None = None
     trigger: TriggerUpdate | None = None
+    outcome: OutcomeUpdate | None = None
 
 
 class EdgeRead(BaseModel):
@@ -165,6 +177,9 @@ def node_read(
             )
             if isinstance(node, TriggerNode)
             else None
+        ),
+        outcome=(
+            OutcomeRead(kind=node.kind) if isinstance(node, OutcomeNode) else None
         ),
         **fields,
     )
@@ -272,6 +287,8 @@ def create_node(
 ) -> NodeRead | ActionNodeRead:
     if payload.trigger is not None and kind != "trigger":
         raise HTTPException(422, "trigger fields apply only to trigger nodes")
+    if payload.outcome is not None and kind != "outcome":
+        raise HTTPException(422, "outcome fields apply only to outcome nodes")
     node = NODE_MODELS[kind](
         position_x=payload.position.x,
         position_y=payload.position.y,
@@ -283,6 +300,7 @@ def create_node(
             if payload.trigger is not None
             else {}
         ),
+        **({"kind": payload.outcome.kind} if payload.outcome is not None else {}),
     )
     apply_action_fields(node, payload)
     session.add(node)
@@ -308,6 +326,8 @@ def update_node(
         raise HTTPException(404, "node not found")
     if payload.trigger is not None and kind != "trigger":
         raise HTTPException(422, "trigger fields apply only to trigger nodes")
+    if payload.outcome is not None and kind != "outcome":
+        raise HTTPException(422, "outcome fields apply only to outcome nodes")
     if payload.position is not None:
         node.position_x = payload.position.x
         node.position_y = payload.position.y
@@ -317,6 +337,12 @@ def update_node(
             node.event_action = payload.trigger.event_action
         if "repository_full_name" in fields_set:
             node.repository_full_name = payload.trigger.repository_full_name
+    if (
+        payload.outcome is not None
+        and isinstance(node, OutcomeNode)
+        and "kind" in payload.outcome.model_fields_set
+    ):
+        node.kind = payload.outcome.kind
     apply_action_fields(node, payload)
     action_fields = payload.model_fields_set & {
         "name",

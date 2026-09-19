@@ -996,3 +996,47 @@ def test_canvas_counts_invocations_per_action(
         f"/api/canvas/nodes/action/{counted_id}", json={"position": {"x": 1, "y": 1}}
     )
     assert moved.json()["invocation_count"] == 2
+
+
+def test_create_outcome_node_with_kind(unit_client: TestClient) -> None:
+    response = unit_client.post(
+        "/api/canvas/nodes/outcome",
+        json={"position": {"x": 1, "y": 2}, "outcome": {"kind": "duplicate"}},
+    )
+    assert response.status_code == 201
+    assert response.json()["outcome"] == {"kind": "duplicate"}
+
+
+def test_patch_outcome_kind_and_clear(unit_client: TestClient) -> None:
+    node_id = create_node(unit_client, "outcome")
+    response = unit_client.patch(
+        f"/api/canvas/nodes/outcome/{node_id}",
+        json={"outcome": {"kind": "not_a_bug"}},
+    )
+    assert response.status_code == 200
+    assert response.json()["outcome"] == {"kind": "not_a_bug"}
+    response = unit_client.patch(
+        f"/api/canvas/nodes/outcome/{node_id}",
+        json={"outcome": {"kind": None}},
+    )
+    assert response.status_code == 200
+    assert response.json()["outcome"] == {"kind": None}
+
+
+@pytest.mark.parametrize("kind", ["trigger", "action"])
+def test_outcome_fields_only_apply_to_outcome_nodes(
+    unit_client: TestClient, kind: str
+) -> None:
+    response = unit_client.post(
+        f"/api/canvas/nodes/{kind}",
+        json={"position": {"x": 1, "y": 2}, "outcome": {"kind": "duplicate"}},
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"] == "outcome fields apply only to outcome nodes"
+    node_id = create_node(unit_client, kind)
+    response = unit_client.patch(
+        f"/api/canvas/nodes/{kind}/{node_id}",
+        json={"outcome": {"kind": "duplicate"}},
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"] == "outcome fields apply only to outcome nodes"
