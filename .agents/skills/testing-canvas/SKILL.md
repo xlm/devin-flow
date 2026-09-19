@@ -1,6 +1,6 @@
 ---
 name: testing-canvas
-description: Test devin-flow Canvas persistence, connection rules and node-deletion cascades through the browser and local API.
+description: Test devin-flow Canvas persistence, connection rules, deletion cascades, and Outcome kinds, counts and invocation sheets through the browser and local API.
 ---
 
 # Canvas runtime testing
@@ -9,8 +9,11 @@ description: Test devin-flow Canvas persistence, connection rules and node-delet
 
 None for local Canvas-only testing. Settings requires nonempty DEVIN_API_TOKEN
 and DEVIN_ORG_ID even when no Devin API call occurs. Supply dummy values to
-both Alembic and FastAPI processes. Use real credentials only when testing
-actual Devin integration.
+both Alembic and FastAPI processes. Set POLL_INTERVAL_SECONDS=0 for controlled
+invocation fixtures. To avoid live upstream traffic from repository/playbook
+dropdowns, set DEVIN_API_BASE_URL=http://127.0.0.1:9. Their load errors are
+expected in this isolated configuration. Use real credentials only when
+testing actual Devin integration.
 
 ## Prepare
 
@@ -18,16 +21,16 @@ actual Devin integration.
    database revision is current and Vite `/api/health` returns ok.
    When restarting, inspect listening process IDs. Terminating a shell can
    leave FastAPI reloader or Vite children holding the original ports.
-2. When the palette is unavailable, seed nodes through `/api/canvas/nodes/{kind}`
-   with explicit positions, retaining returned UUIDs and a label-to-ID map.
-   Use a dedicated empty local Canvas or preserve unrelated rows.
-   Seed at least one edge and leave another compatible pair unconnected.
-   Finish when GET matches the intended fixture exactly.
+2. Create nodes by dragging palette cards onto the Canvas. When the palette
+   is unavailable, seed through `/api/canvas/nodes/{kind}` with explicit
+   positions. Retain a label-to-ID map. Use a dedicated empty local Canvas
+   or preserve unrelated rows. Seed at least one edge and leave another
+   compatible pair unconnected. Finish when GET matches the intended fixture.
 
 ## Browser gestures and assertions
 
-- Use the rendered handle positions. Default Vue Flow nodes can have bottom
-  source handles and top target handles, not left/right handles.
+- Use rendered handle positions. Current custom nodes have left target and
+  right source handles. Older default Vue Flow nodes can use top/bottom.
 - A target-to-source drag normalizes to source->target. It does not establish
   an invalid reversed direction. Test forbidden kinds with compatible handles,
   such as Trigger source to Outcome target.
@@ -43,7 +46,7 @@ actual Devin integration.
   after every attempt so a later cleanup cannot conceal a saved invalid edge.
 - Read `backend/src/devin_flow/canvas.py` for the connect rules. Every rule
   violation is a 409 with a message, non-finite coordinates are a 422, and
-  a missing node is a 404. Validate the message and the unchanged GET, not
+  a missing node is a 404. Validate the message and unchanged GET, not
   just a non-2xx response.
 - A failed node DELETE makes the frontend reload the whole Canvas from GET
   rather than patch local state. Expect one extra GET, not a local undo.
@@ -64,6 +67,40 @@ to `FlowCanvas.vue` as unverified until it has run in the real browser.
    alternate Refresh clicks this way).
 3. Finish when the rendered graph and its labels match GET after every
    repetition and the console shows no new warnings.
+
+## Outcome fixtures and assertions
+
+1. Connect one Action to three unset Outcomes. Seed four rows directly in the
+   local `invocation` table for that Action: PR-only (`outcome: fixed`),
+   duplicate-only with `duplicate_of`, both PR and duplicate, and neither.
+   Give them distinct titles and `session_created_at` values so newest-first
+   sorting and exclusion are observable. Set the neither row newest.
+   Read `backend/src/devin_flow/models/invocation.py` for required columns.
+   SQL inserts need explicit UUIDs, session/automation/action IDs, status,
+   both session timestamps, created_at and updated_at. JSON shapes are
+   `pull_requests: [{"pr_url": "...", "pr_state": "merged"}]` and
+   `structured_output: {"outcome": "duplicate", "duplicate_of": "..."}`.
+   Finish when SQL shows exactly the intended rows for the Action.
+2. Use `[data-testid="outcome-kind"]` to choose Pull Request and Duplicate
+   on separate nodes. Each must become Ready and its edge change from
+   `0 outcomes` to `2 outcomes` without reload. The unset Outcome stays
+   Incomplete and zero. After reload, GET `/api/canvas` must contain
+   `outcome.kind` values `pull_request`, `duplicate`, null and counts 2/2/0.
+   Also verify clearing a kind restores Incomplete and zero.
+3. Click the node body, not its picker, to open the right-side sheet.
+   PR and duplicate sheets each list exactly two matching entries newest
+   first. Verify Session hrefs, PR hrefs and state badges, and Duplicate of
+   hrefs. The both-match row belongs in both lists. The neither row belongs
+   in neither. The unset sheet shows `No invocations yet`.
+   Relevant selectors: `outcome-invocation`, `outcome-empty`, `outcome-error`,
+   `outcome-retry`. Confirm picker interaction itself does not open the
+   sheet.
+4. Stop only the backend and confirm its port is closed. Change a saved
+   picker value: expect rollback, `Could not save`, unchanged Ready state
+   and edge count. Open the sheet: expect `Could not load invocations`.
+   Restart the real backend and click Retry without reloading: expect the
+   original matching rows and no load-error alert. A subsequent successful
+   picker change must clear the save alert and refresh the count.
 
 ## Load-error recovery
 
