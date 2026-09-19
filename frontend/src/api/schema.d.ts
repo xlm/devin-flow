@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/api/action-nodes/{node_id}/invocations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Action Invocations */
+        get: operations["list_action_invocations_api_action_nodes__node_id__invocations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/canvas": {
         parameters: {
             query?: never;
@@ -197,6 +214,32 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ActionInvocationRead */
+        ActionInvocationRead: {
+            /** Duplicate Of */
+            duplicate_of: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            issue: components["schemas"]["IssueRef"] | null;
+            /** Pull Requests */
+            pull_requests: components["schemas"]["PullRequestLink"][];
+            /**
+             * Session Created At
+             * Format: date-time
+             */
+            session_created_at: string;
+            /** Session Id */
+            session_id: string;
+            /** Status */
+            status: string;
+            /** Title */
+            title: string | null;
+            /** Url */
+            url: string | null;
+        };
         /** ActionNodeRead */
         ActionNodeRead: {
             /** Automation Id */
@@ -306,6 +349,15 @@ export interface components {
              * @constant
              */
             status: "ok";
+        };
+        /** IssueRef */
+        IssueRef: {
+            /** Number */
+            number: number | null;
+            /** Title */
+            title: string | null;
+            /** Url */
+            url: string;
         };
         /** NodeCreate */
         NodeCreate: {
@@ -485,6 +537,46 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    list_action_invocations_api_action_nodes__node_id__invocations_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                node_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionInvocationRead"][];
+                };
+            };
+            /** @description Action node not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_canvas_api_canvas_get: {
         parameters: {
             query?: never;
