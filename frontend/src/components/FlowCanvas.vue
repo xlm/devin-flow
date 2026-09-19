@@ -74,7 +74,7 @@ const {
   onNodesChange,
   onEdgesChange,
   onConnect,
-  onNodeClick,
+  onEdgeClick,
   screenToFlowCoordinate,
 } = useVueFlow()
 const { mode, icon, cycleMode } = useTheme()
@@ -121,6 +121,7 @@ function mapEdge(edge: EdgeRead, counts: Map<string, number>): Edge {
   }
   if (edge.target.kind === 'outcome') {
     mapped.label = outcomeCountLabel(edge.outcome_count ?? 0)
+    mapped.class = 'cursor-pointer'
   }
   return mapped
 }
@@ -587,20 +588,16 @@ onConnect(saveConnection)
 
 const outcomeSheetOpen = ref(false)
 const selectedOutcomeId = ref<string | null>(null)
+const selectedActionId = ref<string | null>(null)
 const selectedOutcomeKind = ref<OutcomeKind | null>(null)
 
-onNodeClick((event) => {
-  const target = event.event?.target
-  if (
-    target instanceof Element &&
-    target.closest('select, option, button, input, a')
-  ) {
-    return
-  }
-  if (kindOf(event.node) !== 'outcome') return
-  selectedOutcomeId.value = event.node.id
+onEdgeClick((event) => {
+  if (event.edge.data?.targetKind !== 'outcome') return
+  selectedOutcomeId.value = event.edge.target
+  selectedActionId.value = event.edge.source
   selectedOutcomeKind.value =
-    (event.node.data?.outcome as OutcomeRead | undefined)?.kind ?? null
+    (findNode(event.edge.target)?.data?.outcome as OutcomeRead | undefined)
+      ?.kind ?? null
   outcomeSheetOpen.value = true
 })
 
@@ -688,6 +685,7 @@ onUnmounted(() => {
       <OutcomeInvocationsSheet
         v-model:open="outcomeSheetOpen"
         :node-id="selectedOutcomeId"
+        :action-node-id="selectedActionId"
         :kind="selectedOutcomeKind"
       />
     </div>

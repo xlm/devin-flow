@@ -70,10 +70,17 @@ function invocation(overrides: Record<string, unknown> = {}) {
 function mountSheet(props: {
   open?: boolean
   nodeId?: string | null
+  actionNodeId?: string | null
   kind?: OutcomeKind | null
 }) {
   return mount(OutcomeInvocationsSheet, {
-    props: { open: true, nodeId: 'node-1', kind: 'duplicate', ...props },
+    props: {
+      open: true,
+      nodeId: 'node-1',
+      actionNodeId: null,
+      kind: 'duplicate',
+      ...props,
+    },
   })
 }
 
@@ -96,7 +103,7 @@ describe('OutcomeInvocationsSheet', () => {
     await flushPromises()
     expect(mocks.GET).toHaveBeenCalledWith(
       '/api/outcome-nodes/{node_id}/invocations',
-      { params: { path: { node_id: 'node-1' } } },
+      { params: { path: { node_id: 'node-1' }, query: {} } },
     )
     const item = wrapper.find('[data-testid="outcome-invocation"]')
     expect(item.text()).toContain('Triage session')
@@ -113,6 +120,38 @@ describe('OutcomeInvocationsSheet', () => {
     )
     expect(prLink?.text()).toContain('pull/1')
     expect(item.text()).toContain('merged')
+    wrapper.unmount()
+  })
+
+  it('sends the action node id as a query param', async () => {
+    const wrapper = mountSheet({ actionNodeId: 'action-1' })
+    await flushPromises()
+    expect(mocks.GET).toHaveBeenCalledWith(
+      '/api/outcome-nodes/{node_id}/invocations',
+      {
+        params: {
+          path: { node_id: 'node-1' },
+          query: { action_node_id: 'action-1' },
+        },
+      },
+    )
+    wrapper.unmount()
+  })
+
+  it('refetches when the action node id changes', async () => {
+    const wrapper = mountSheet({})
+    await flushPromises()
+    await wrapper.setProps({ actionNodeId: 'action-1' })
+    await flushPromises()
+    expect(mocks.GET).toHaveBeenLastCalledWith(
+      '/api/outcome-nodes/{node_id}/invocations',
+      {
+        params: {
+          path: { node_id: 'node-1' },
+          query: { action_node_id: 'action-1' },
+        },
+      },
+    )
     wrapper.unmount()
   })
 
