@@ -1,10 +1,11 @@
-import { defineComponent, h } from 'vue'
+import { defineComponent, h, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Component } from 'vue'
 
 const mocks = vi.hoisted(() => ({
   removeNodes: vi.fn(),
+  reloadPlaybooks: vi.fn(),
   updateNodeData: vi.fn(),
   GET: vi.fn(),
 }))
@@ -32,7 +33,17 @@ vi.mock('@vue-flow/core', () => ({
   Position: { Left: 'left', Right: 'right', Top: 'top' },
   useVueFlow: () => ({
     removeNodes: mocks.removeNodes,
+    edges: { value: [] },
     updateNodeData: mocks.updateNodeData,
+  }),
+}))
+
+vi.mock('@/composables/usePlaybooks', () => ({
+  usePlaybooks: () => ({
+    playbooks: ref([]),
+    loading: ref(false),
+    error: ref(false),
+    reload: mocks.reloadPlaybooks,
   }),
 }))
 
@@ -84,7 +95,21 @@ function mountNode(component: Component) {
             trigger: { event_action: null, repository_full_name: null },
           },
         }
-      : { id: 'n1' }
+      : component === ActionNode
+        ? {
+            id: 'n1',
+            data: {
+              kind: 'action',
+              label: 'Action',
+              name: '',
+              playbookId: null,
+              extraInstructions: '',
+            },
+          }
+        : {
+            id: 'n1',
+            data: { kind: 'outcome', label: 'Outcome' },
+          }
   return mount(component, { props } as never)
 }
 

@@ -90,6 +90,23 @@ export interface paths {
         patch: operations["update_node_api_canvas_nodes__kind___node_id__patch"];
         trace?: never;
     };
+    "/api/devin/playbooks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Playbooks */
+        get: operations["list_playbooks_api_devin_playbooks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/devin/repositories": {
         parameters: {
             query?: never;
@@ -146,10 +163,31 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ActionNodeRead */
+        ActionNodeRead: {
+            /** Extra Instructions */
+            extra_instructions: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "trigger" | "action" | "outcome";
+            /** Name */
+            name: string;
+            /** Playbook Id */
+            playbook_id: string | null;
+            position: components["schemas"]["Position"];
+            trigger?: components["schemas"]["TriggerRead"] | null;
+        };
         /** CanvasRead */
         CanvasRead: {
             /** Action Nodes */
-            action_nodes: components["schemas"]["NodeRead"][];
+            action_nodes: components["schemas"]["ActionNodeRead"][];
             /** Edges */
             edges: components["schemas"]["EdgeRead"][];
             /** Outcome Nodes */
@@ -203,6 +241,12 @@ export interface components {
         };
         /** NodeCreate */
         NodeCreate: {
+            /** Extra Instructions */
+            extra_instructions?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Playbook Id */
+            playbook_id?: string | null;
             position: components["schemas"]["Position"];
             trigger?: components["schemas"]["TriggerUpdate"] | null;
         };
@@ -236,8 +280,21 @@ export interface components {
         };
         /** NodeUpdate */
         NodeUpdate: {
+            /** Extra Instructions */
+            extra_instructions?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Playbook Id */
+            playbook_id?: string | null;
             position?: components["schemas"]["Position"] | null;
             trigger?: components["schemas"]["TriggerUpdate"] | null;
+        };
+        /** PlaybookOption */
+        PlaybookOption: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
         };
         /** Position */
         Position: {
@@ -433,7 +490,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["NodeRead"];
+                    "application/json": components["schemas"]["ActionNodeRead"] | components["schemas"]["NodeRead"];
                 };
             };
             /** @description Canvas object not found */
@@ -535,7 +592,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["NodeRead"];
+                    "application/json": components["schemas"]["ActionNodeRead"] | components["schemas"]["NodeRead"];
                 };
             };
             /** @description Canvas object not found */
@@ -563,6 +620,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_playbooks_api_devin_playbooks_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaybookOption"][];
+                };
+            };
+            /** @description Devin API failure */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Devin API not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
         };
