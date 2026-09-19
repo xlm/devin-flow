@@ -19,7 +19,6 @@ const mocks = vi.hoisted(() => {
     PATCH: vi.fn(),
     DELETE: vi.fn(),
     handlers: {} as {
-      dragStart?: DragHandler
       dragStop?: DragHandler
       nodesChange?: ChangeHandler
       edgesChange?: ChangeHandler
@@ -56,9 +55,6 @@ vi.mock('@vue-flow/core', () => ({
     addNodes: mocks.addNodes,
     addEdges: mocks.addEdges,
     getEdges: mocks.getEdges,
-    onNodeDragStart: (handler: (event: { node: Node }) => void) => {
-      mocks.handlers.dragStart = handler
-    },
     onNodeDragStop: (handler: (event: { node: Node }) => void) => {
       mocks.handlers.dragStop = handler
     },
@@ -232,7 +228,6 @@ describe('FlowCanvas', () => {
     mocks.findNode.mockReturnValue(node)
     const wrapper = mount(FlowCanvas)
     await flushPromises()
-    mocks.handlers.dragStart?.({ node })
     node.position = { x: 8, y: 9 }
     await mocks.handlers.dragStop?.({ node })
     expect(mocks.PATCH).toHaveBeenCalledWith(
@@ -248,7 +243,7 @@ describe('FlowCanvas', () => {
     mocks.findNode.mockReturnValue(node)
     node.position = { x: 10, y: 11 }
     await mocks.handlers.dragStop?.({ node })
-    expect(node.position).toEqual({ x: 1, y: 2 })
+    expect(node.position).toEqual({ x: 8, y: 9 })
     mocks.findNode.mockReturnValue(undefined)
     node.position = { x: 11, y: 12 }
     await mocks.handlers.dragStop?.({ node })
@@ -270,7 +265,6 @@ describe('FlowCanvas', () => {
     const wrapper = mount(FlowCanvas)
     await flushPromises()
     mocks.handlers.dragStop?.({ node })
-    mocks.handlers.dragStart?.({ node })
     node.position = { x: 7, y: 8 }
     mocks.PATCH.mockRejectedValue(new Error('down'))
     await mocks.handlers.dragStop?.({ node })
@@ -278,7 +272,34 @@ describe('FlowCanvas', () => {
     wrapper.unmount()
   })
 
-  it('serializes drag saves and ignores stale failures', async () => {
+  it('leaves failed drags without persisted nodes unchanged', async () => {
+    const unknown = {
+      id: 'unknown',
+      position: { x: 1, y: 2 },
+      data: { kind: 'trigger' },
+    } as Node
+    mocks.PATCH.mockResolvedValue(
+      response(undefined, { detail: 'save failed' }, 500),
+    )
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    await mocks.handlers.dragStop?.({ node: unknown })
+    expect(unknown.position).toEqual({ x: 1, y: 2 })
+    mocks.PATCH.mockRejectedValue(new Error('down'))
+    unknown.position = { x: 3, y: 4 }
+    await mocks.handlers.dragStop?.({ node: unknown })
+    expect(unknown.position).toEqual({ x: 3, y: 4 })
+    const missingKind = {
+      id: 'missing-kind',
+      position: { x: 5, y: 6 },
+      data: {},
+    } as Node
+    await mocks.handlers.dragStop?.({ node: missingKind })
+    expect(missingKind.position).toEqual({ x: 5, y: 6 })
+    wrapper.unmount()
+  })
+
+  it('serializes drag saves and updates persisted positions', async () => {
     const node = {
       id: 'trigger',
       position: { x: 1, y: 2 },
@@ -301,17 +322,15 @@ describe('FlowCanvas', () => {
     )
     const wrapper = mount(FlowCanvas)
     await flushPromises()
-    mocks.handlers.dragStart?.({ node })
     node.position = { x: 8, y: 9 }
     const firstSave = mocks.handlers.dragStop?.({ node })
     await flushPromises()
     expect(mocks.PATCH).toHaveBeenCalledTimes(1)
-    mocks.handlers.dragStart?.({ node })
     node.position = { x: 10, y: 11 }
     const secondSave = mocks.handlers.dragStop?.({ node })
     await flushPromises()
     expect(mocks.PATCH).toHaveBeenCalledTimes(1)
-    resolveFirst?.(response(undefined, { detail: 'save failed' }, 500))
+    resolveFirst?.(response(undefined))
     await firstSave
     await flushPromises()
     expect(mocks.PATCH).toHaveBeenCalledTimes(2)
@@ -321,9 +340,9 @@ describe('FlowCanvas', () => {
     expect(mocks.PATCH.mock.calls[1][1]).toEqual(
       expect.objectContaining({ body: { position: { x: 10, y: 11 } } }),
     )
-    resolveSecond?.(response(undefined))
+    resolveSecond?.(response(undefined, { detail: 'save failed' }, 500))
     await secondSave
-    expect(node.position).toEqual({ x: 10, y: 11 })
+    expect(node.position).toEqual({ x: 8, y: 9 })
     wrapper.unmount()
   })
 
@@ -350,11 +369,9 @@ describe('FlowCanvas', () => {
     )
     const wrapper = mount(FlowCanvas)
     await flushPromises()
-    mocks.handlers.dragStart?.({ node })
     node.position = { x: 8, y: 9 }
     const firstSave = mocks.handlers.dragStop?.({ node })
     await flushPromises()
-    mocks.handlers.dragStart?.({ node })
     node.position = { x: 10, y: 11 }
     const secondSave = mocks.handlers.dragStop?.({ node })
     await flushPromises()
@@ -365,6 +382,44 @@ describe('FlowCanvas', () => {
     resolveSecond?.(response(undefined))
     await secondSave
     expect(node.position).toEqual({ x: 10, y: 11 })
+    wrapper.unmount()
+  })
+
+  it('rolls back queued failed drags to the persisted position', async () => {
+    const node = {
+      id: 'trigger',
+      position: { x: 1, y: 2 },
+      data: { kind: 'trigger' },
+    } as Node
+    mocks.findNode.mockReturnValue(node)
+    let resolveFirst: ((value: ReturnType<typeof response>) => void) | undefined
+    let resolveSecond:
+      ((value: ReturnType<typeof response>) => void) | undefined
+    mocks.PATCH.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirst = resolve
+        }),
+    ).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSecond = resolve
+        }),
+    )
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    node.position = { x: 8, y: 9 }
+    const firstSave = mocks.handlers.dragStop?.({ node })
+    await flushPromises()
+    node.position = { x: 10, y: 11 }
+    const secondSave = mocks.handlers.dragStop?.({ node })
+    await flushPromises()
+    resolveFirst?.(response(undefined, { detail: 'save failed' }, 500))
+    await firstSave
+    await flushPromises()
+    resolveSecond?.(response(undefined, { detail: 'save failed' }, 500))
+    await secondSave
+    expect(node.position).toEqual({ x: 1, y: 2 })
     wrapper.unmount()
   })
 
@@ -382,12 +437,10 @@ describe('FlowCanvas', () => {
     )
     const wrapper = mount(FlowCanvas)
     await flushPromises()
-    mocks.handlers.dragStart?.({ node })
     node.position = { x: 8, y: 9 }
     const firstSave = mocks.handlers.dragStop?.({ node })
     if (firstSave) await firstSave.catch(() => {})
     mocks.findNode.mockReturnValue(node)
-    mocks.handlers.dragStart?.({ node })
     node.position = { x: 10, y: 11 }
     await mocks.handlers.dragStop?.({ node })
     expect(mocks.PATCH).toHaveBeenCalledTimes(2)
