@@ -4,10 +4,18 @@ from pathlib import Path
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlmodel import Session
 
 from devin_flow.app import create_app
 from devin_flow.config import DEFAULT_STATIC_DIR, get_settings
+from devin_flow.db import get_session
 from devin_flow.web import spa
+
+
+def app_client(static_dir: Path, session: Session) -> TestClient:
+    app = create_app(static_dir=static_dir)
+    app.dependency_overrides[get_session] = lambda: session
+    return TestClient(app)
 
 
 def test_static_dir_env_var_overrides_default(
@@ -42,17 +50,19 @@ def test_root_is_404_without_static_dir(tmp_path: Path) -> None:
     assert response.status_code == 404
 
 
-def test_no_spa_fallback_without_index_html(tmp_path: Path) -> None:
+def test_no_spa_fallback_without_index_html(
+    tmp_path: Path, unit_session: Session
+) -> None:
     static_dir = tmp_path / "dist"
     static_dir.mkdir()
     (static_dir / "assets").mkdir()
     (static_dir / "assets" / "app.js").write_text("console.log(1)")
-    client = TestClient(create_app(static_dir=static_dir))
+    client = app_client(static_dir, unit_session)
     assert client.get("/").status_code == 404
     assert client.get("/foo").status_code == 404
     response = client.get("/api/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    assert response.json()["status"] == "ok"
 
 
 def test_unknown_api_route_is_404(tmp_path: Path) -> None:
@@ -71,7 +81,7 @@ def test_existing_api_route_keeps_405_for_wrong_method(tmp_path: Path) -> None:
 
 
 def test_lifespan_starts_poller_when_interval_positive(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, unit_session: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from devin_flow import app as app_module
 
@@ -84,13 +94,13 @@ def test_lifespan_starts_poller_when_interval_positive(
     monkeypatch.setattr(app_module, "poll_forever", fake_poll_forever)
     monkeypatch.setenv("POLL_INTERVAL_SECONDS", "5")
     get_settings.cache_clear()
-    with TestClient(create_app(static_dir=tmp_path)) as client:
+    with app_client(tmp_path, unit_session) as client:
         assert client.get("/api/health").status_code == 200
     assert started == [5]
 
 
 def test_lifespan_skips_poller_when_disabled(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, unit_session: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from devin_flow import app as app_module
 
@@ -98,5 +108,5 @@ def test_lifespan_skips_poller_when_disabled(
         raise AssertionError("poller must not start")
 
     monkeypatch.setattr(app_module, "poll_forever", fail)
-    with TestClient(create_app(static_dir=tmp_path)) as client:
+    with app_client(tmp_path, unit_session) as client:
         assert client.get("/api/health").status_code == 200
