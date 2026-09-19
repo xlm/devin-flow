@@ -169,3 +169,41 @@ def test_pull_request_outcome_lists_only_pr_invocations(
     rows = unit_client.get(f"/api/outcome-nodes/{outcome.id}/invocations").json()
     assert [row["id"] for row in rows] == [str(with_pr.id)]
     assert cast(list[Any], rows[0]["pull_requests"])[0]["url"].endswith("/pull/3")
+
+
+def test_lists_invocations_from_all_incoming_actions(
+    unit_client: TestClient, unit_session: Session
+) -> None:
+    first_action_id = UUID(create_node(unit_client, "action"))
+    second_action_id = UUID(create_node(unit_client, "action"))
+    outcome = OutcomeNode(position_x=1, position_y=2, kind="duplicate")
+    unit_session.add(outcome)
+    unit_session.commit()
+    for action_id in (first_action_id, second_action_id):
+        assert (
+            create_edge(
+                unit_client, str(action_id), "action", str(outcome.id), "outcome"
+            ).status_code
+            == 201
+        )
+    older = add_invocation(
+        unit_session,
+        first_action_id,
+        session_id="s-1",
+        age_seconds=100,
+        structured_output={"outcome": "duplicate"},
+    )
+    add_invocation(
+        unit_session,
+        first_action_id,
+        session_id="s-2",
+        structured_output={"outcome": "not_a_bug"},
+    )
+    newer = add_invocation(
+        unit_session,
+        second_action_id,
+        session_id="s-3",
+        structured_output={"outcome": "duplicate"},
+    )
+    rows = unit_client.get(f"/api/outcome-nodes/{outcome.id}/invocations").json()
+    assert [row["id"] for row in rows] == [str(newer.id), str(older.id)]
