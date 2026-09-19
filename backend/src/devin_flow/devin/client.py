@@ -1,7 +1,7 @@
 from collections.abc import Iterator
 from contextlib import contextmanager
 from functools import lru_cache
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
@@ -44,6 +44,60 @@ class PlaybookCreate(BaseModel):
     body: str = Field(min_length=1)
     macro: str | None = None
     structured_output_schema: dict[str, Any] | None = None
+
+
+class AutomationCondition(BaseModel):
+    field: str
+    operator: Literal["eq"] = "eq"
+    value: str
+
+
+class AutomationConditionGroup(BaseModel):
+    all: list[AutomationCondition]
+
+
+class AutomationConditions(BaseModel):
+    any: list[AutomationConditionGroup]
+
+
+class AutomationTrigger(BaseModel):
+    event_type: str
+    conditions: AutomationConditions
+
+
+class AutomationAction(BaseModel):
+    type: Literal["start_session"] = "start_session"
+    prompt: str
+
+
+class AutomationRunAs(BaseModel):
+    type: Literal["organization"] = "organization"
+
+
+class AutomationCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=500)
+    enabled: bool
+    triggers: list[AutomationTrigger]
+    actions: list[AutomationAction]
+    run_as: AutomationRunAs = AutomationRunAs()
+    metadata: dict[str, str]
+
+
+class AutomationUpdate(BaseModel):
+    name: str | None = None
+    enabled: bool | None = None
+    triggers: list[AutomationTrigger] | None = None
+    actions: list[AutomationAction] | None = None
+    metadata: dict[str, str] | None = None
+
+
+class Automation(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    automation_id: str
+    name: str
+    enabled: bool
+    metadata: dict[str, str] = {}
 
 
 class DevinNotConfiguredError(RuntimeError):
@@ -160,6 +214,49 @@ class DevinClient:
             )
             response.raise_for_status()
             return Playbook.model_validate(response.json())
+
+    def list_automations(
+        self, metadata: dict[str, str] | None = None
+    ) -> list[Automation]:
+        with _upstream_errors():
+            automations: list[Automation] = []
+            params: dict[str, str | int] = {"first": 100}
+            for key, value in (metadata or {}).items():
+                params[f"metadata.{key}"] = value
+            while True:
+                response = self.http.get(
+                    f"/organizations/{self.org_id}/automations",
+                    params=params,
+                )
+                response.raise_for_status()
+                page = response.json()
+                automations.extend(
+                    Automation.model_validate(automation)
+                    for automation in page["items"]
+                )
+                if not page.get("has_next_page"):
+                    return automations
+                params["after"] = page["end_cursor"]
+
+    def create_automation(self, payload: AutomationCreate) -> Automation:
+        with _upstream_errors():
+            response = self.http.post(
+                f"/organizations/{self.org_id}/automations",
+                json=payload.model_dump(),
+            )
+            response.raise_for_status()
+            return Automation.model_validate(response.json())
+
+    def update_automation(
+        self, automation_id: str, payload: AutomationUpdate
+    ) -> Automation:
+        with _upstream_errors():
+            response = self.http.patch(
+                f"/organizations/{self.org_id}/automations/{automation_id}",
+                json=payload.model_dump(exclude_unset=True),
+            )
+            response.raise_for_status()
+            return Automation.model_validate(response.json())
 
 
 def create_client(settings: Settings) -> DevinClient:

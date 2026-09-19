@@ -7,6 +7,13 @@ from sqlmodel import Field, SQLModel
 
 NodeKind = Literal["trigger", "action", "outcome"]
 EventAction = Literal["opened", "closed"]
+SyncStatus = Literal[
+    "unprovisioned",
+    "pending",
+    "enabled",
+    "disabled",
+    "error",
+]
 TIMESTAMP = cast(
     "type[Any]", DateTime(timezone=True)
 )  # sqlmodel types sa_type as a class but SQLAlchemy accepts a configured instance
@@ -39,6 +46,7 @@ class ActionNode(NodeBase, table=True):
     name: str = ""
     playbook_id: str | None = None
     prompt: str = ""
+    enabled: bool = False
     automation_id: str | None = None
     sync_status: str = "unprovisioned"
     sync_error: str | None = None
