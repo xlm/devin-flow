@@ -14,6 +14,8 @@
   live in `models/` and must be imported from `models/__init__.py` so
   `SQLModel.metadata` is complete. `seed.py` holds the idempotent
   `seed(session)` used by `uv run seed` and by test fixtures.
+  `playbooks.py` holds `uv run sync-playbooks`, which upserts the repo's
+  `playbooks/` directory to Devin.
 - `backend/alembic/` + `backend/alembic.ini` - migrations (target
   metadata is `SQLModel.metadata`, URL from `Settings`). Never
   `create_all` against Postgres; add a migration instead.
@@ -45,6 +47,7 @@ uv run pytest -m "not docker" --no-cov   # fast docker-free loop, NOT coverage-c
 uv run alembic -c backend/alembic.ini upgrade head
 uv run alembic -c backend/alembic.ini revision --autogenerate -m "msg"
 uv run seed                    # idempotent seed against DATABASE_URL
+uv run sync-playbooks          # upsert playbooks/ to the Devin org
 docker compose up -d db        # local postgres 18 on :5432
 docker compose run --rm seed   # seed the compose database
 uv run ruff check .            # python lint
