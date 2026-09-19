@@ -353,19 +353,18 @@ def delete_node(
             disable_error = exc.detail
         except DevinNotConfiguredError:
             disable_error = "devin api not configured"
-        if disable_error is not None:
-            session.exec(
-                delete(Edge).where(
-                    (col(Edge.source_id) == node_id) | (col(Edge.target_id) == node_id)
-                )
+        session.exec(
+            delete(Edge).where(
+                (col(Edge.source_id) == node_id) | (col(Edge.target_id) == node_id)
             )
-            node.enabled = False
-            node.sync_status = "error"
-            node.sync_error = disable_error
-            node.deleted_at = datetime.now(UTC)
-            session.add(node)
-            session.commit()
-            return Response(status_code=204)
+        )
+        node.enabled = False
+        node.sync_status = "error" if disable_error is not None else "disabled"
+        node.sync_error = disable_error
+        node.deleted_at = datetime.now(UTC)
+        session.add(node)
+        session.commit()
+        return Response(status_code=204)
     session.exec(
         delete(Edge).where(
             (col(Edge.source_id) == node_id) | (col(Edge.target_id) == node_id)
