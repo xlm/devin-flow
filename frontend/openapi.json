@@ -1586,6 +1586,23 @@
               "title": "Node Id",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "action_node_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Action Node Id"
+            }
           }
         ],
         "responses": {

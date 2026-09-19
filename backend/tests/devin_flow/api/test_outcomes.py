@@ -207,3 +207,65 @@ def test_lists_invocations_from_all_incoming_actions(
     )
     rows = unit_client.get(f"/api/outcome-nodes/{outcome.id}/invocations").json()
     assert [row["id"] for row in rows] == [str(newer.id), str(older.id)]
+
+
+def test_filters_invocations_by_action_node_id(
+    unit_client: TestClient, unit_session: Session
+) -> None:
+    first_action_id = UUID(create_node(unit_client, "action"))
+    second_action_id = UUID(create_node(unit_client, "action"))
+    outcome = OutcomeNode(position_x=1, position_y=2, kind="duplicate")
+    unit_session.add(outcome)
+    unit_session.commit()
+    for action_id in (first_action_id, second_action_id):
+        assert (
+            create_edge(
+                unit_client, str(action_id), "action", str(outcome.id), "outcome"
+            ).status_code
+            == 201
+        )
+    first_match = add_invocation(
+        unit_session,
+        first_action_id,
+        session_id="s-first",
+        structured_output={"outcome": "duplicate"},
+    )
+    add_invocation(
+        unit_session,
+        second_action_id,
+        session_id="s-second",
+        structured_output={"outcome": "duplicate"},
+    )
+    rows = unit_client.get(
+        f"/api/outcome-nodes/{outcome.id}/invocations",
+        params={"action_node_id": str(first_action_id)},
+    ).json()
+    assert [row["id"] for row in rows] == [str(first_match.id)]
+
+
+def test_filter_by_unconnected_action_returns_empty(
+    unit_client: TestClient, unit_session: Session
+) -> None:
+    action_id = UUID(create_node(unit_client, "action"))
+    unconnected_id = uuid4()
+    outcome = OutcomeNode(position_x=1, position_y=2, kind="duplicate")
+    unit_session.add(outcome)
+    unit_session.commit()
+    assert (
+        create_edge(
+            unit_client, str(action_id), "action", str(outcome.id), "outcome"
+        ).status_code
+        == 201
+    )
+    add_invocation(
+        unit_session,
+        action_id,
+        session_id="s-1",
+        structured_output={"outcome": "duplicate"},
+    )
+    response = unit_client.get(
+        f"/api/outcome-nodes/{outcome.id}/invocations",
+        params={"action_node_id": str(unconnected_id)},
+    )
+    assert response.status_code == 200
+    assert response.json() == []
