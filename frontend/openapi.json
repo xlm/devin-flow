@@ -1,6 +1,91 @@
 {
   "components": {
     "schemas": {
+      "ActionInvocationRead": {
+        "properties": {
+          "duplicate_of": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duplicate Of"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "issue": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IssueRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pull_requests": {
+            "items": {
+              "$ref": "#/components/schemas/PullRequestLink"
+            },
+            "title": "Pull Requests",
+            "type": "array"
+          },
+          "session_created_at": {
+            "format": "date-time",
+            "title": "Session Created At",
+            "type": "string"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "title",
+          "url",
+          "status",
+          "session_created_at",
+          "pull_requests",
+          "duplicate_of",
+          "issue"
+        ],
+        "title": "ActionInvocationRead",
+        "type": "object"
+      },
       "ActionNodeRead": {
         "properties": {
           "automation_id": {
@@ -341,6 +426,43 @@
           "polling"
         ],
         "title": "HealthResponse",
+        "type": "object"
+      },
+      "IssueRef": {
+        "properties": {
+          "number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "number",
+          "title"
+        ],
+        "title": "IssueRef",
         "type": "object"
       },
       "NodeCreate": {
@@ -988,6 +1110,60 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/action-nodes/{node_id}/invocations": {
+      "get": {
+        "operationId": "list_action_invocations_api_action_nodes__node_id__invocations_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Node Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ActionInvocationRead"
+                  },
+                  "title": "Response List Action Invocations Api Action Nodes  Node Id  Invocations Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Action node not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Action Invocations"
+      }
+    },
     "/api/canvas": {
       "get": {
         "operationId": "get_canvas_api_canvas_get",
