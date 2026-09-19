@@ -120,6 +120,9 @@ docker compose run --rm seed       # seed the compose database (idempotent)
 docker compose down -v             # also drops the pgdata volume
 ```
 
+Compose reads `DEVIN_API_TOKEN` and `DEVIN_ORG_ID` from the root `.env`
+(or the shell) and refuses to start the backend services without them.
+
 The image builds `frontend/dist`, installs the Python deps with
 `uv sync --frozen --no-dev --no-editable`, and its entrypoint runs
 `alembic upgrade head` against `DATABASE_URL` before starting uvicorn on
