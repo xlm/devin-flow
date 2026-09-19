@@ -1,13 +1,17 @@
+from json import loads
 from typing import cast
 from uuid import UUID, uuid4
 
+import httpx
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from httpx import Response
 from sqlmodel import Session, select
 
 from devin_flow.api import canvas as canvas_api
-from devin_flow.models import ActionNode, Edge, EventAction
+from devin_flow.devin import DevinClient, get_devin_client
+from devin_flow.models import ActionNode, Edge, EventAction, TriggerNode
 
 
 def create_node(client: TestClient, kind: str, x: float = 1, y: float = 2) -> str:
@@ -35,6 +39,71 @@ def create_edge(
             },
         ),
     )
+
+
+@pytest.fixture
+def mock_devin(unit_client: TestClient) -> tuple[DevinClient, list[httpx.Request]]:
+    calls: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        if request.method == "GET":
+            return httpx.Response(
+                200,
+                json={"items": [], "has_next_page": False, "end_cursor": None},
+            )
+        return httpx.Response(
+            200,
+            json={
+                "automation_id": "auto-1",
+                "name": "Triage",
+                "enabled": True,
+                "metadata": {},
+            },
+        )
+
+    client = DevinClient(
+        httpx.Client(
+            transport=httpx.MockTransport(handler),
+            base_url="https://devin.example/v3",
+        ),
+        "org-test",
+    )
+    cast(FastAPI, unit_client.app).dependency_overrides[get_devin_client] = lambda: (
+        client
+    )
+    return client, calls
+
+
+def add_flow(
+    session: Session,
+    *,
+    enabled: bool = False,
+    automation_id: str | None = None,
+) -> tuple[TriggerNode, ActionNode, Edge]:
+    trigger = TriggerNode(
+        position_x=1,
+        position_y=2,
+        event_action="opened",
+        repository_full_name="octo/repo",
+    )
+    action = ActionNode(
+        position_x=3,
+        position_y=4,
+        name="Triage",
+        playbook_id="pb-1",
+        enabled=enabled,
+        automation_id=automation_id,
+    )
+    edge = Edge(
+        source_id=trigger.id,
+        source_kind="trigger",
+        target_id=action.id,
+        target_kind="action",
+    )
+    session.add_all([trigger, action, edge])
+    session.commit()
+    return trigger, action, edge
 
 
 def test_empty_canvas(unit_client: TestClient) -> None:
@@ -364,7 +433,7 @@ def test_action_fields_on_trigger_are_rejected(unit_client: TestClient) -> None:
     assert response.status_code == 422
     assert (
         response.json()["detail"]
-        == "only action nodes have name, playbook_id and prompt"
+        == "only action nodes have name, playbook_id, prompt and enabled"
     )
 
 
@@ -598,3 +667,168 @@ def test_delete_edge_is_hard_delete(unit_client: TestClient) -> None:
     ).json()["id"]
     assert unit_client.delete(f"/api/canvas/edges/{edge_id}").status_code == 204
     assert unit_client.delete(f"/api/canvas/edges/{edge_id}").status_code == 404
+
+
+@pytest.mark.parametrize(
+    ("name", "playbook_id", "trigger"),
+    [
+        ("", "pb-1", None),
+        ("Triage", None, None),
+        ("Triage", "pb-1", "incomplete"),
+    ],
+)
+def test_enable_rejects_invalid_flows(
+    unit_client: TestClient,
+    unit_session: Session,
+    mock_devin: tuple[DevinClient, list[httpx.Request]],
+    name: str,
+    playbook_id: str | None,
+    trigger: str | None,
+) -> None:
+    _, calls = mock_devin
+    action = ActionNode(
+        position_x=1,
+        position_y=2,
+        name=name,
+        playbook_id=playbook_id,
+    )
+    unit_session.add(action)
+    if trigger is not None:
+        source = TriggerNode(position_x=3, position_y=4, event_action="opened")
+        unit_session.add(source)
+        unit_session.add(
+            Edge(
+                source_id=source.id,
+                source_kind="trigger",
+                target_id=action.id,
+                target_kind="action",
+            )
+        )
+    unit_session.commit()
+    response = unit_client.patch(
+        f"/api/canvas/nodes/action/{action.id}",
+        json={"enabled": True},
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"].startswith("cannot enable:")
+    stored = unit_session.get(ActionNode, action.id)
+    assert stored is not None
+    assert stored.enabled is False
+    assert calls == []
+
+
+def test_enable_syncs_complete_flow(
+    unit_client: TestClient,
+    unit_session: Session,
+    mock_devin: tuple[DevinClient, list[httpx.Request]],
+) -> None:
+    _, calls = mock_devin
+    _, action, _ = add_flow(unit_session)
+    response = unit_client.patch(
+        f"/api/canvas/nodes/action/{action.id}",
+        json={"enabled": True},
+    )
+    assert response.status_code == 200
+    assert response.json()["enabled"] is True
+    assert response.json()["sync_status"] == "enabled"
+    assert response.json()["automation_id"] == "auto-1"
+    assert [call.method for call in calls] == ["GET", "POST"]
+
+
+def test_trigger_update_resyncs_connected_action(
+    unit_client: TestClient,
+    unit_session: Session,
+    mock_devin: tuple[DevinClient, list[httpx.Request]],
+) -> None:
+    _, action, _ = add_flow(unit_session, enabled=True, automation_id="auto-1")
+    response = unit_client.patch(
+        f"/api/canvas/nodes/trigger/{unit_session.exec(select(TriggerNode)).one().id}",
+        json={"trigger": {"event_action": "closed"}},
+    )
+    assert response.status_code == 200
+    assert [call.method for call in mock_devin[1]] == ["PATCH"]
+
+
+def test_edge_delete_disables_connected_action(
+    unit_client: TestClient,
+    unit_session: Session,
+    mock_devin: tuple[DevinClient, list[httpx.Request]],
+) -> None:
+    _, action, edge = add_flow(unit_session, enabled=True, automation_id="auto-1")
+    response = unit_client.delete(f"/api/canvas/edges/{edge.id}")
+    assert response.status_code == 204
+    assert action.id
+    assert json_body(mock_devin[1][0]) == {"enabled": False}
+
+
+def test_trigger_delete_disables_connected_action(
+    unit_client: TestClient,
+    unit_session: Session,
+    mock_devin: tuple[DevinClient, list[httpx.Request]],
+) -> None:
+    trigger, action, _ = add_flow(
+        unit_session,
+        enabled=True,
+        automation_id="auto-1",
+    )
+    response = unit_client.delete(f"/api/canvas/nodes/trigger/{trigger.id}")
+    assert response.status_code == 204
+    assert unit_session.get(ActionNode, action.id) is not None
+    assert json_body(mock_devin[1][0]) == {"enabled": False}
+
+
+def test_action_delete_ignores_upstream_failure(
+    unit_client: TestClient,
+    unit_session: Session,
+) -> None:
+    calls: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        return httpx.Response(500)
+
+    client = DevinClient(
+        httpx.Client(
+            transport=httpx.MockTransport(handler),
+            base_url="https://devin.example/v3",
+        ),
+        "org-test",
+    )
+    cast(FastAPI, unit_client.app).dependency_overrides[get_devin_client] = lambda: (
+        client
+    )
+    action = ActionNode(
+        position_x=1,
+        position_y=2,
+        automation_id="auto-1",
+    )
+    unit_session.add(action)
+    unit_session.commit()
+    response = unit_client.delete(f"/api/canvas/nodes/action/{action.id}")
+    assert response.status_code == 204
+    assert len(calls) == 1
+    client.http.close()
+
+
+def test_position_only_action_patch_does_not_sync(
+    unit_client: TestClient,
+    unit_session: Session,
+    mock_devin: tuple[DevinClient, list[httpx.Request]],
+) -> None:
+    action = ActionNode(
+        position_x=1,
+        position_y=2,
+        automation_id="auto-1",
+    )
+    unit_session.add(action)
+    unit_session.commit()
+    response = unit_client.patch(
+        f"/api/canvas/nodes/action/{action.id}",
+        json={"position": {"x": 5, "y": 6}},
+    )
+    assert response.status_code == 200
+    assert mock_devin[1] == []
+
+
+def json_body(request: httpx.Request) -> dict[str, object]:
+    return cast(dict[str, object], loads(request.read()))
