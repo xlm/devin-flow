@@ -21,6 +21,15 @@ def handle_request_validation(_request: Request, exc: Exception) -> JSONResponse
         value = error.get("input")
         if isinstance(value, float) and not isfinite(value):
             error = {**error, "input": str(value)}
+        context = error.get("ctx")
+        if isinstance(context, dict):
+            error = {
+                **error,
+                "ctx": {
+                    key: str(value) if isinstance(value, Exception) else value
+                    for key, value in context.items()
+                },
+            }
         details.append(error)
     return JSONResponse(status_code=422, content={"detail": details})
 
