@@ -5,7 +5,9 @@ export type ActionFields = {
   name: string
   playbookId: string | null
   prompt: string
+  enabled: boolean
 }
+export type SyncStatus = ActionNodeRead['sync_status']
 export type ActionInvalidReason = 'incomplete' | 'no-trigger'
 export type LinkedEdge = {
   target: string
@@ -19,6 +21,7 @@ export function actionFieldsFromData(
     name: typeof data.name === 'string' ? data.name : '',
     playbookId: typeof data.playbookId === 'string' ? data.playbookId : null,
     prompt: typeof data.prompt === 'string' ? data.prompt : '',
+    enabled: typeof data.enabled === 'boolean' ? data.enabled : false,
   }
 }
 
@@ -27,6 +30,27 @@ export function actionFieldsOf(node: ActionNodeRead): ActionFields {
     name: node.name,
     playbookId: node.playbook_id,
     prompt: node.prompt,
+    enabled: node.enabled,
+  }
+}
+
+export function syncStateFromData(data: Record<string, unknown>): {
+  status: SyncStatus
+  error: string | null
+} {
+  const statuses: SyncStatus[] = [
+    'unprovisioned',
+    'pending',
+    'enabled',
+    'disabled',
+    'error',
+  ]
+  const status = statuses.includes(data.syncStatus as SyncStatus)
+    ? (data.syncStatus as SyncStatus)
+    : 'unprovisioned'
+  return {
+    status,
+    error: typeof data.syncError === 'string' ? data.syncError : null,
   }
 }
 

@@ -6,6 +6,7 @@ import {
   actionInvalidReason,
   hasLinkedTrigger,
   isActionComplete,
+  syncStateFromData,
 } from '@/lib/actionValidity'
 
 describe('action validity', () => {
@@ -20,6 +21,7 @@ describe('action validity', () => {
       name: 'Triage',
       playbookId: 'pb-1',
       prompt: 'Notes',
+      enabled: false,
     })
     expect(
       actionFieldsFromData({
@@ -31,6 +33,7 @@ describe('action validity', () => {
       name: '',
       playbookId: null,
       prompt: '',
+      enabled: false,
     })
   })
 
@@ -43,11 +46,26 @@ describe('action validity', () => {
         name: 'Triage',
         playbook_id: 'pb-1',
         prompt: 'Notes',
+        enabled: true,
+        sync_status: 'enabled',
+        sync_error: null,
+        automation_id: null,
       }),
     ).toEqual({
       name: 'Triage',
       playbookId: 'pb-1',
       prompt: 'Notes',
+      enabled: true,
+    })
+  })
+
+  it('normalizes sync state', () => {
+    expect(
+      syncStateFromData({ syncStatus: 'error', syncError: 'failed' }),
+    ).toEqual({ status: 'error', error: 'failed' })
+    expect(syncStateFromData({})).toEqual({
+      status: 'unprovisioned',
+      error: null,
     })
   })
 
