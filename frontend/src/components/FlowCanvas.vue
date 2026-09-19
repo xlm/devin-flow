@@ -29,6 +29,8 @@ const edges = ref<Edge[]>([])
 const nodeSnapshots = new Map<string, Node>()
 const edgeSnapshots = new Map<string, Edge>()
 const dragPositions = new Map<string, { x: number; y: number }>()
+const saveGenerations = new Map<string, number>()
+const cascadedNodeIds = new Set<string>()
 
 const {
   fitView,
@@ -115,11 +117,14 @@ async function saveNodePosition(event: NodeDragEvent) {
   const kind = kindOf(node)
   const before = dragPositions.get(node.id)
   if (!kind || !before) return
+  const generation = (saveGenerations.get(node.id) ?? 0) + 1
+  saveGenerations.set(node.id, generation)
   try {
     const { error } = await client.PATCH('/api/canvas/nodes/{kind}/{node_id}', {
       params: { path: { kind, node_id: node.id } },
       body: { position: { x: node.position.x, y: node.position.y } },
     })
+    if (generation !== saveGenerations.get(node.id)) return
     if (error) {
       const current = findNode(node.id)
       if (current) current.position = { ...before }
@@ -127,6 +132,7 @@ async function saveNodePosition(event: NodeDragEvent) {
       nodeSnapshots.set(node.id, copyNode(node))
     }
   } catch {
+    if (generation !== saveGenerations.get(node.id)) return
     const current = findNode(node.id)
     if (current) current.position = { ...before }
   }
@@ -134,23 +140,47 @@ async function saveNodePosition(event: NodeDragEvent) {
 
 async function removeNode(change: Extract<NodeChange, { type: 'remove' }>) {
   const snapshot = nodeSnapshots.get(change.id) ?? findNode(change.id)
-  if (!snapshot) return
+  if (!snapshot) {
+    cascadedNodeIds.delete(change.id)
+    return
+  }
   const kind = kindOf(snapshot)
-  if (!kind) return
+  if (!kind) {
+    cascadedNodeIds.delete(change.id)
+    return
+  }
+  const connectedEdges = [...edgeSnapshots.values()].filter(
+    (edge) => edge.source === snapshot.id || edge.target === snapshot.id,
+  )
   try {
     const { error, response } = await client.DELETE(
       '/api/canvas/nodes/{kind}/{node_id}',
       { params: { path: { kind, node_id: snapshot.id } } },
     )
-    if (error && response?.status !== 404) addNodes([copyNode(snapshot)])
+    if (error && response?.status !== 404) {
+      addNodes([copyNode(snapshot)])
+      addEdges(connectedEdges.map(copyEdge))
+    } else {
+      connectedEdges.forEach((edge) => edgeSnapshots.delete(edge.id))
+    }
   } catch {
     addNodes([copyNode(snapshot)])
+    addEdges(connectedEdges.map(copyEdge))
+  } finally {
+    cascadedNodeIds.delete(snapshot.id)
   }
 }
 
 async function removeEdge(change: Extract<EdgeChange, { type: 'remove' }>) {
+  await Promise.resolve()
   const snapshot = edgeSnapshots.get(change.id)
   if (!snapshot) return
+  if (
+    cascadedNodeIds.has(snapshot.source) ||
+    cascadedNodeIds.has(snapshot.target)
+  ) {
+    return
+  }
   try {
     const { error, response } = await client.DELETE(
       '/api/canvas/edges/{edge_id}',
@@ -227,7 +257,10 @@ onNodesChange((changes) => {
     .filter((change): change is Extract<NodeChange, { type: 'remove' }> => {
       return change.type === 'remove'
     })
-    .forEach((change) => void removeNode(change))
+    .forEach((change) => {
+      cascadedNodeIds.add(change.id)
+      void removeNode(change)
+    })
 })
 onEdgesChange((changes) => {
   changes
