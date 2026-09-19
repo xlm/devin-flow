@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => {
     POST: vi.fn(),
     PATCH: vi.fn(),
     DELETE: vi.fn(),
+    refreshApiHealth: vi.fn(() => Promise.resolve()),
     screenToFlowCoordinate: vi.fn(),
     removeNodes: vi.fn(),
     handlers: {} as {
@@ -47,6 +48,10 @@ vi.mock('@/api/client', () => ({
     PATCH: mocks.PATCH,
     DELETE: mocks.DELETE,
   },
+}))
+
+vi.mock('@/composables/useApiHealth', () => ({
+  refreshApiHealth: mocks.refreshApiHealth,
 }))
 
 vi.mock('@vue-flow/core', () => ({
@@ -524,8 +529,10 @@ describe('FlowCanvas', () => {
     expect(
       wrapper.find('[data-testid="palette-action"]').attributes('draggable'),
     ).toBe('false')
+    expect(mocks.refreshApiHealth).not.toHaveBeenCalled()
     await wrapper.find('[data-testid="load-retry"]').trigger('click')
     await flushPromises()
+    expect(mocks.refreshApiHealth).toHaveBeenCalledTimes(1)
     expect(
       wrapper.find('[data-testid="palette-action"]').attributes('draggable'),
     ).toBe('true')
@@ -1971,6 +1978,7 @@ describe('FlowCanvas', () => {
     expect(mocks.POST).toHaveBeenCalledTimes(1)
     expect(mocks.POST).toHaveBeenCalledWith('/api/invocations/refresh')
     expect(mocks.GET).toHaveBeenCalledTimes(2)
+    expect(mocks.refreshApiHealth).toHaveBeenCalledTimes(1)
     expect(vueFlow(wrapper).props('edges')).toEqual([
       expect.objectContaining({ id: 'edge', label: '5 invocations' }),
     ])
