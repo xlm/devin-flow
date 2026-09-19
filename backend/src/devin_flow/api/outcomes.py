@@ -44,17 +44,18 @@ def list_outcome_invocations(
     node = session.get(OutcomeNode, node_id)
     if node is None:
         raise HTTPException(404, "outcome node not found")
-    edge = session.exec(
+    edges = session.exec(
         select(Edge).where(
             col(Edge.target_id) == node_id,
             col(Edge.source_kind) == "action",
         )
-    ).first()
-    if edge is None:
+    ).all()
+    action_ids = [edge.source_id for edge in edges]
+    if not action_ids or node.kind is None:
         return []
     invocations = session.exec(
         select(Invocation)
-        .where(col(Invocation.action_node_id) == edge.source_id)
+        .where(col(Invocation.action_node_id).in_(action_ids))
         .order_by(col(Invocation.session_created_at).desc())
     ).all()
     return [
