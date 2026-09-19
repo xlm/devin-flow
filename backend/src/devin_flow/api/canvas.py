@@ -1,5 +1,4 @@
 import re
-from contextlib import suppress
 from datetime import UTC, datetime
 from typing import Annotated, Any
 from uuid import UUID
@@ -36,6 +35,7 @@ from devin_flow.models import (
     EventAction,
     NodeBase,
     NodeKind,
+    OutcomeNode,
     SyncStatus,
     TriggerNode,
 )
@@ -80,10 +80,13 @@ class NodeRead(BaseModel):
     trigger: TriggerRead | None = None
 
 
-class ActionFields(BaseModel):
+class ActionFieldsBase(BaseModel):
     name: str | None = Field(default=None, max_length=200)
     playbook_id: str | None = Field(default=None, min_length=1, max_length=200)
     prompt: str | None = Field(default=None, max_length=20_000)
+
+
+class ActionFields(ActionFieldsBase):
     enabled: bool | None = None
 
 
@@ -97,7 +100,7 @@ class ActionNodeRead(NodeRead):
     automation_id: str | None
 
 
-class NodeCreate(ActionFields):
+class NodeCreate(ActionFieldsBase):
     position: Position
     trigger: TriggerUpdate | None = None
 
@@ -161,13 +164,10 @@ def node_read(node: NodeBase, kind: NodeKind) -> NodeRead | ActionNodeRead:
     )
 
 
-def apply_action_fields(node: NodeBase, payload: ActionFields) -> None:
-    fields = payload.model_fields_set & {
-        "name",
-        "playbook_id",
-        "prompt",
-        "enabled",
-    }
+def apply_action_fields(node: NodeBase, payload: ActionFieldsBase) -> None:
+    fields = payload.model_fields_set & {"name", "playbook_id", "prompt"}
+    if isinstance(payload, ActionFields) and "enabled" in payload.model_fields_set:
+        fields.add("enabled")
     if not fields:
         return
     if not isinstance(node, ActionNode):
@@ -181,8 +181,10 @@ def apply_action_fields(node: NodeBase, payload: ActionFields) -> None:
         node.playbook_id = payload.playbook_id
     if "prompt" in fields:
         node.prompt = payload.prompt or ""
-    if "enabled" in fields and payload.enabled is not None:
-        node.enabled = payload.enabled
+    if "enabled" in fields:
+        assert isinstance(payload, ActionFields)
+        if payload.enabled is not None:
+            node.enabled = payload.enabled
 
 
 def edge_read(edge: Edge) -> EdgeRead:
@@ -196,19 +198,40 @@ def edge_read(edge: Edge) -> EdgeRead:
 def get_node(
     session: Session, kind: NodeKind, node_id: UUID, *, for_update: bool = False
 ) -> NodeBase | None:
+    if kind == "action":
+        query = select(ActionNode).where(
+            ActionNode.id == node_id,
+            col(ActionNode.deleted_at).is_(None),
+        )
+        if for_update:
+            query = query.with_for_update()
+        return session.exec(query).first()
     return session.get(NODE_MODELS[kind], node_id, with_for_update=for_update)
 
 
 @router.get("", response_model=CanvasRead)
 def get_canvas(session: SessionDep) -> CanvasRead:
     nodes = {
-        kind: [
-            node_read(node, kind)
+        "trigger": [
+            node_read(node, "trigger")
             for node in session.exec(
-                select(model).order_by(col(model.created_at))
+                select(TriggerNode).order_by(col(TriggerNode.created_at))
             ).all()
-        ]
-        for kind, model in NODE_MODELS.items()
+        ],
+        "action": [
+            node_read(node, "action")
+            for node in session.exec(
+                select(ActionNode)
+                .where(col(ActionNode.deleted_at).is_(None))
+                .order_by(col(ActionNode.created_at))
+            ).all()
+        ],
+        "outcome": [
+            node_read(node, "outcome")
+            for node in session.exec(
+                select(OutcomeNode).order_by(col(OutcomeNode.created_at))
+            ).all()
+        ],
     }
     edges = session.exec(select(Edge).order_by(col(Edge.created_at))).all()
     return CanvasRead(
@@ -320,11 +343,29 @@ def delete_node(
         connected_action(session, node.id) if isinstance(node, TriggerNode) else None
     )
     if isinstance(node, ActionNode) and node.automation_id is not None:
-        with suppress(DevinUpstreamError, DevinNotConfiguredError):
+        disable_error: str | None = None
+        try:
             client.update_automation(
                 node.automation_id,
                 AutomationUpdate(enabled=False),
             )
+        except DevinUpstreamError as exc:
+            disable_error = exc.detail
+        except DevinNotConfiguredError:
+            disable_error = "devin api not configured"
+        if disable_error is not None:
+            session.exec(
+                delete(Edge).where(
+                    (col(Edge.source_id) == node_id) | (col(Edge.target_id) == node_id)
+                )
+            )
+            node.enabled = False
+            node.sync_status = "error"
+            node.sync_error = disable_error
+            node.deleted_at = datetime.now(UTC)
+            session.add(node)
+            session.commit()
+            return Response(status_code=204)
     session.exec(
         delete(Edge).where(
             (col(Edge.source_id) == node_id) | (col(Edge.target_id) == node_id)

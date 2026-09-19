@@ -328,6 +328,17 @@ def test_create_action_node_persists_and_returns_fields(
     assert response.json()["prompt"] == "Use the repository context"
 
 
+def test_create_action_node_ignores_enabled_field(
+    unit_client: TestClient,
+) -> None:
+    response = unit_client.post(
+        "/api/canvas/nodes/action",
+        json={"position": {"x": 1, "y": 2}, "enabled": True},
+    )
+    assert response.status_code == 201
+    assert response.json()["enabled"] is False
+
+
 def test_create_action_node_defaults_fields(unit_client: TestClient) -> None:
     response = unit_client.post(
         "/api/canvas/nodes/action",
@@ -735,6 +746,29 @@ def test_enable_syncs_complete_flow(
     assert [call.method for call in calls] == ["GET", "POST"]
 
 
+def test_incomplete_action_update_disables_automation(
+    unit_client: TestClient,
+    unit_session: Session,
+    mock_devin: tuple[DevinClient, list[httpx.Request]],
+) -> None:
+    trigger, action, _ = add_flow(
+        unit_session,
+        enabled=True,
+        automation_id="auto-1",
+    )
+    response = unit_client.patch(
+        f"/api/canvas/nodes/action/{action.id}",
+        json={"playbook_id": None},
+    )
+    assert response.status_code == 200
+    assert response.json()["enabled"] is True
+    assert response.json()["sync_status"] == "disabled"
+    assert response.json()["automation_id"] == "auto-1"
+    assert unit_session.get(TriggerNode, trigger.id) is not None
+    assert len(mock_devin[1]) == 1
+    assert json_body(mock_devin[1][0]) == {"enabled": False}
+
+
 def test_trigger_update_resyncs_connected_action(
     unit_client: TestClient,
     unit_session: Session,
@@ -777,7 +811,7 @@ def test_trigger_delete_disables_connected_action(
     assert json_body(mock_devin[1][0]) == {"enabled": False}
 
 
-def test_action_delete_ignores_upstream_failure(
+def test_action_delete_tombstones_on_upstream_failure(
     unit_client: TestClient,
     unit_session: Session,
 ) -> None:
@@ -802,12 +836,58 @@ def test_action_delete_ignores_upstream_failure(
         position_y=2,
         automation_id="auto-1",
     )
-    unit_session.add(action)
+    trigger = TriggerNode(position_x=3, position_y=4)
+    unit_session.add_all(
+        [
+            action,
+            trigger,
+            Edge(
+                source_id=trigger.id,
+                source_kind="trigger",
+                target_id=action.id,
+                target_kind="action",
+            ),
+        ]
+    )
     unit_session.commit()
     response = unit_client.delete(f"/api/canvas/nodes/action/{action.id}")
     assert response.status_code == 204
     assert len(calls) == 1
+    stored = unit_session.get(ActionNode, action.id)
+    assert stored is not None
+    assert stored.deleted_at is not None
+    assert stored.automation_id == "auto-1"
+    assert stored.enabled is False
+    assert stored.sync_status == "error"
+    assert stored.sync_error == "devin api returned HTTP 500"
+    assert unit_client.get("/api/canvas").json()["action_nodes"] == []
+    assert unit_client.get("/api/canvas").json()["edges"] == []
+    assert (
+        unit_client.patch(
+            f"/api/canvas/nodes/action/{action.id}",
+            json={"enabled": False},
+        ).status_code
+        == 404
+    )
     client.http.close()
+
+
+def test_action_delete_hard_deletes_after_upstream_success(
+    unit_client: TestClient,
+    unit_session: Session,
+    mock_devin: tuple[DevinClient, list[httpx.Request]],
+) -> None:
+    action = ActionNode(
+        position_x=1,
+        position_y=2,
+        automation_id="auto-1",
+    )
+    unit_session.add(action)
+    unit_session.commit()
+    response = unit_client.delete(f"/api/canvas/nodes/action/{action.id}")
+    assert response.status_code == 204
+    assert unit_session.get(ActionNode, action.id) is None
+    assert json_body(mock_devin[1][0]) == {"enabled": False}
 
 
 def test_position_only_action_patch_does_not_sync(
