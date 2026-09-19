@@ -777,6 +777,91 @@ describe('FlowCanvas', () => {
     wrapper.unmount()
   })
 
+  it('prunes settled save chains without dropping newer saves', async () => {
+    const node = {
+      id: 'trigger',
+      position: { x: 1, y: 2 },
+      data: { kind: 'trigger' },
+    } as Node
+    mocks.findNode.mockReturnValue(node)
+    let resolveFirst: ((value: ReturnType<typeof response>) => void) | undefined
+    let resolveSecond:
+      ((value: ReturnType<typeof response>) => void) | undefined
+    let resolveThird: ((value: ReturnType<typeof response>) => void) | undefined
+    mocks.PATCH.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirst = resolve
+        }),
+    )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSecond = resolve
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveThird = resolve
+          }),
+      )
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    node.position = { x: 8, y: 9 }
+    const firstSave = mocks.handlers.dragStop?.({ node })
+    await flushPromises()
+    node.position = { x: 10, y: 11 }
+    const secondSave = mocks.handlers.dragStop?.({ node })
+    await flushPromises()
+    expect(mocks.PATCH).toHaveBeenCalledTimes(1)
+    resolveFirst?.(response(undefined))
+    await firstSave
+    await flushPromises()
+    expect(mocks.PATCH).toHaveBeenCalledTimes(2)
+    node.position = { x: 12, y: 13 }
+    const thirdSave = mocks.handlers.dragStop?.({ node })
+    await flushPromises()
+    expect(mocks.PATCH).toHaveBeenCalledTimes(2)
+    resolveSecond?.(response(undefined))
+    await secondSave
+    await flushPromises()
+    expect(mocks.PATCH).toHaveBeenCalledTimes(3)
+    resolveThird?.(response(undefined))
+    await thirdSave
+    await flushPromises()
+    expect(node.position).toEqual({ x: 12, y: 13 })
+    wrapper.unmount()
+  })
+
+  it('clears drag generations after deleting a node', async () => {
+    const node = {
+      id: 'trigger',
+      position: { x: 1, y: 2 },
+      data: { kind: 'trigger' },
+    } as Node
+    mocks.findNode.mockReturnValue(node)
+    let resolveSave: ((value: ReturnType<typeof response>) => void) | undefined
+    mocks.PATCH.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSave = resolve
+        }),
+    )
+    mocks.DELETE.mockResolvedValue(response(undefined))
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    node.position = { x: 8, y: 9 }
+    const save = mocks.handlers.dragStop?.({ node })
+    await flushPromises()
+    mocks.handlers.nodesChange?.([{ type: 'remove', id: 'trigger' }])
+    await flushPromises()
+    resolveSave?.(response(undefined, { detail: 'save failed' }, 500))
+    await save
+    expect(node.position).toEqual({ x: 8, y: 9 })
+    wrapper.unmount()
+  })
+
   it('ignores stale drag save failures', async () => {
     const node = {
       id: 'trigger',

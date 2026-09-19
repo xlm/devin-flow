@@ -200,10 +200,11 @@ function queueSave<T>(
     }
     return save()
   })
-  saveChains.set(
-    nodeId,
-    next.catch(() => {}),
-  )
+  const settled = next.catch(() => {})
+  saveChains.set(nodeId, settled)
+  void settled.then(() => {
+    if (saveChains.get(nodeId) === settled) saveChains.delete(nodeId)
+  })
   return next
 }
 
@@ -430,6 +431,7 @@ async function removeNode(change: Extract<NodeChange, { type: 'remove' }>) {
     if (error && response?.status !== 404) {
       await loadCanvas()
     } else {
+      saveGenerations.delete(snapshot.id)
       edgeSnapshots.forEach((edge) => {
         if (edge.source === snapshot.id || edge.target === snapshot.id) {
           edgeSnapshots.delete(edge.id)
