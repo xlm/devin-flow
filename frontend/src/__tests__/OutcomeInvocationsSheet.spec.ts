@@ -195,6 +195,54 @@ describe('OutcomeInvocationsSheet', () => {
     wrapper.unmount()
   })
 
+  it('ignores a stale response resolving after a newer load', async () => {
+    let resolveA: ((value: { data: unknown[] }) => void) | undefined
+    let resolveB: ((value: { data: unknown[] }) => void) | undefined
+    mocks.GET.mockImplementationOnce(
+      () => new Promise((resolve) => (resolveA = resolve)),
+    ).mockImplementationOnce(
+      () => new Promise((resolve) => (resolveB = resolve)),
+    )
+    const wrapper = mountSheet({ nodeId: 'node-a' })
+    await flushPromises()
+    await wrapper.setProps({ nodeId: 'node-b' })
+    await flushPromises()
+    resolveB?.({ data: [invocation({ session_id: 's-b', title: 'B row' })] })
+    await flushPromises()
+    resolveA?.({ data: [invocation({ session_id: 's-a', title: 'A row' })] })
+    await flushPromises()
+    const items = wrapper.findAll('[data-testid="outcome-invocation"]')
+    expect(items).toHaveLength(1)
+    expect(items[0].text()).toContain('B row')
+    expect(wrapper.text()).not.toContain('A row')
+    expect(wrapper.text()).not.toContain('Loading...')
+    expect(wrapper.find('[data-testid="outcome-error"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('ignores a stale failure resolving after a newer load', async () => {
+    let rejectA: ((reason: unknown) => void) | undefined
+    let resolveB: ((value: { data: unknown[] }) => void) | undefined
+    mocks.GET.mockImplementationOnce(
+      () => new Promise((_, reject) => (rejectA = reject)),
+    ).mockImplementationOnce(
+      () => new Promise((resolve) => (resolveB = resolve)),
+    )
+    const wrapper = mountSheet({ nodeId: 'node-a' })
+    await flushPromises()
+    await wrapper.setProps({ nodeId: 'node-b' })
+    await flushPromises()
+    resolveB?.({ data: [invocation({ session_id: 's-b', title: 'B row' })] })
+    await flushPromises()
+    rejectA?.(new Error('down'))
+    await flushPromises()
+    expect(wrapper.find('[data-testid="outcome-error"]').exists()).toBe(false)
+    expect(wrapper.findAll('[data-testid="outcome-invocation"]')).toHaveLength(
+      1,
+    )
+    wrapper.unmount()
+  })
+
   it('forwards update:open events', async () => {
     const wrapper = mountSheet({})
     await flushPromises()

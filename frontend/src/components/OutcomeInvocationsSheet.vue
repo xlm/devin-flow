@@ -21,6 +21,8 @@ const emit = defineEmits<{ 'update:open': [value: boolean] }>()
 const invocations = ref<OutcomeInvocationRead[]>([])
 const loading = ref(false)
 const loadError = ref(false)
+// Out-of-order responses must not overwrite a newer node's data.
+let generation = 0
 
 const title = computed(() =>
   props.kind ? `${outcomeKindLabel(props.kind)} outcomes` : 'Outcome',
@@ -28,6 +30,7 @@ const title = computed(() =>
 
 async function load() {
   if (!props.nodeId) return
+  const current = ++generation
   loading.value = true
   loadError.value = false
   try {
@@ -35,15 +38,17 @@ async function load() {
       '/api/outcome-nodes/{node_id}/invocations',
       { params: { path: { node_id: props.nodeId } } },
     )
+    if (current !== generation) return
     if (error || !data) {
       loadError.value = true
     } else {
       invocations.value = data
     }
   } catch {
+    if (current !== generation) return
     loadError.value = true
   } finally {
-    loading.value = false
+    if (current === generation) loading.value = false
   }
 }
 
