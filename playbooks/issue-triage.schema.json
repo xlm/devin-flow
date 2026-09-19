@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "IssueTriageOutcome",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["outcome"],
+  "properties": {
+    "outcome": {
+      "type": "string",
+      "enum": ["duplicate", "not_a_bug", "not_reproducible", "fixed"]
+    },
+    "duplicate_of": {
+      "type": "string",
+      "format": "uri",
+      "description": "URL of the existing issue when outcome is duplicate."
+    },
+    "pr_url": {
+      "type": "string",
+      "format": "uri",
+      "description": "URL of the pull request when outcome is fixed."
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 500
+    }
+  }
+}
