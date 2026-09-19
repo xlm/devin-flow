@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, provide, ref } from 'vue'
 import {
   VueFlow,
   useVueFlow,
@@ -18,6 +18,12 @@ import { Button } from '@/components/ui/button'
 import NodePalette from '@/components/NodePalette.vue'
 import { nodeTypes } from '@/components/nodes/nodeTypes'
 import { useTheme } from '@/composables/useTheme'
+import {
+  actionFieldsOf,
+  type ActionFields,
+  type ActionNodeRead,
+} from '@/lib/actionValidity'
+import { SAVE_NODE_FIELDS, type SaveNodeFields } from '@/lib/canvasInjection'
 import {
   connectError,
   kindOf,
@@ -42,6 +48,7 @@ const nodeSnapshots = new Map<string, Node>()
 const edgeSnapshots = new Map<string, Edge>()
 const saveGenerations = new Map<string, number>()
 const saveChains = new Map<string, Promise<void>>()
+const pendingFields = new Map<string, Map<string, number>>()
 const cascadedNodeIds = new Set<string>()
 let loadPromise: Promise<void> | undefined
 
@@ -61,12 +68,15 @@ const { mode, icon, cycleMode } = useTheme()
 
 let resizeTimer: ReturnType<typeof setTimeout> | undefined
 
-function mapNode(node: NodeRead): Node {
-  const data: Record<string, unknown> = {
+function mapNode(node: NodeRead | ActionNodeRead): Node {
+  let data: Record<string, unknown> = {
     kind: node.kind,
     label: nodeLabel(node.kind),
   }
   if (node.kind === 'trigger') data.trigger = node.trigger
+  if ('name' in node) {
+    data = { ...data, ...actionFieldsOf(node) }
+  }
   return {
     id: node.id,
     type: node.kind,
@@ -99,6 +109,7 @@ async function fetchCanvas() {
   edgeSnapshots.clear()
   saveGenerations.clear()
   saveChains.clear()
+  pendingFields.clear()
   cascadedNodeIds.clear()
   try {
     const { data, error } = await client.GET('/api/canvas')
@@ -148,7 +159,7 @@ async function doSaveNodePosition(
       body: { position },
     })
     if (!error) {
-      const savedNode = copyNode(node)
+      const savedNode = copyNode(nodeSnapshots.get(node.id) ?? node)
       savedNode.position = { ...position }
       nodeSnapshots.set(node.id, savedNode)
       return
@@ -186,6 +197,90 @@ function saveNodePosition(event: NodeDragEvent): Promise<void> | undefined {
   )
   return next
 }
+
+async function doSaveNodeFields(
+  node: Node,
+  kind: NodeKind,
+  fields: Partial<ActionFields>,
+) {
+  const body: {
+    name?: string
+    playbook_id?: string | null
+    extra_instructions?: string
+  } = {}
+  if (fields.name !== undefined) body.name = fields.name
+  if (fields.playbookId !== undefined) body.playbook_id = fields.playbookId
+  if (fields.extraInstructions !== undefined) {
+    body.extra_instructions = fields.extraInstructions
+  }
+  let failed = false
+  try {
+    const { error } = await client.PATCH('/api/canvas/nodes/{kind}/{node_id}', {
+      params: { path: { kind, node_id: node.id } },
+      body,
+    })
+    if (!error) {
+      const base = nodeSnapshots.get(node.id) ?? copyNode(node)
+      base.data = { ...base.data, ...fields }
+      nodeSnapshots.set(node.id, base)
+    } else {
+      failed = true
+    }
+  } catch {
+    failed = true
+  } finally {
+    const pending = pendingFields.get(node.id)
+    for (const field of Object.keys(fields)) {
+      const count = pending?.get(field) ?? 0
+      if (count > 1) {
+        pending?.set(field, count - 1)
+      } else {
+        pending?.delete(field)
+      }
+    }
+    if (pending && pending.size === 0) pendingFields.delete(node.id)
+  }
+  if (failed) {
+    const snapshot = nodeSnapshots.get(node.id)
+    const current = findNode(node.id)
+    const pending = pendingFields.get(node.id)
+    if (snapshot && current) {
+      const data = { ...current.data }
+      for (const field of Object.keys(fields)) {
+        if ((pending?.get(field) ?? 0) === 0) {
+          data[field] = snapshot.data[field]
+        }
+      }
+      current.data = data
+    }
+  }
+}
+
+const saveNodeFields: SaveNodeFields = async (
+  nodeId: string,
+  fields: Partial<ActionFields>,
+) => {
+  const node = findNode(nodeId)
+  if (!node) return
+  const kind = kindOf(node)
+  if (!kind) return
+  const pending = pendingFields.get(nodeId) ?? new Map<string, number>()
+  for (const field of Object.keys(fields)) {
+    pending.set(field, (pending.get(field) ?? 0) + 1)
+  }
+  pendingFields.set(nodeId, pending)
+  node.data = { ...node.data, ...fields }
+  const optimistic = copyNode(node)
+  const previous = saveChains.get(nodeId) ?? Promise.resolve()
+  const next = previous.then(() => doSaveNodeFields(optimistic, kind, fields))
+  saveChains.set(
+    nodeId,
+    next.catch(() => {}),
+  )
+  await next
+}
+
+provide(SAVE_NODE_FIELDS, saveNodeFields)
 
 async function removeNode(change: Extract<NodeChange, { type: 'remove' }>) {
   const snapshot = nodeSnapshots.get(change.id) ?? findNode(change.id)

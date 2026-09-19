@@ -2,6 +2,7 @@
 import { Trash2 } from '@lucide/vue'
 import { Handle, Position, useVueFlow } from '@vue-flow/core'
 import { NodeToolbar } from '@vue-flow/node-toolbar'
+import { computed } from 'vue'
 import { Button } from '@/components/ui/button'
 import {
   NODE_HANDLES,
@@ -16,15 +17,20 @@ const props = withDefaults(
     id: string
     kind: NodeKind
     complete?: boolean
+    status?: string
   }>(),
   { complete: false },
 )
 
 const { removeNodes } = useVueFlow()
+const statusLabel = computed(
+  () => props.status ?? (props.complete ? 'Ready' : 'Incomplete'),
+)
 </script>
 
 <template>
   <NodeToolbar :node-id="props.id" :position="Position.Top">
+    <slot name="toolbar" />
     <Button
       variant="destructive"
       size="icon-xs"
@@ -39,13 +45,14 @@ const { removeNodes } = useVueFlow()
     data-testid="canvas-node"
     :data-kind="props.kind"
     :data-incomplete="String(!props.complete)"
+    :data-status="statusLabel"
     class="min-w-40 rounded-md border-2 border-l-4 bg-card px-3 py-2 text-card-foreground"
     :class="[nodeAccentClass(props.kind), !props.complete && 'border-dashed']"
   >
     <div class="text-sm font-medium">{{ nodeLabel(props.kind) }}</div>
     <slot />
     <span class="text-xs uppercase text-muted-foreground">{{
-      props.complete ? 'Ready' : 'Incomplete'
+      statusLabel
     }}</span>
     <div v-if="!props.complete" class="text-xs text-muted-foreground">
       {{ nodeHint(props.kind) }}

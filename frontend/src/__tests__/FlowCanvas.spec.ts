@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
-import { defineComponent, h, ref } from 'vue'
+import { defineComponent, h, inject, ref } from 'vue'
 import type { Edge, Node } from '@vue-flow/core'
 import { NODE_KIND_MIME } from '@/lib/nodeKinds'
+import { SAVE_NODE_FIELDS, type SaveNodeFields } from '@/lib/canvasInjection'
 
 type DragHandler = (event: { node: Node }) => void | Promise<void>
 type ChangeHandler = (changes: { type: string; id: string }[]) => void
@@ -118,7 +119,16 @@ const canvas = {
       trigger: { event_action: null, repository_full_name: null },
     },
   ],
-  action_nodes: [{ id: 'action', kind: 'action', position: { x: 3, y: 4 } }],
+  action_nodes: [
+    {
+      id: 'action',
+      kind: 'action',
+      position: { x: 3, y: 4 },
+      name: '',
+      playbook_id: null,
+      extra_instructions: '',
+    },
+  ],
   outcome_nodes: [{ id: 'outcome', kind: 'outcome', position: { x: 5, y: 6 } }],
   edges: [
     {
@@ -143,6 +153,15 @@ function vueFlow(wrapper: ReturnType<typeof mount>) {
 
 function resizeWindow() {
   window.dispatchEvent(new Event('resize'))
+}
+
+function saveProbe(provided: { value: SaveNodeFields | undefined }) {
+  return defineComponent({
+    setup: () => {
+      provided.value = inject(SAVE_NODE_FIELDS)
+      return () => h('div')
+    },
+  })
 }
 
 describe('FlowCanvas', () => {
@@ -199,7 +218,13 @@ describe('FlowCanvas', () => {
         id: 'action',
         type: 'action',
         position: { x: 3, y: 4 },
-        data: { kind: 'action', label: 'Action' },
+        data: {
+          kind: 'action',
+          label: 'Action',
+          name: '',
+          playbookId: null,
+          extraInstructions: '',
+        },
       },
       {
         id: 'outcome',
@@ -225,7 +250,14 @@ describe('FlowCanvas', () => {
     await flushPromises()
     mocks.screenToFlowCoordinate.mockReturnValue({ x: 40, y: 50 })
     mocks.POST.mockResolvedValue(
-      response({ id: 'new', kind: 'action', position: { x: 40, y: 50 } }),
+      response({
+        id: 'new',
+        kind: 'action',
+        position: { x: 40, y: 50 },
+        name: '',
+        playbook_id: null,
+        extra_instructions: '',
+      }),
     )
     const dataTransfer = {
       types: [NODE_KIND_MIME],
@@ -299,7 +331,14 @@ describe('FlowCanvas', () => {
       wrapper.find('[data-testid="palette-action"]').attributes('draggable'),
     ).toBe('true')
     mocks.POST.mockResolvedValue(
-      response({ id: 'new', kind: 'action', position: { x: 0, y: 0 } }),
+      response({
+        id: 'new',
+        kind: 'action',
+        position: { x: 0, y: 0 },
+        name: '',
+        playbook_id: null,
+        extra_instructions: '',
+      }),
     )
     const secondDrop = new Event('drop', {
       bubbles: true,
@@ -446,7 +485,14 @@ describe('FlowCanvas', () => {
       wrapper.find('[data-testid="palette-action"]').attributes('draggable'),
     ).toBe('true')
     mocks.POST.mockResolvedValue(
-      response({ id: 'new', kind: 'action', position: { x: 0, y: 0 } }),
+      response({
+        id: 'new',
+        kind: 'action',
+        position: { x: 0, y: 0 },
+        name: '',
+        playbook_id: null,
+        extra_instructions: '',
+      }),
     )
     dispatchDrop()
     await flushPromises()
@@ -517,7 +563,14 @@ describe('FlowCanvas', () => {
         response({
           trigger_nodes: [],
           action_nodes: [
-            { id: 'replacement', kind: 'action', position: { x: 7, y: 8 } },
+            {
+              id: 'replacement',
+              kind: 'action',
+              position: { x: 7, y: 8 },
+              name: '',
+              playbook_id: null,
+              extra_instructions: '',
+            },
           ],
           outcome_nodes: [],
           edges: [],
@@ -612,6 +665,10 @@ describe('FlowCanvas', () => {
     unknown.position = { x: 3, y: 4 }
     await mocks.handlers.dragStop?.({ node: unknown })
     expect(unknown.position).toEqual({ x: 3, y: 4 })
+    mocks.PATCH.mockResolvedValue(response(undefined))
+    unknown.position = { x: 4, y: 5 }
+    await mocks.handlers.dragStop?.({ node: unknown })
+    expect(unknown.position).toEqual({ x: 4, y: 5 })
     const missingKind = {
       id: 'missing-kind',
       position: { x: 5, y: 6 },
@@ -770,11 +827,336 @@ describe('FlowCanvas', () => {
     wrapper.unmount()
   })
 
+  it('saves action fields optimistically and updates its snapshot', async () => {
+    const node = {
+      id: 'action',
+      position: { x: 3, y: 4 },
+      data: {
+        kind: 'action',
+        name: '',
+        playbookId: null,
+        extraInstructions: '',
+      },
+    } as Node
+    const provided = { value: undefined as SaveNodeFields | undefined }
+    mocks.findNode.mockReturnValue(node)
+    const wrapper = mount(FlowCanvas, {
+      global: { stubs: { NodePalette: saveProbe(provided) } },
+    })
+    await flushPromises()
+    await provided.value?.('action', { name: 'Triage' })
+    expect(node.data.name).toBe('Triage')
+    expect(mocks.PATCH).toHaveBeenLastCalledWith(
+      '/api/canvas/nodes/{kind}/{node_id}',
+      {
+        params: { path: { kind: 'action', node_id: 'action' } },
+        body: { name: 'Triage' },
+      },
+    )
+    mocks.PATCH.mockResolvedValue(
+      response(undefined, { detail: 'failed' }, 500),
+    )
+    await provided.value?.('action', { playbookId: 'pb-1' })
+    expect(node.data).toEqual({
+      kind: 'action',
+      name: 'Triage',
+      playbookId: null,
+      extraInstructions: '',
+    })
+    wrapper.unmount()
+  })
+
+  it('rolls back action fields when saving throws', async () => {
+    const node = {
+      id: 'action',
+      position: { x: 3, y: 4 },
+      data: {
+        kind: 'action',
+        name: '',
+        playbookId: null,
+        extraInstructions: '',
+      },
+    } as Node
+    const provided = { value: undefined as SaveNodeFields | undefined }
+    mocks.findNode.mockReturnValue(node)
+    mocks.PATCH.mockRejectedValue(new Error('down'))
+    const wrapper = mount(FlowCanvas, {
+      global: { stubs: { NodePalette: saveProbe(provided) } },
+    })
+    await flushPromises()
+    await provided.value?.('action', { extraInstructions: 'Notes' })
+    expect(node.data.extraInstructions).toBe('')
+    wrapper.unmount()
+  })
+
+  it('keeps newer queued name edits when an earlier save fails', async () => {
+    const node = {
+      id: 'action',
+      position: { x: 3, y: 4 },
+      data: {
+        kind: 'action',
+        name: '',
+        playbookId: null,
+        extraInstructions: '',
+      },
+    } as Node
+    const provided = { value: undefined as SaveNodeFields | undefined }
+    mocks.findNode.mockReturnValue(node)
+    let rejectFirst: ((reason?: unknown) => void) | undefined
+    mocks.PATCH.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectFirst = reject
+        }),
+    ).mockResolvedValueOnce(response(undefined))
+    const wrapper = mount(FlowCanvas, {
+      global: { stubs: { NodePalette: saveProbe(provided) } },
+    })
+    await flushPromises()
+    const first = provided.value?.('action', { name: 'First' })
+    await flushPromises()
+    const second = provided.value?.('action', { name: 'Second' })
+    rejectFirst?.(new Error('down'))
+    await first
+    expect(node.data.name).toBe('Second')
+    await second
+    expect(node.data.name).toBe('Second')
+    mocks.PATCH.mockResolvedValue(
+      response(undefined, { detail: 'failed' }, 500),
+    )
+    await provided.value?.('action', { name: 'Third' })
+    expect(node.data.name).toBe('Second')
+    wrapper.unmount()
+  })
+
+  it('reverts failed fields while keeping later field saves', async () => {
+    const node = {
+      id: 'action',
+      position: { x: 3, y: 4 },
+      data: {
+        kind: 'action',
+        name: '',
+        playbookId: null,
+        extraInstructions: '',
+      },
+    } as Node
+    const provided = { value: undefined as SaveNodeFields | undefined }
+    mocks.findNode.mockReturnValue(node)
+    let rejectFirst: ((reason?: unknown) => void) | undefined
+    let resolveSecond:
+      ((value: ReturnType<typeof response>) => void) | undefined
+    mocks.PATCH.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectFirst = reject
+        }),
+    ).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSecond = resolve
+        }),
+    )
+    const wrapper = mount(FlowCanvas, {
+      global: { stubs: { NodePalette: saveProbe(provided) } },
+    })
+    await flushPromises()
+    const first = provided.value?.('action', { name: 'First' })
+    await flushPromises()
+    const second = provided.value?.('action', { playbookId: 'pb-1' })
+    await flushPromises()
+    expect(mocks.PATCH).toHaveBeenCalledTimes(1)
+    rejectFirst?.(new Error('down'))
+    await first
+    expect(node.data).toEqual({
+      kind: 'action',
+      name: '',
+      playbookId: 'pb-1',
+      extraInstructions: '',
+    })
+    resolveSecond?.(response(undefined))
+    await second
+    mocks.PATCH.mockResolvedValue(
+      response(undefined, { detail: 'failed' }, 500),
+    )
+    await provided.value?.('action', { name: 'Third' })
+    expect(node.data).toEqual({
+      kind: 'action',
+      name: '',
+      playbookId: 'pb-1',
+      extraInstructions: '',
+    })
+    wrapper.unmount()
+  })
+
+  it('keeps field snapshots separate from optimistic position saves', async () => {
+    const node = {
+      id: 'action',
+      position: { x: 3, y: 4 },
+      data: {
+        kind: 'action',
+        name: '',
+        playbookId: null,
+        extraInstructions: '',
+      },
+    } as Node
+    const provided = { value: undefined as SaveNodeFields | undefined }
+    mocks.findNode.mockReturnValue(node)
+    let rejectField: ((value: ReturnType<typeof response>) => void) | undefined
+    let resolvePosition:
+      ((value: ReturnType<typeof response>) => void) | undefined
+    mocks.PATCH.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          rejectField = resolve
+        }),
+    ).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolvePosition = resolve
+        }),
+    )
+    const wrapper = mount(FlowCanvas, {
+      global: { stubs: { NodePalette: saveProbe(provided) } },
+    })
+    await flushPromises()
+    const fieldSave = provided.value?.('action', { name: 'Edited' })
+    await flushPromises()
+    node.position = { x: 10, y: 11 }
+    const positionSave = mocks.handlers.dragStop?.({ node })
+    await flushPromises()
+    expect(mocks.PATCH).toHaveBeenCalledTimes(1)
+    rejectField?.(response(undefined, { detail: 'failed' }, 500))
+    await fieldSave
+    await flushPromises()
+    expect(mocks.PATCH).toHaveBeenCalledTimes(2)
+    resolvePosition?.(response(undefined))
+    await positionSave
+    expect(node.data.name).toBe('')
+    expect(node.position).toEqual({ x: 10, y: 11 })
+    mocks.PATCH.mockResolvedValue(
+      response(undefined, { detail: 'failed' }, 500),
+    )
+    await provided.value?.('action', { name: 'Third' })
+    expect(node.data.name).toBe('')
+    wrapper.unmount()
+  })
+
+  it('ignores unknown action field nodes', async () => {
+    const node = {
+      id: 'action',
+      position: { x: 3, y: 4 },
+      data: {
+        kind: 'action',
+        name: '',
+        playbookId: null,
+        extraInstructions: '',
+      },
+    } as Node
+    const provided = { value: undefined as SaveNodeFields | undefined }
+    mocks.findNode.mockReturnValue(node)
+    const wrapper = mount(FlowCanvas, {
+      global: { stubs: { NodePalette: saveProbe(provided) } },
+    })
+    await flushPromises()
+    const newAction = {
+      id: 'new-action',
+      position: { x: 3, y: 4 },
+      data: {
+        kind: 'action',
+        name: '',
+        playbookId: null,
+        extraInstructions: '',
+      },
+    } as Node
+    mocks.findNode.mockReturnValue(newAction)
+    await provided.value?.('new-action', { name: 'New' })
+    expect(newAction.data.name).toBe('New')
+    mocks.findNode.mockReturnValue(undefined)
+    await provided.value?.('missing', { name: 'Ignored' })
+    mocks.findNode.mockReturnValue({ id: 'trigger', data: {} })
+    await provided.value?.('trigger', { name: 'Ignored' })
+    wrapper.unmount()
+  })
+
+  it('clears pending field state when the canvas reloads', async () => {
+    const node = {
+      id: 'action',
+      position: { x: 3, y: 4 },
+      data: {
+        kind: 'action',
+        name: '',
+        playbookId: null,
+        extraInstructions: '',
+      },
+    } as Node
+    const provided = { value: undefined as SaveNodeFields | undefined }
+    mocks.findNode.mockReturnValue(node)
+    let resolveSave: ((value: ReturnType<typeof response>) => void) | undefined
+    mocks.PATCH.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSave = resolve
+        }),
+    )
+    mocks.GET.mockResolvedValueOnce(response(canvas))
+    const wrapper = mount(FlowCanvas, {
+      global: { stubs: { NodePalette: saveProbe(provided) } },
+    })
+    await flushPromises()
+    const save = provided.value?.('action', { name: 'Edited' })
+    await flushPromises()
+    await (
+      wrapper.vm as unknown as {
+        loadCanvas: () => Promise<void>
+      }
+    ).loadCanvas()
+    await flushPromises()
+    resolveSave?.(response(undefined, { detail: 'failed' }, 500))
+    await save
+    expect(node.data.name).toBe('')
+    wrapper.unmount()
+  })
+
+  it('continues after a rejected action save chain', async () => {
+    const node = {
+      id: 'action',
+      position: { x: 3, y: 4 },
+      data: {
+        kind: 'action',
+        name: '',
+        playbookId: null,
+        extraInstructions: '',
+      },
+    } as Node
+    const provided = { value: undefined as SaveNodeFields | undefined }
+    mocks.findNode.mockReturnValueOnce(node).mockImplementation(() => {
+      throw new Error('down')
+    })
+    mocks.PATCH.mockResolvedValue(
+      response(undefined, { detail: 'failed' }, 500),
+    )
+    const wrapper = mount(FlowCanvas, {
+      global: { stubs: { NodePalette: saveProbe(provided) } },
+    })
+    await flushPromises()
+    await expect(provided.value?.('action', { name: 'First' })).rejects.toThrow(
+      'down',
+    )
+    wrapper.unmount()
+  })
+
   it('reloads the canvas after a failed node delete', async () => {
     const refetched = {
       trigger_nodes: [],
       action_nodes: [
-        { id: 'action', kind: 'action', position: { x: 3, y: 4 } },
+        {
+          id: 'action',
+          kind: 'action',
+          position: { x: 3, y: 4 },
+          name: '',
+          playbook_id: null,
+          extra_instructions: '',
+        },
       ],
       outcome_nodes: [],
       edges: [],
@@ -795,7 +1177,13 @@ describe('FlowCanvas', () => {
         id: 'action',
         type: 'action',
         position: { x: 3, y: 4 },
-        data: { kind: 'action', label: 'Action' },
+        data: {
+          kind: 'action',
+          label: 'Action',
+          name: '',
+          playbookId: null,
+          extraInstructions: '',
+        },
       },
     ])
     expect(vueFlow(wrapper).props('edges')).toEqual([])
@@ -847,7 +1235,14 @@ describe('FlowCanvas', () => {
     await flushPromises()
     expect(mocks.GET).toHaveBeenCalledTimes(2)
     resolvePost?.(
-      response({ id: 'new', kind: 'action', position: { x: 0, y: 0 } }),
+      response({
+        id: 'new',
+        kind: 'action',
+        position: { x: 0, y: 0 },
+        name: '',
+        playbook_id: null,
+        extra_instructions: '',
+      }),
     )
     await flushPromises()
     expect(mocks.addNodes).not.toHaveBeenCalled()
@@ -867,7 +1262,16 @@ describe('FlowCanvas', () => {
   it('does not duplicate a created node included in a reload', async () => {
     const refetched = {
       trigger_nodes: [],
-      action_nodes: [{ id: 'new', kind: 'action', position: { x: 0, y: 0 } }],
+      action_nodes: [
+        {
+          id: 'new',
+          kind: 'action',
+          position: { x: 0, y: 0 },
+          name: '',
+          playbook_id: null,
+          extra_instructions: '',
+        },
+      ],
       outcome_nodes: [],
       edges: [],
     }
@@ -909,7 +1313,14 @@ describe('FlowCanvas', () => {
     await flushPromises()
     expect(mocks.GET).toHaveBeenCalledTimes(2)
     resolvePost?.(
-      response({ id: 'new', kind: 'action', position: { x: 0, y: 0 } }),
+      response({
+        id: 'new',
+        kind: 'action',
+        position: { x: 0, y: 0 },
+        name: '',
+        playbook_id: null,
+        extra_instructions: '',
+      }),
     )
     await flushPromises()
     expect(mocks.addNodes).not.toHaveBeenCalled()
@@ -963,7 +1374,14 @@ describe('FlowCanvas', () => {
     await flushPromises()
     expect(mocks.GET).toHaveBeenCalledTimes(2)
     resolvePost?.(
-      response({ id: 'new', kind: 'action', position: { x: 0, y: 0 } }),
+      response({
+        id: 'new',
+        kind: 'action',
+        position: { x: 0, y: 0 },
+        name: '',
+        playbook_id: null,
+        extra_instructions: '',
+      }),
     )
     await flushPromises()
     expect(mocks.addNodes).not.toHaveBeenCalled()
@@ -1008,7 +1426,14 @@ describe('FlowCanvas', () => {
     const refetched = {
       trigger_nodes: [],
       action_nodes: [
-        { id: 'action', kind: 'action', position: { x: 3, y: 4 } },
+        {
+          id: 'action',
+          kind: 'action',
+          position: { x: 3, y: 4 },
+          name: '',
+          playbook_id: null,
+          extra_instructions: '',
+        },
       ],
       outcome_nodes: [],
       edges: [],
@@ -1034,7 +1459,13 @@ describe('FlowCanvas', () => {
       id: 'action',
       type: 'action',
       position: { x: 3, y: 4 },
-      data: { kind: 'action', label: 'Action' },
+      data: {
+        kind: 'action',
+        label: 'Action',
+        name: '',
+        playbookId: null,
+        extraInstructions: '',
+      },
     })
     expect(vueFlow(wrapper).props('edges')).toEqual([])
     wrapper.unmount()

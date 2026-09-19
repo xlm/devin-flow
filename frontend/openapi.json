@@ -1,11 +1,71 @@
 {
   "components": {
     "schemas": {
+      "ActionNodeRead": {
+        "properties": {
+          "extra_instructions": {
+            "title": "Extra Instructions",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "trigger",
+              "action",
+              "outcome"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "playbook_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Playbook Id"
+          },
+          "position": {
+            "$ref": "#/components/schemas/Position"
+          },
+          "trigger": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TriggerRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "position",
+          "name",
+          "playbook_id",
+          "extra_instructions"
+        ],
+        "title": "ActionNodeRead",
+        "type": "object"
+      },
       "CanvasRead": {
         "properties": {
           "action_nodes": {
             "items": {
-              "$ref": "#/components/schemas/NodeRead"
+              "$ref": "#/components/schemas/ActionNodeRead"
             },
             "title": "Action Nodes",
             "type": "array"
@@ -161,6 +221,43 @@
       },
       "NodeCreate": {
         "properties": {
+          "extra_instructions": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extra Instructions"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "playbook_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Playbook Id"
+          },
           "position": {
             "$ref": "#/components/schemas/Position"
           },
@@ -245,6 +342,43 @@
       },
       "NodeUpdate": {
         "properties": {
+          "extra_instructions": {
+            "anyOf": [
+              {
+                "maxLength": 20000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extra Instructions"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "playbook_id": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Playbook Id"
+          },
           "position": {
             "anyOf": [
               {
@@ -267,6 +401,24 @@
           }
         },
         "title": "NodeUpdate",
+        "type": "object"
+      },
+      "PlaybookOption": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "PlaybookOption",
         "type": "object"
       },
       "Position": {
@@ -599,7 +751,15 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/NodeRead"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ActionNodeRead"
+                    },
+                    {
+                      "$ref": "#/components/schemas/NodeRead"
+                    }
+                  ],
+                  "title": "Response Create Node Api Canvas Nodes  Kind  Post"
                 }
               }
             },
@@ -748,7 +908,15 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/NodeRead"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ActionNodeRead"
+                    },
+                    {
+                      "$ref": "#/components/schemas/NodeRead"
+                    }
+                  ],
+                  "title": "Response Update Node Api Canvas Nodes  Kind   Node Id  Patch"
                 }
               }
             },
@@ -786,6 +954,48 @@
           }
         },
         "summary": "Update Node"
+      }
+    },
+    "/api/devin/playbooks": {
+      "get": {
+        "operationId": "list_playbooks_api_devin_playbooks_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PlaybookOption"
+                  },
+                  "title": "Response List Playbooks Api Devin Playbooks Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Devin API failure"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Devin API not configured"
+          }
+        },
+        "summary": "List Playbooks"
       }
     },
     "/api/devin/repositories": {
