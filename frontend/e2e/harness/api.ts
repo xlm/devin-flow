@@ -1,8 +1,12 @@
 import type { APIRequestContext, Page } from '@playwright/test'
+import createClient from 'openapi-fetch'
+import type { components, paths } from '../../src/api/schema.js'
 
-export type NodeKind = 'trigger' | 'action' | 'outcome'
-export type Position = { x: number; y: number }
+export type NodeKind = components['schemas']['NodeRef']['kind']
+export type Position = components['schemas']['Position']
+export type NodeRef = components['schemas']['NodeRef']
 export type Session = {
+  // DevinSession is an upstream payload, not part of our OpenAPI schema.
   session_id: string
   status: string
   title?: string
@@ -13,47 +17,46 @@ export type Session = {
   created_at?: number
   updated_at?: number
 }
-export type Canvas = {
-  trigger_nodes: Array<Record<string, unknown> & { id: string }>
-  action_nodes: Array<Record<string, unknown> & { id: string }>
-  outcome_nodes: Array<Record<string, unknown> & { id: string }>
-  edges: Array<{
-    id: string
-    source: { id: string; kind: NodeKind }
-    target: { id: string; kind: NodeKind }
-    outcome_count: number | null
-  }>
-}
+export type Canvas = components['schemas']['CanvasRead']
+type NodeRead =
+  components['schemas']['ActionNodeRead'] | components['schemas']['NodeRead']
+
+export const apiClient = createClient<paths>({
+  baseUrl: 'http://127.0.0.1:5174',
+})
 
 export async function canvas(request: APIRequestContext): Promise<Canvas> {
-  const response = await request.get('/api/canvas')
-  return (await response.json()) as Canvas
+  void request
+  const { data, error } = await apiClient.GET('/api/canvas')
+  if (error || !data) throw new Error('canvas request failed')
+  return data
 }
 
 export async function createNode(
   request: APIRequestContext,
   kind: NodeKind,
   position: Position,
-  body: Record<string, unknown> = {},
-): Promise<Record<string, unknown> & { id: string }> {
-  const response = await request.post(`/api/canvas/nodes/${kind}`, {
-    data: { position, ...body },
+  body: Omit<components['schemas']['NodeCreate'], 'position'> = {},
+): Promise<NodeRead> {
+  void request
+  const { data, error } = await apiClient.POST('/api/canvas/nodes/{kind}', {
+    params: { path: { kind } },
+    body: { position, ...body },
   })
-  if (!response.ok())
-    throw new Error(`create ${kind} failed: ${response.status()}`)
-  return (await response.json()) as Record<string, unknown> & { id: string }
+  if (error || !data) throw new Error(`create ${kind} failed`)
+  return data
 }
 
 export async function createEdge(
   request: APIRequestContext,
-  source: { id: string; kind: NodeKind },
-  target: { id: string; kind: NodeKind },
+  source: NodeRef,
+  target: NodeRef,
 ): Promise<void> {
-  const response = await request.post('/api/canvas/edges', {
-    data: { source, target },
+  void request
+  const { error } = await apiClient.POST('/api/canvas/edges', {
+    body: { source, target },
   })
-  if (!response.ok())
-    throw new Error(`create edge failed: ${response.status()}`)
+  if (error) throw new Error('create edge failed')
 }
 
 export async function setSessions(
