@@ -17,11 +17,14 @@ testing actual Devin integration.
 
 ## Prepare
 
+Run `pnpm e2e` first. It is the primary verification for Canvas and
+FlowCanvas changes. Use the manual steps below only for gestures the suite
+does not cover.
+
 1. Follow the repository blueprint database/startup commands. Confirm the
    database revision is current and Vite `/api/health` returns ok.
    When restarting, inspect listening process IDs. Terminating a shell can
    leave FastAPI reloader or Vite children holding the original ports.
-   The browser suite is the first verification path for FlowCanvas changes.
 2. Create nodes by dragging palette cards onto the Canvas. When the palette
    is unavailable, seed through `/api/canvas/nodes/{kind}` with explicit
    positions. Retain a label-to-ID map. Use a dedicated empty local Canvas
