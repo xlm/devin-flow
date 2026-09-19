@@ -30,6 +30,9 @@ def is_action_complete(action: ActionNode) -> bool:
 
 
 def connected_trigger(session: Session, action_id: UUID) -> TriggerNode | None:
+    action = session.get(ActionNode, action_id)
+    if action is None or action.deleted_at is not None:
+        return None
     edge = session.exec(
         select(Edge).where(
             Edge.target_id == action_id,
@@ -46,7 +49,8 @@ def connected_action(session: Session, trigger_id: UUID) -> ActionNode | None:
             Edge.target_kind == "action",
         )
     ).first()
-    return None if edge is None else session.get(ActionNode, edge.target_id)
+    action = None if edge is None else session.get(ActionNode, edge.target_id)
+    return None if action is None or action.deleted_at is not None else action
 
 
 def flow_invalid_reason(action: ActionNode, trigger: TriggerNode | None) -> str | None:
@@ -59,18 +63,19 @@ def flow_invalid_reason(action: ActionNode, trigger: TriggerNode | None) -> str 
     return None
 
 
-def build_prompt(action: ActionNode) -> str:
-    if action.playbook_id is None:
-        raise ValueError("action requires a playbook")
-    playbook = f"@playbook:{action.playbook_id}"
-    return f"{action.prompt}\n\n{playbook}" if action.prompt.strip() else playbook
+def build_prompt(prompt: str, playbook_id: str) -> str:
+    playbook = f"@playbook:{playbook_id}"
+    return f"{prompt}\n\n{playbook}" if prompt.strip() else playbook
 
 
 def build_automation_payload(
     action: ActionNode, trigger: TriggerNode
 ) -> AutomationCreate:
-    if trigger.event_action is None or trigger.repository_full_name is None:
-        raise ValueError("trigger is incomplete")
+    if not (is_action_complete(action) and is_trigger_complete(trigger)):
+        raise ValueError("action or trigger is incomplete")
+    assert action.playbook_id is not None
+    assert trigger.event_action is not None
+    assert trigger.repository_full_name is not None
     return AutomationCreate(
         name=(
             f"{action.name}: {trigger.repository_full_name} "
@@ -98,7 +103,9 @@ def build_automation_payload(
                 ),
             )
         ],
-        actions=[AutomationAction(prompt=build_prompt(action))],
+        actions=[
+            AutomationAction(prompt=build_prompt(action.prompt, action.playbook_id))
+        ],
         run_as=AutomationRunAs(),
         metadata={METADATA_KEY: str(action.id)},
     )
@@ -109,13 +116,19 @@ def mark_pending(action: ActionNode) -> None:
 
 
 def sync_action(session: Session, client: DevinClient, action_id: UUID) -> None:
-    action = session.get(ActionNode, action_id)
+    action = session.exec(
+        select(ActionNode).where(ActionNode.id == action_id).with_for_update()
+    ).first()
     if action is None:
         return
     action.updated_at = datetime.now(UTC)
     try:
         trigger = connected_trigger(session, action.id)
-        complete = trigger is not None and is_trigger_complete(trigger)
+        complete = (
+            trigger is not None
+            and is_trigger_complete(trigger)
+            and is_action_complete(action)
+        )
         if not complete and action.automation_id is None:
             action.sync_status = "unprovisioned"
             action.sync_error = None
