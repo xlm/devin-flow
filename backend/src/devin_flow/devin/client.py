@@ -1,6 +1,7 @@
 from collections.abc import Iterator
 from contextlib import contextmanager
 from functools import lru_cache
+from typing import Any
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field
@@ -19,6 +20,23 @@ class DevinSession(BaseModel):
 
 class SessionCreate(BaseModel):
     prompt: str = Field(min_length=1, max_length=20_000)
+
+
+class Playbook(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    playbook_id: str
+    title: str
+    body: str
+    macro: str | None = None
+    structured_output_schema: dict[str, Any] | None = None
+
+
+class PlaybookCreate(BaseModel):
+    title: str = Field(min_length=1)
+    body: str = Field(min_length=1)
+    macro: str | None = None
+    structured_output_schema: dict[str, Any] | None = None
 
 
 class DevinNotConfiguredError(RuntimeError):
@@ -72,6 +90,42 @@ class DevinClient:
             )
             response.raise_for_status()
             return DevinSession.model_validate(response.json())
+
+    def list_playbooks(self) -> list[Playbook]:
+        with _upstream_errors():
+            playbooks: list[Playbook] = []
+            params: dict[str, str | int] = {"first": 100}
+            while True:
+                response = self.http.get(
+                    f"/organizations/{self.org_id}/playbooks",
+                    params=params,
+                )
+                response.raise_for_status()
+                page = response.json()
+                playbooks.extend(
+                    Playbook.model_validate(playbook) for playbook in page["items"]
+                )
+                if not page.get("has_next_page"):
+                    return playbooks
+                params["after"] = page["end_cursor"]
+
+    def create_playbook(self, payload: PlaybookCreate) -> Playbook:
+        with _upstream_errors():
+            response = self.http.post(
+                f"/organizations/{self.org_id}/playbooks",
+                json=payload.model_dump(),
+            )
+            response.raise_for_status()
+            return Playbook.model_validate(response.json())
+
+    def update_playbook(self, playbook_id: str, payload: PlaybookCreate) -> Playbook:
+        with _upstream_errors():
+            response = self.http.put(
+                f"/organizations/{self.org_id}/playbooks/{playbook_id}",
+                json=payload.model_dump(),
+            )
+            response.raise_for_status()
+            return Playbook.model_validate(response.json())
 
 
 def create_client(settings: Settings) -> DevinClient:
