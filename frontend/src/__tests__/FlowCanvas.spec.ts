@@ -1111,6 +1111,7 @@ describe('FlowCanvas', () => {
     expect(mocks.PATCH).toHaveBeenCalledTimes(1)
     rejectFirst?.(new Error('down'))
     await first
+    await flushPromises()
     expect(node.data).toEqual({
       kind: 'action',
       name: '',
@@ -1185,6 +1186,226 @@ describe('FlowCanvas', () => {
     wrapper.unmount()
   })
 
+  it('applies a field edit made during a reload on top of the reloaded state', async () => {
+    const node = {
+      id: 'action',
+      position: { x: 3, y: 4 },
+      data: {
+        kind: 'action',
+        name: '',
+        playbookId: null,
+        prompt: '',
+      },
+    } as Node
+    const reloadedNode = {
+      id: 'action',
+      position: { x: 3, y: 4 },
+      data: {
+        kind: 'action',
+        name: '',
+        playbookId: null,
+        prompt: '',
+      },
+    } as Node
+    const provided = { value: undefined as SaveNodeFields | undefined }
+    mocks.findNode.mockReturnValue(node)
+    let resolveReload:
+      ((value: ReturnType<typeof response>) => void) | undefined
+    mocks.GET.mockResolvedValueOnce(response(canvas)).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveReload = resolve
+        }),
+    )
+    const wrapper = mount(FlowCanvas, {
+      global: { stubs: { NodePalette: saveProbe(provided) } },
+    })
+    await flushPromises()
+    const load = (
+      wrapper.vm as unknown as { loadCanvas: () => Promise<void> }
+    ).loadCanvas()
+    await flushPromises()
+    const save = provided.value?.('action', { name: 'Edited' })
+    await flushPromises()
+    expect(mocks.PATCH).not.toHaveBeenCalled()
+    mocks.findNode.mockReturnValue(reloadedNode)
+    resolveReload?.(response(canvas))
+    await load
+    await save
+    expect(reloadedNode.data.name).toBe('Edited')
+    expect(mocks.PATCH).toHaveBeenCalledTimes(1)
+    expect(mocks.PATCH).toHaveBeenLastCalledWith(
+      '/api/canvas/nodes/{kind}/{node_id}',
+      {
+        params: { path: { kind: 'action', node_id: 'action' } },
+        body: { name: 'Edited' },
+      },
+    )
+    expect(await save).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('keeps queued saves ordered across a reload', async () => {
+    const node = {
+      id: 'action',
+      position: { x: 3, y: 4 },
+      data: {
+        kind: 'action',
+        name: '',
+        playbookId: null,
+        prompt: '',
+      },
+    } as Node
+    const provided = { value: undefined as SaveNodeFields | undefined }
+    mocks.findNode.mockReturnValue(node)
+    let resolveFirstSave:
+      ((value: ReturnType<typeof response>) => void) | undefined
+    let resolveReload:
+      ((value: ReturnType<typeof response>) => void) | undefined
+    mocks.PATCH.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirstSave = resolve
+        }),
+    )
+    mocks.GET.mockResolvedValueOnce(response(canvas)).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveReload = resolve
+        }),
+    )
+    const wrapper = mount(FlowCanvas, {
+      global: { stubs: { NodePalette: saveProbe(provided) } },
+    })
+    await flushPromises()
+    const firstSave = provided.value?.('action', { name: 'First' })
+    await flushPromises()
+    const load = (
+      wrapper.vm as unknown as { loadCanvas: () => Promise<void> }
+    ).loadCanvas()
+    await flushPromises()
+    expect(mocks.GET).toHaveBeenCalledTimes(1)
+    const secondSave = provided.value?.('action', { name: 'Second' })
+    await flushPromises()
+    expect(mocks.PATCH).toHaveBeenCalledTimes(1)
+    resolveFirstSave?.(response(undefined))
+    await firstSave
+    await flushPromises()
+    expect(mocks.GET).toHaveBeenCalledTimes(2)
+    expect(mocks.PATCH).toHaveBeenCalledTimes(1)
+    resolveReload?.(response(canvas))
+    await load
+    await secondSave
+    expect(mocks.PATCH).toHaveBeenCalledTimes(2)
+    expect(mocks.PATCH).toHaveBeenLastCalledWith(
+      '/api/canvas/nodes/{kind}/{node_id}',
+      {
+        params: { path: { kind: 'action', node_id: 'action' } },
+        body: { name: 'Second' },
+      },
+    )
+    wrapper.unmount()
+  })
+
+  it('reapplies a drag position made during a reload', async () => {
+    const node = {
+      id: 'trigger',
+      position: { x: 1, y: 2 },
+      data: { kind: 'trigger' },
+    } as Node
+    const reloadedNode = {
+      id: 'trigger',
+      position: { x: 1, y: 2 },
+      data: { kind: 'trigger' },
+    } as Node
+    mocks.findNode.mockReturnValue(node)
+    let resolveReload:
+      ((value: ReturnType<typeof response>) => void) | undefined
+    mocks.GET.mockResolvedValueOnce(response(canvas)).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveReload = resolve
+        }),
+    )
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    const load = (
+      wrapper.vm as unknown as { loadCanvas: () => Promise<void> }
+    ).loadCanvas()
+    await flushPromises()
+    node.position = { x: 10, y: 11 }
+    const save = mocks.handlers.dragStop?.({ node })
+    await flushPromises()
+    expect(mocks.PATCH).not.toHaveBeenCalled()
+    mocks.findNode.mockReturnValue(reloadedNode)
+    resolveReload?.(response(canvas))
+    await load
+    await save
+    expect(reloadedNode.position).toEqual({ x: 10, y: 11 })
+    expect(mocks.PATCH).toHaveBeenCalledTimes(1)
+    expect(mocks.PATCH).toHaveBeenLastCalledWith(
+      '/api/canvas/nodes/{kind}/{node_id}',
+      {
+        params: { path: { kind: 'trigger', node_id: 'trigger' } },
+        body: { position: { x: 10, y: 11 } },
+      },
+    )
+    wrapper.unmount()
+  })
+
+  it('saves an edit when the reloaded node is missing', async () => {
+    const node = {
+      id: 'action',
+      position: { x: 3, y: 4 },
+      data: {
+        kind: 'action',
+        name: '',
+        playbookId: null,
+        prompt: '',
+      },
+    } as Node
+    const provided = { value: undefined as SaveNodeFields | undefined }
+    mocks.findNode.mockReturnValue(node)
+    let resolveReload:
+      ((value: ReturnType<typeof response>) => void) | undefined
+    mocks.GET.mockResolvedValueOnce(response(canvas)).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveReload = resolve
+        }),
+    )
+    const wrapper = mount(FlowCanvas, {
+      global: { stubs: { NodePalette: saveProbe(provided) } },
+    })
+    await flushPromises()
+    const load = (
+      wrapper.vm as unknown as { loadCanvas: () => Promise<void> }
+    ).loadCanvas()
+    await flushPromises()
+    const save = provided.value?.('action', { name: 'Edited' })
+    await flushPromises()
+    mocks.findNode.mockReturnValue(undefined)
+    resolveReload?.(
+      response({
+        trigger_nodes: [],
+        action_nodes: [],
+        outcome_nodes: [],
+        edges: [],
+      }),
+    )
+    await load
+    expect(await save).toBe(true)
+    expect(mocks.PATCH).toHaveBeenCalledTimes(1)
+    expect(mocks.PATCH).toHaveBeenLastCalledWith(
+      '/api/canvas/nodes/{kind}/{node_id}',
+      {
+        params: { path: { kind: 'action', node_id: 'action' } },
+        body: { name: 'Edited' },
+      },
+    )
+    wrapper.unmount()
+  })
+
   it('ignores unknown action field nodes', async () => {
     const node = {
       id: 'action',
@@ -1222,7 +1443,7 @@ describe('FlowCanvas', () => {
     wrapper.unmount()
   })
 
-  it('clears pending field state when the canvas reloads', async () => {
+  it('waits for in-flight saves before reloading', async () => {
     const node = {
       id: 'action',
       position: { x: 3, y: 4 },
@@ -1249,14 +1470,17 @@ describe('FlowCanvas', () => {
     await flushPromises()
     const save = provided.value?.('action', { name: 'Edited' })
     await flushPromises()
-    await (
+    const load = (
       wrapper.vm as unknown as {
         loadCanvas: () => Promise<void>
       }
     ).loadCanvas()
     await flushPromises()
+    expect(mocks.GET).toHaveBeenCalledTimes(1)
     resolveSave?.(response(undefined, { detail: 'failed' }, 500))
     await save
+    await load
+    expect(mocks.GET).toHaveBeenCalledTimes(2)
     expect(node.data.name).toBe('')
     wrapper.unmount()
   })
