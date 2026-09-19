@@ -12,6 +12,8 @@ export default defineConfigWithVueTs(
       'coverage/**',
       'src/api/schema.d.ts',
       'src/components/ui/**',
+      'test-results/**',
+      'playwright-report/**',
     ],
   },
   pluginVue.configs['flat/essential'],

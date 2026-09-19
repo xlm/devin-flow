@@ -66,6 +66,8 @@ pnpm lint && pnpm format:check && pnpm typecheck && pnpm test
 pnpm test:coverage             # frontend tests with 100% coverage gate (CI)
 pnpm generate:api              # regenerate openapi.json + schema.d.ts
 pnpm build                     # emits frontend/dist
+pnpm e2e:install               # one-time chromium for the browser suite
+pnpm e2e                       # browser E2E against a throwaway stack, stub Devin upstream
 uv run pre-commit run --all-files
 docker build -t devin-flow .
 ```

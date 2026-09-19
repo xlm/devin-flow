@@ -21,6 +21,7 @@ testing actual Devin integration.
    database revision is current and Vite `/api/health` returns ok.
    When restarting, inspect listening process IDs. Terminating a shell can
    leave FastAPI reloader or Vite children holding the original ports.
+   The browser suite is the first verification path for FlowCanvas changes.
 2. Create nodes by dragging palette cards onto the Canvas. When the palette
    is unavailable, seed through `/api/canvas/nodes/{kind}` with explicit
    positions. Retain a label-to-ID map. Use a dedicated empty local Canvas
@@ -57,15 +58,20 @@ The Vitest suite mocks `@vue-flow/core`, so a green frontend gate proves the
 component logic and nothing about how Vue Flow renders it. Treat any change
 to `FlowCanvas.vue` as unverified until it has run in the real browser.
 
-1. Populate the Canvas with a configured Trigger connected to an Action that
+1. Run `pnpm e2e` (after `pnpm e2e:install` once). It brings up a throwaway
+   Postgres, the stub Devin upstream in `frontend/e2e/harness/`, the backend
+   and Vite, and runs specs 1-9 against the real Vue Flow renderer. Use
+   `pnpm e2e -- --grep "spec 5"` for one spec. Only fall back to the manual
+   steps below for gestures the suite does not cover.
+2. Populate the Canvas with a configured Trigger connected to an Action that
    has a name and Playbook, matching a real user board rather than empty
    nodes.
-2. Repeat the mutating gesture (Refresh, reload, connect, delete) at least
+3. Repeat the mutating gesture (Refresh, reload, connect, delete) at least
    twice without a page reload. Vue Flow re-validates existing edges
    through `isValidConnection` every time the `edges` prop is replaced, so
    the second render can differ from the first (PR #33 dropped edges on
    alternate Refresh clicks this way).
-3. Finish when the rendered graph and its labels match GET after every
+4. Finish when the rendered graph and its labels match GET after every
    repetition and the console shows no new warnings.
 
 ## Outcome fixtures and assertions
