@@ -508,7 +508,7 @@ def test_retry_syncs_one_failure_does_not_stop_others(
 
     client = FailingClient(httpx.Client(), "org-test")
     with caplog.at_level(logging.ERROR, logger="devin_flow.automations"):
-        assert retry_syncs(unit_session, client) == 2
+        assert retry_syncs(unit_session, client) == 0
     assert attempted == ["auto-1", "auto-1"]
     assert caplog.text.count("sync of action") == 2
     assert "client exploded" in caplog.text
@@ -556,3 +556,41 @@ def test_sync_uses_fresh_fields_after_lock(
         "action": "closed",
         "repository.full_name": "octo/repo",
     }
+
+
+def test_retry_syncs_skips_action_settled_by_overlapping_cycle(
+    unit_session: Session, unit_engine: Engine
+) -> None:
+    first = action()
+    first.automation_id = "auto-1"
+    first.sync_status = "error"
+    other = action()
+    other.automation_id = "auto-2"
+    other.sync_status = "error"
+    unit_session.add_all([first, other])
+    unit_session.commit()
+    calls: list[str] = []
+
+    class OverlappingClient(DevinClient):
+        def update_automation(
+            self, automation_id: str, update: AutomationUpdate
+        ) -> Automation:
+            calls.append(automation_id)
+            if len(calls) == 1:
+                # an overlapping poll cycle settles the other Action
+                with Session(unit_engine) as session:
+                    settled = session.get(ActionNode, other.id)
+                    assert settled is not None
+                    settled.sync_status = "enabled"
+                    settled.sync_error = None
+                    session.add(settled)
+                    session.commit()
+            return Automation(automation_id=automation_id, name="auto", enabled=False)
+
+    client = OverlappingClient(httpx.Client(), "org-test")
+    assert retry_syncs(unit_session, client) == 1
+    assert calls == ["auto-1"]
+    stored = unit_session.get(ActionNode, other.id)
+    assert stored is not None
+    assert stored.sync_status == "enabled"
+    assert stored.sync_error is None
