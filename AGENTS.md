@@ -7,7 +7,8 @@
   `api/` (under `/api`), and static file serving in `web/spa.py`. Serves
   `frontend/dist` when it exists (or `STATIC_DIR`). Unknown `/api/*`
   paths must stay 404.
-  Settings (`DATABASE_URL`, `STATIC_DIR`) come from `config.py`
+  Settings (`DATABASE_URL`, `STATIC_DIR`, `DEVIN_API_TOKEN`, and
+  `DEVIN_ORG_ID`, the latter two required) come from `config.py`
   (pydantic-settings, `.env` aware). `db.py` builds the sync SQLModel
   engine lazily and exposes the `get_session` dependency. Table models
   live in `models/` and must be imported from `models/__init__.py` so

@@ -12,11 +12,24 @@ from testcontainers.community.postgres import PostgresContainer
 
 import devin_flow.models  # noqa: F401  (populates SQLModel.metadata)
 from devin_flow.app import create_app
+from devin_flow.config import get_settings
 from devin_flow.db import get_session
+from devin_flow.devin import get_devin_client
 from devin_flow.seed import seed
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 ALEMBIC_INI = BACKEND_DIR / "alembic.ini"
+
+
+@pytest.fixture(autouse=True)
+def devin_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    monkeypatch.setenv("DEVIN_API_TOKEN", "test-token")
+    monkeypatch.setenv("DEVIN_ORG_ID", "org-test")
+    get_settings.cache_clear()
+    get_devin_client.cache_clear()
+    yield
+    get_settings.cache_clear()
+    get_devin_client.cache_clear()
 
 
 def make_client(session: Session, static_dir: Path) -> TestClient:

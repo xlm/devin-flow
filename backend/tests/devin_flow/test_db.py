@@ -6,15 +6,16 @@ from sqlmodel import Session, text
 
 from devin_flow import db
 from devin_flow.config import get_settings
+from devin_flow.db import get_engine
 
 
 @pytest.fixture(autouse=True)
 def clear_caches() -> Iterator[None]:
     get_settings.cache_clear()
-    db.get_engine.cache_clear()
+    get_engine.cache_clear()
     yield
     get_settings.cache_clear()
-    db.get_engine.cache_clear()
+    get_engine.cache_clear()
 
 
 def test_get_engine_uses_settings_url(monkeypatch: pytest.MonkeyPatch) -> None:

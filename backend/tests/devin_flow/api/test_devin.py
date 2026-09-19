@@ -1,4 +1,3 @@
-from collections.abc import Iterator
 from pathlib import Path
 
 import httpx
@@ -12,14 +11,9 @@ from devin_flow.devin.client import DevinClient
 
 
 @pytest.fixture(autouse=True)
-def clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[None]:
-    monkeypatch.delenv("DEVIN_API_TOKEN", raising=False)
+def clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.delenv("DEVIN_API_BASE_URL", raising=False)
-    monkeypatch.delenv("DEVIN_ORG_ID", raising=False)
     monkeypatch.chdir(tmp_path)
-    get_settings.cache_clear()
-    get_devin_client.cache_clear()
-    yield
     get_settings.cache_clear()
     get_devin_client.cache_clear()
 
@@ -127,12 +121,6 @@ def test_upstream_failure_does_not_expose_token(tmp_path: Path) -> None:
     upstream.http.close()
 
 
-def test_missing_token_returns_503(tmp_path: Path) -> None:
-    response = TestClient(create_app(static_dir=tmp_path)).get("/api/devin/sessions")
-    assert response.status_code == 503
-    assert response.json() == {"detail": "DEVIN_API_TOKEN is not set"}
-
-
 def test_non_tls_remote_base_url_returns_503(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -142,20 +130,6 @@ def test_non_tls_remote_base_url_returns_503(
     response = TestClient(create_app(static_dir=tmp_path)).get("/api/devin/sessions")
     assert response.status_code == 503
     assert response.json() == {"detail": "DEVIN_API_BASE_URL must use https"}
-
-
-@pytest.mark.parametrize("org_id", [None, ""])
-def test_missing_org_id_returns_503(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, org_id: str | None
-) -> None:
-    monkeypatch.setenv("DEVIN_API_TOKEN", "secret")
-    if org_id is None:
-        monkeypatch.delenv("DEVIN_ORG_ID", raising=False)
-    else:
-        monkeypatch.setenv("DEVIN_ORG_ID", org_id)
-    response = TestClient(create_app(static_dir=tmp_path)).get("/api/devin/sessions")
-    assert response.status_code == 503
-    assert response.json() == {"detail": "DEVIN_ORG_ID is not set"}
 
 
 @pytest.mark.parametrize("limit", [0, 201])
