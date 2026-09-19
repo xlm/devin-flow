@@ -3,7 +3,12 @@ import { Trash2 } from '@lucide/vue'
 import { Handle, Position, useVueFlow } from '@vue-flow/core'
 import { NodeToolbar } from '@vue-flow/node-toolbar'
 import { Button } from '@/components/ui/button'
-import { nodeAccentClass, nodeHint, nodeLabel } from '@/lib/nodeKinds'
+import {
+  NODE_HANDLES,
+  nodeAccentClass,
+  nodeHint,
+  nodeLabel,
+} from '@/lib/nodeKinds'
 import type { NodeKind } from '@/lib/connectRules'
 
 const props = defineProps<{
@@ -38,12 +43,12 @@ const { removeNodes } = useVueFlow()
     <div class="text-xs text-muted-foreground">{{ nodeHint(props.kind) }}</div>
   </div>
   <Handle
-    v-if="props.kind === 'action' || props.kind === 'outcome'"
+    v-if="NODE_HANDLES[props.kind].target"
     type="target"
     :position="Position.Left"
   />
   <Handle
-    v-if="props.kind === 'trigger' || props.kind === 'action'"
+    v-if="NODE_HANDLES[props.kind].source"
     type="source"
     :position="Position.Right"
   />

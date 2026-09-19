@@ -1,6 +1,33 @@
 import type { NodeKind } from '@/lib/connectRules'
 
-export const NODE_KINDS: readonly NodeKind[] = ['trigger', 'action', 'outcome']
+const KINDS: Record<NodeKind, true> = {
+  trigger: true,
+  action: true,
+  outcome: true,
+}
+
+const NODE_HINTS: Record<NodeKind, string> = {
+  trigger: 'Choose repository and event',
+  action: 'Choose a Playbook',
+  outcome: 'Choose an Outcome kind',
+}
+
+const NODE_ACCENT_CLASSES: Record<NodeKind, string> = {
+  trigger: 'border-l-sky-500',
+  action: 'border-l-violet-500',
+  outcome: 'border-l-emerald-500',
+}
+
+export const NODE_HANDLES: Record<
+  NodeKind,
+  { target: boolean; source: boolean }
+> = {
+  trigger: { target: false, source: true },
+  action: { target: true, source: true },
+  outcome: { target: true, source: false },
+}
+
+export const NODE_KINDS: readonly NodeKind[] = Object.keys(KINDS) as NodeKind[]
 export const NODE_KIND_MIME = 'application/x-devin-flow-node-kind'
 
 export function isNodeKind(value: string): value is NodeKind {
@@ -12,13 +39,9 @@ export function nodeLabel(kind: NodeKind): string {
 }
 
 export function nodeHint(kind: NodeKind): string {
-  if (kind === 'trigger') return 'Choose repository and event'
-  if (kind === 'action') return 'Choose a Playbook'
-  return 'Choose an Outcome kind'
+  return NODE_HINTS[kind]
 }
 
 export function nodeAccentClass(kind: NodeKind): string {
-  if (kind === 'trigger') return 'border-l-sky-500'
-  if (kind === 'action') return 'border-l-violet-500'
-  return 'border-l-emerald-500'
+  return NODE_ACCENT_CLASSES[kind]
 }
