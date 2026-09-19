@@ -58,7 +58,7 @@ describe('ActionNode', () => {
       data: [{ id: 'pb-1', title: 'Triage' }],
       error: undefined,
     })
-    const save = vi.fn().mockResolvedValue(undefined)
+    const save = vi.fn().mockResolvedValue(true)
     const wrapper = mountAction(
       {
         name: 'Triage action',
@@ -84,6 +84,14 @@ describe('ActionNode', () => {
           .element as HTMLTextAreaElement
       ).value,
     ).toBe('Notes')
+    expect(
+      wrapper.get('[data-testid="action-name"]').attributes('maxlength'),
+    ).toBe('200')
+    expect(
+      wrapper
+        .get('[data-testid="action-instructions"]')
+        .attributes('maxlength'),
+    ).toBe('20000')
     await wrapper.get('[data-testid="action-name"]').setValue('Updated')
     await wrapper.get('[data-testid="action-name"]').trigger('change')
     await wrapper.get('[data-testid="action-playbook"]').setValue('pb-1')
@@ -97,7 +105,7 @@ describe('ActionNode', () => {
 
   it('saves null when the playbook placeholder is selected', async () => {
     GET.mockResolvedValue({ data: [], error: undefined })
-    const save = vi.fn().mockResolvedValue(undefined)
+    const save = vi.fn().mockResolvedValue(true)
     const wrapper = mountAction({ name: 'Triage', playbookId: 'pb-1' }, save)
     await flushPromises()
     await wrapper.get('[data-testid="action-playbook"]').setValue('')
@@ -134,6 +142,7 @@ describe('ActionNode', () => {
       wrapper.get('[data-testid="canvas-node"]').attributes('data-incomplete'),
     ).toBe('true')
     expect(wrapper.text()).toContain('No Trigger')
+    expect(wrapper.text()).toContain('Connect a Trigger to this Action')
   })
 
   it('keeps whitespace-only names incomplete', async () => {
@@ -144,6 +153,7 @@ describe('ActionNode', () => {
       wrapper.get('[data-testid="canvas-node"]').attributes('data-incomplete'),
     ).toBe('true')
     expect(wrapper.text()).toContain('Incomplete')
+    expect(wrapper.text()).toContain('Choose a Playbook')
   })
 
   it('preserves an unknown selected playbook', async () => {
@@ -201,5 +211,31 @@ describe('ActionNode', () => {
     await expect(
       wrapper.get('[data-testid="action-name"]').trigger('change'),
     ).resolves.not.toThrow()
+    await flushPromises()
+    expect(wrapper.get('[data-testid="save-error"]').text()).toBe(
+      'Could not save',
+    )
+  })
+
+  it('shows and clears the save error', async () => {
+    GET.mockResolvedValue({ data: [], error: undefined })
+    const save = vi
+      .fn()
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true)
+    const wrapper = mountAction({}, save)
+    await flushPromises()
+    const input = wrapper.get('[data-testid="action-name"]')
+    ;(input.element as HTMLInputElement).value = 'First'
+    await input.trigger('change')
+    await flushPromises()
+    expect(save).toHaveBeenCalledWith('n1', { name: 'First' })
+    expect(wrapper.get('[data-testid="save-error"]').text()).toBe(
+      'Could not save',
+    )
+    ;(input.element as HTMLInputElement).value = 'Second'
+    await input.trigger('change')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="save-error"]').exists()).toBe(false)
   })
 })

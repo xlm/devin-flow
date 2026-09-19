@@ -4,7 +4,7 @@ import type { ActionFields } from '@/lib/actionValidity'
 export type SaveNodeFields = (
   nodeId: string,
   fields: Partial<ActionFields>,
-) => Promise<void>
+) => Promise<boolean>
 
 export const SAVE_NODE_FIELDS: InjectionKey<SaveNodeFields> =
   Symbol('saveNodeFields')

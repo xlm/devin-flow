@@ -18,6 +18,7 @@ const props = withDefaults(
     kind: NodeKind
     complete?: boolean
     status?: string
+    hint?: string
   }>(),
   { complete: false },
 )
@@ -55,7 +56,7 @@ const statusLabel = computed(
       statusLabel
     }}</span>
     <div v-if="!props.complete" class="text-xs text-muted-foreground">
-      {{ nodeHint(props.kind) }}
+      {{ props.hint ?? nodeHint(props.kind) }}
     </div>
   </div>
   <Handle
