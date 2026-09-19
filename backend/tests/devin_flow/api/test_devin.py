@@ -57,6 +57,84 @@ def test_list_sessions_proxies_response_and_limit(tmp_path: Path) -> None:
     upstream.http.close()
 
 
+def test_list_playbooks_maps_two_pages(tmp_path: Path) -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        assert request.url.path == "/organizations/org-test/playbooks"
+        if len(requests) == 1:
+            assert request.url.params["first"] == "100"
+            return httpx.Response(
+                200,
+                json={
+                    "items": [
+                        {
+                            "playbook_id": "pb-1",
+                            "title": "Triage",
+                            "body": "body",
+                        }
+                    ],
+                    "has_next_page": True,
+                    "end_cursor": "cursor-1",
+                },
+            )
+        assert request.url.params["after"] == "cursor-1"
+        return httpx.Response(
+            200,
+            json={
+                "items": [
+                    {
+                        "playbook_id": "pb-2",
+                        "title": "Deploy",
+                        "body": "body",
+                    }
+                ],
+                "has_next_page": False,
+            },
+        )
+
+    client, upstream = make_client(tmp_path, httpx.MockTransport(handler))
+    response = client.get("/api/devin/playbooks")
+    assert response.status_code == 200
+    assert response.json() == [
+        {"id": "pb-1", "title": "Triage"},
+        {"id": "pb-2", "title": "Deploy"},
+    ]
+    upstream.http.close()
+
+
+def test_list_playbooks_maps_upstream_failure_without_secret(
+    tmp_path: Path,
+) -> None:
+    secret = "secret-string"
+    client, upstream = make_client(
+        tmp_path,
+        httpx.MockTransport(
+            lambda request: httpx.Response(
+                500, text=f"Authorization: Bearer test-token {secret}"
+            )
+        ),
+    )
+    response = client.get("/api/devin/playbooks")
+    assert response.status_code == 502
+    assert response.json() == {"detail": "devin api returned HTTP 500"}
+    assert "test-token" not in response.text
+    assert secret not in response.text
+    upstream.http.close()
+
+
+def test_list_playbooks_maps_unreachable_upstream(tmp_path: Path) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("down", request=request)
+
+    client, upstream = make_client(tmp_path, httpx.MockTransport(handler))
+    response = client.get("/api/devin/playbooks")
+    assert response.status_code == 502
+    assert response.json() == {"detail": "devin api unreachable"}
+    upstream.http.close()
+
+
 def test_create_session_proxies_response(tmp_path: Path) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "POST"
