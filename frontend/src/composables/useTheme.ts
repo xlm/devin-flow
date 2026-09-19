@@ -12,9 +12,23 @@ function isThemeMode(value: string | null): value is ThemeMode {
   return MODES.some((mode) => mode === value)
 }
 
+// Storage access throws when browser policy blocks it; theming still
+// works, it just is not persisted.
 function readStoredMode(): ThemeMode {
-  const stored = localStorage.getItem(STORAGE_KEY)
-  return isThemeMode(stored) ? stored : 'system'
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    return isThemeMode(stored) ? stored : 'system'
+  } catch {
+    return 'system'
+  }
+}
+
+function storeMode(mode: ThemeMode) {
+  try {
+    localStorage.setItem(STORAGE_KEY, mode)
+  } catch {
+    // ignore
+  }
 }
 
 export function useTheme() {
@@ -29,7 +43,7 @@ export function useTheme() {
 
   function cycleMode() {
     mode.value = MODES[(MODES.indexOf(mode.value) + 1) % MODES.length]!
-    localStorage.setItem(STORAGE_KEY, mode.value)
+    storeMode(mode.value)
   }
 
   function onSystemChange(event: MediaQueryListEvent) {
