@@ -1911,7 +1911,7 @@ describe('FlowCanvas', () => {
     await flushPromises()
     expect(vueFlow(wrapper).props('edges')).toEqual([
       expect.objectContaining({ id: 'edge', label: '1 invocation' }),
-      expect.not.objectContaining({ label: expect.anything() }),
+      expect.objectContaining({ id: 'action-outcome', label: '0 outcomes' }),
     ])
     wrapper.unmount()
   })
@@ -1971,6 +1971,88 @@ describe('FlowCanvas', () => {
     await flushPromises()
     expect(mocks.getEdges.value).toEqual([
       expect.objectContaining({ id: 'edge', label: '3 invocations' }),
+    ])
+    wrapper.unmount()
+  })
+
+  it('labels Action to Outcome edges with the outcome count', async () => {
+    mocks.GET.mockResolvedValueOnce(
+      response({
+        ...canvas,
+        edges: [
+          ...canvas.edges,
+          {
+            id: 'action-outcome',
+            source: { id: 'action', kind: 'action' },
+            target: { id: 'outcome', kind: 'outcome' },
+            outcome_count: 1,
+          },
+        ],
+      }),
+    )
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    expect(vueFlow(wrapper).props('edges')).toEqual([
+      expect.objectContaining({ id: 'edge', label: '2 invocations' }),
+      expect.objectContaining({ id: 'action-outcome', label: '1 outcome' }),
+    ])
+    wrapper.unmount()
+  })
+
+  it('updates Outcome edge labels when sync state is refreshed', async () => {
+    const outcomeEdge = {
+      id: 'action-outcome',
+      source: { id: 'action', kind: 'action' },
+      target: { id: 'outcome', kind: 'outcome' },
+      outcome_count: 1,
+    }
+    mocks.GET.mockResolvedValueOnce(
+      response({ ...canvas, edges: [...canvas.edges, outcomeEdge] }),
+    ).mockResolvedValueOnce(
+      response({
+        ...canvas,
+        edges: [
+          { ...canvas.edges[0], outcome_count: null },
+          { ...outcomeEdge, outcome_count: 5 },
+          {
+            id: 'detached-outcome',
+            source: { id: 'action', kind: 'action' },
+            target: { id: 'gone', kind: 'outcome' },
+            outcome_count: 7,
+          },
+          {
+            id: 'unset-outcome',
+            source: { id: 'action', kind: 'action' },
+            target: { id: 'unset', kind: 'outcome' },
+            outcome_count: null,
+          },
+        ],
+      }),
+    )
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    mocks.getEdges.value.push(
+      {
+        id: 'action-outcome',
+        source: 'action',
+        target: 'outcome',
+        data: { sourceKind: 'action', targetKind: 'outcome' },
+        label: '1 outcome',
+      },
+      {
+        id: 'unset-outcome',
+        source: 'action',
+        target: 'unset',
+        data: { sourceKind: 'action', targetKind: 'outcome' },
+        label: 'stale',
+      },
+    )
+    mocks.handlers.nodesChange?.([{ type: 'remove', id: 'trigger' }])
+    await flushPromises()
+    expect(mocks.getEdges.value).toEqual([
+      expect.objectContaining({ id: 'edge', label: '2 invocations' }),
+      expect.objectContaining({ id: 'action-outcome', label: '5 outcomes' }),
+      expect.objectContaining({ id: 'unset-outcome', label: '0 outcomes' }),
     ])
     wrapper.unmount()
   })

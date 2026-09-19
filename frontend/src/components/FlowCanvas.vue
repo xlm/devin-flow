@@ -43,6 +43,7 @@ import {
   type Position,
 } from '@/lib/connectRules'
 import { isNodeKind, NODE_KIND_MIME, nodeLabel } from '@/lib/nodeKinds'
+import { outcomeCountLabel } from '@/lib/outcomeKinds'
 
 const RESIZE_DEBOUNCE_MS = 100
 
@@ -82,6 +83,7 @@ function mapNode(node: NodeRead | ActionNodeRead): Node {
     label: nodeLabel(node.kind),
   }
   if (node.kind === 'trigger') data.trigger = node.trigger
+  if (node.kind === 'outcome') data.outcome = node.outcome
   if ('name' in node) {
     data = {
       ...data,
@@ -112,6 +114,9 @@ function mapEdge(edge: EdgeRead, counts: Map<string, number>): Edge {
   }
   if (edge.target.kind === 'action') {
     mapped.label = invocationLabel(counts.get(edge.target.id) ?? 0)
+  }
+  if (edge.target.kind === 'outcome') {
+    mapped.label = outcomeCountLabel(edge.outcome_count ?? 0)
   }
   return mapped
 }
@@ -365,6 +370,14 @@ async function refreshSyncState() {
           edge.label = invocationLabel(count)
         })
     })
+    data.edges
+      .filter((edge) => edge.target.kind === 'outcome')
+      .forEach((edge) => {
+        const current = getEdges.value.find((item) => item.id === edge.id)
+        if (current) {
+          current.label = outcomeCountLabel(edge.outcome_count ?? 0)
+        }
+      })
   } catch {
     return
   }
