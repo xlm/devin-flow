@@ -14,9 +14,9 @@ organisation. There is exactly one Canvas per deployment.
 _Avoid_: Board, workspace, diagram
 
 **Flow**:
-One Trigger node linked into one Action node, optionally linked on to
-Outcome nodes. A Flow is the unit that gets enabled and provisions exactly
-one Automation.
+An Action node with exactly one incoming Trigger edge, optionally linked
+on to Outcome nodes. A Flow is the shape that lets the Action node's
+Automation be enabled.
 _Avoid_: Pipeline, automation, workflow
 
 **Trigger node**:
@@ -26,8 +26,8 @@ _Avoid_: Source, event node, input
 
 **Action node**:
 A node describing the Devin session to start: a Playbook plus optional
-extra instructions, and a user friendly name. Carries the Flow's enabled
-switch.
+extra instructions, and a user friendly name. Owns exactly one Automation
+and carries its enabled switch.
 _Avoid_: Task, step, output
 
 **Outcome node**:
@@ -44,9 +44,9 @@ _Avoid_: Connection, link, wire
 ### Devin side
 
 **Automation**:
-The object on the Devin side that a Flow provisions and keeps in sync.
-Identified by its Devin `automation_id`. Never created twice for the same
-Flow; disabled rather than deleted.
+The object on the Devin side that an Action node provisions and keeps in
+sync. Identified by its Devin `automation_id`. Never created twice for the
+same Action node; disabled rather than deleted.
 _Avoid_: Flow, job, rule
 
 **Playbook**:
