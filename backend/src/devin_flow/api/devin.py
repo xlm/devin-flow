@@ -20,6 +20,11 @@ class ErrorResponse(BaseModel):
     detail: str
 
 
+class PlaybookOption(BaseModel):
+    id: str
+    title: str
+
+
 def upstream_error(exc: DevinUpstreamError) -> HTTPException:
     return HTTPException(status_code=502, detail=exc.detail)
 
@@ -42,6 +47,25 @@ def list_sessions(
         return client.list_sessions(limit=limit)
     except DevinUpstreamError as exc:
         raise upstream_error(exc) from exc
+
+
+@router.get(
+    "/devin/playbooks",
+    response_model=list[PlaybookOption],
+    responses={
+        502: {"model": ErrorResponse, "description": "Devin API failure"},
+        503: {
+            "model": ErrorResponse,
+            "description": "Devin API not configured",
+        },
+    },
+)
+def list_playbooks(client: DevinClientDep) -> list[PlaybookOption]:
+    try:
+        playbooks = client.list_playbooks()
+    except DevinUpstreamError as exc:
+        raise upstream_error(exc) from exc
+    return [PlaybookOption(id=p.playbook_id, title=p.title) for p in playbooks]
 
 
 @router.get(

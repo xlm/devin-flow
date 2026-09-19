@@ -10,6 +10,8 @@ def test_dump_openapi_includes_health_endpoint() -> None:
     assert spec["paths"]["/api/health"]["get"]
     assert spec["components"]["schemas"]["HealthResponse"]
     assert "/api/canvas" in spec["paths"]
+    assert "/api/devin/playbooks" in spec["paths"]
+    assert "ActionNodeRead" in spec["components"]["schemas"]
 
 
 def test_dump_openapi_has_no_items_endpoints() -> None:
