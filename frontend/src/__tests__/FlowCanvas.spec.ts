@@ -1297,6 +1297,11 @@ describe('FlowCanvas', () => {
     )
     const wrapper = mount(FlowCanvas)
     await flushPromises()
+    mocks.findNode.mockImplementation((id: string) =>
+      (vueFlow(wrapper).props('nodes') as Node[]).find(
+        (node) => node.id === id,
+      ),
+    )
     mocks.handlers.nodesChange?.([{ type: 'remove', id: 'trigger' }])
     await flushPromises()
     expect(mocks.GET).toHaveBeenCalledTimes(2)
@@ -1583,9 +1588,9 @@ describe('FlowCanvas', () => {
       outcome_nodes: [],
       edges: [],
     }
-    mocks.GET.mockResolvedValueOnce(response(canvas)).mockResolvedValueOnce(
-      response(refetched),
-    )
+    mocks.GET.mockResolvedValueOnce(response(canvas))
+      .mockResolvedValueOnce(response(canvas))
+      .mockResolvedValueOnce(response(refetched))
     mocks.DELETE.mockResolvedValueOnce(
       response(undefined),
     ).mockResolvedValueOnce(
@@ -1598,7 +1603,7 @@ describe('FlowCanvas', () => {
       { type: 'remove', id: 'action' },
     ])
     await flushPromises()
-    expect(mocks.GET).toHaveBeenCalledTimes(2)
+    expect(mocks.GET).toHaveBeenCalledTimes(3)
     expect(vueFlow(wrapper).props('nodes')).toHaveLength(1)
     expect(vueFlow(wrapper).props('nodes')[0]).toEqual({
       id: 'action',
