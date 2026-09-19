@@ -411,11 +411,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             },
-            "description": "Invalid canvas connection"
+            "description": "Validation Error"
           }
         },
         "summary": "Create Edge"
@@ -464,11 +464,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             },
-            "description": "Invalid canvas connection"
+            "description": "Validation Error"
           }
         },
         "summary": "Delete Edge"
@@ -538,11 +538,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             },
-            "description": "Invalid canvas connection"
+            "description": "Validation Error"
           }
         },
         "summary": "Create Node"
@@ -605,11 +605,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             },
-            "description": "Invalid canvas connection"
+            "description": "Validation Error"
           }
         },
         "summary": "Delete Node"
@@ -687,11 +687,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             },
-            "description": "Invalid canvas connection"
+            "description": "Validation Error"
           }
         },
         "summary": "Move Node"
