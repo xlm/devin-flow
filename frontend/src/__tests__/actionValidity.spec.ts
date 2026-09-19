@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   actionFieldsFromData,
   actionFieldsOf,
+  actionIncompleteHint,
   actionInvalidReason,
   hasLinkedTrigger,
   isActionComplete,
@@ -56,6 +57,15 @@ describe('action validity', () => {
     [{ name: 'Triage', playbookId: null }, false],
   ])('checks action completion', (fields, complete) => {
     expect(isActionComplete(fields)).toBe(complete)
+  })
+
+  it.each([
+    [{ name: '', playbookId: null }, 'Enter a name and choose a Playbook'],
+    [{ name: '', playbookId: 'pb-1' }, 'Enter a name'],
+    [{ name: 'Triage', playbookId: null }, 'Choose a Playbook'],
+    [{ name: 'Triage', playbookId: 'pb-1' }, null],
+  ])('describes incomplete action fields', (fields, hint) => {
+    expect(actionIncompleteHint(fields)).toBe(hint)
   })
 
   it('finds only linked trigger edges', () => {
