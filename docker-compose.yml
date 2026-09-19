@@ -1,3 +1,10 @@
+# Devin credentials come from the shell or the root .env (compose reads it);
+# Settings refuses to load without them, so every backend service needs them
+x-backend-env: &backend-env
+  DATABASE_URL: postgresql+psycopg://devin:devin@db:5432/devin_flow
+  DEVIN_API_TOKEN: ${DEVIN_API_TOKEN:?set DEVIN_API_TOKEN in .env}
+  DEVIN_ORG_ID: ${DEVIN_ORG_ID:?set DEVIN_ORG_ID in .env}
+
 services:
   db:
     image: postgres:18
@@ -20,7 +27,7 @@ services:
     build: .
     entrypoint: ["alembic", "-c", "/app/backend/alembic.ini", "upgrade", "head"]
     environment:
-      DATABASE_URL: postgresql+psycopg://devin:devin@db:5432/devin_flow
+      <<: *backend-env
     depends_on:
       db:
         condition: service_healthy
@@ -29,7 +36,7 @@ services:
   app:
     build: .
     environment:
-      DATABASE_URL: postgresql+psycopg://devin:devin@db:5432/devin_flow
+      <<: *backend-env
     ports:
       - "8000:8000"
     depends_on:
@@ -41,7 +48,7 @@ services:
     build: .
     entrypoint: ["seed"]
     environment:
-      DATABASE_URL: postgresql+psycopg://devin:devin@db:5432/devin_flow
+      <<: *backend-env
     depends_on:
       migrate:
         condition: service_completed_successfully
