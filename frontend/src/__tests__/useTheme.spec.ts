@@ -90,6 +90,21 @@ describe('useTheme', () => {
     expect(theme.mode.value).toBe('light')
   })
 
+  it('falls back to system mode and keeps working when storage is blocked', () => {
+    const blocked = () => {
+      throw new DOMException('blocked', 'SecurityError')
+    }
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(blocked)
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(blocked)
+
+    const { theme } = mountTheme()
+    expect(theme.mode.value).toBe('system')
+    theme.cycleMode()
+    expect(theme.mode.value).toBe('light')
+
+    vi.restoreAllMocks()
+  })
+
   it('stops following the OS preference after unmount', () => {
     const { wrapper } = mountTheme()
     expect(media.listeners.size).toBe(1)
