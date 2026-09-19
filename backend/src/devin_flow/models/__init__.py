@@ -8,6 +8,7 @@ from devin_flow.models.canvas import (
     NodeBase,
     NodeKind,
     OutcomeNode,
+    SyncStatus,
     TriggerNode,
 )
 
@@ -19,5 +20,6 @@ __all__ = [
     "NodeBase",
     "NodeKind",
     "OutcomeNode",
+    "SyncStatus",
     "TriggerNode",
 ]

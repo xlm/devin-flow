@@ -7,6 +7,15 @@ import pytest
 from devin_flow.config import Settings, get_settings
 from devin_flow.devin import DevinClient, get_devin_client
 from devin_flow.devin.client import (
+    Automation,
+    AutomationAction,
+    AutomationCondition,
+    AutomationConditionGroup,
+    AutomationConditions,
+    AutomationCreate,
+    AutomationRunAs,
+    AutomationTrigger,
+    AutomationUpdate,
     DevinNotConfiguredError,
     DevinSession,
     DevinUpstreamError,
@@ -533,3 +542,116 @@ def test_get_devin_client_is_cached(monkeypatch: pytest.MonkeyPatch) -> None:
     assert first is get_devin_client()
     assert isinstance(first, DevinClient)
     first.http.close()
+
+
+def automation_payload() -> AutomationCreate:
+    return AutomationCreate(
+        name="Triage",
+        enabled=True,
+        triggers=[
+            AutomationTrigger(
+                event_type="github:issues",
+                conditions=AutomationConditions(
+                    any=[
+                        AutomationConditionGroup(
+                            all=[
+                                AutomationCondition(field="action", value="opened"),
+                                AutomationCondition(
+                                    field="repository.full_name", value="octo/repo"
+                                ),
+                            ]
+                        )
+                    ]
+                ),
+            )
+        ],
+        actions=[AutomationAction(prompt="@playbook:pb-1")],
+        run_as=AutomationRunAs(),
+        metadata={"devin_flow_action_id": "action-id"},
+    )
+
+
+def test_list_automations_filters_metadata_and_follows_cursor() -> None:
+    calls: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        if len(calls) == 1:
+            assert request.url.params["first"] == "100"
+            assert request.url.params["metadata.devin_flow_action_id"] == "action-id"
+            return httpx.Response(
+                200,
+                json={
+                    "items": [
+                        {
+                            "automation_id": "auto-1",
+                            "name": "One",
+                            "enabled": True,
+                            "metadata": {},
+                            "ignored": True,
+                        }
+                    ],
+                    "has_next_page": True,
+                    "end_cursor": "cursor-1",
+                },
+            )
+        assert request.url.params["after"] == "cursor-1"
+        return httpx.Response(
+            200,
+            json={
+                "items": [
+                    {
+                        "automation_id": "auto-2",
+                        "name": "Two",
+                        "enabled": False,
+                    }
+                ],
+                "has_next_page": False,
+                "end_cursor": None,
+            },
+        )
+
+    client = make_client(httpx.MockTransport(handler))
+    assert client.list_automations({"devin_flow_action_id": "action-id"}) == [
+        Automation(
+            automation_id="auto-1",
+            name="One",
+            enabled=True,
+            metadata={},
+        ),
+        Automation(automation_id="auto-2", name="Two", enabled=False),
+    ]
+    client.http.close()
+
+
+def test_create_and_update_automation_use_json_payloads() -> None:
+    payload = automation_payload()
+    calls: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        if request.method == "POST":
+            assert request.url.path == "/organizations/org-test/automations"
+            assert json.loads(request.read()) == payload.model_dump()
+        else:
+            assert request.method == "PATCH"
+            assert request.url.path.endswith("/automations/auto-1")
+            assert json.loads(request.read()) == {"enabled": False}
+        return httpx.Response(
+            201 if request.method == "POST" else 200,
+            json={
+                "automation_id": "auto-1",
+                "name": "Triage",
+                "enabled": request.method == "POST",
+                "metadata": {"devin_flow_action_id": "action-id"},
+            },
+        )
+
+    client = make_client(httpx.MockTransport(handler))
+    assert client.create_automation(payload).automation_id == "auto-1"
+    assert (
+        client.update_automation("auto-1", AutomationUpdate(enabled=False)).enabled
+        is False
+    )
+    assert [call.method for call in calls] == ["POST", "PATCH"]
+    client.http.close()
