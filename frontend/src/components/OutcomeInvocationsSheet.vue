@@ -1,14 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, watch } from 'vue'
 import { client } from '@/api/client'
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
+import InvocationsSheet from '@/components/InvocationsSheet.vue'
+import { useInvocationList } from '@/composables/useInvocationList'
 import type { OutcomeInvocationRead, OutcomeKind } from '@/lib/connectRules'
+import { formatDate } from '@/lib/formatDate'
 import { outcomeKindLabel } from '@/lib/outcomeKinds'
 
 const props = defineProps<{
@@ -19,150 +15,96 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ 'update:open': [value: boolean] }>()
 
-const invocations = ref<OutcomeInvocationRead[]>([])
-const loading = ref(false)
-const loadError = ref(false)
-// Out-of-order responses must not overwrite a newer node's data.
-let generation = 0
+const {
+  items: invocations,
+  loading,
+  loadError,
+  load,
+} = useInvocationList<OutcomeInvocationRead>(() =>
+  client.GET('/api/outcome-nodes/{node_id}/invocations', {
+    params: {
+      // `load` only runs while nodeId is set; the watch below guards it.
+      path: { node_id: props.nodeId as string },
+      query: props.actionNodeId ? { action_node_id: props.actionNodeId } : {},
+    },
+  }),
+)
 
 const title = computed(() =>
   props.kind ? `${outcomeKindLabel(props.kind)} outcomes` : 'Outcome',
 )
 
-async function load() {
-  if (!props.nodeId) return
-  const current = ++generation
-  loading.value = true
-  loadError.value = false
-  try {
-    const { data, error } = await client.GET(
-      '/api/outcome-nodes/{node_id}/invocations',
-      {
-        params: {
-          path: { node_id: props.nodeId },
-          query: props.actionNodeId
-            ? { action_node_id: props.actionNodeId }
-            : {},
-        },
-      },
-    )
-    if (current !== generation) return
-    if (error || !data) {
-      loadError.value = true
-    } else {
-      invocations.value = data
-    }
-  } catch {
-    if (current !== generation) return
-    loadError.value = true
-  } finally {
-    if (current === generation) loading.value = false
-  }
-}
-
 watch(
   () => [props.open, props.nodeId, props.actionNodeId] as const,
-  ([open]) => {
-    if (open) void load()
+  ([open, nodeId]) => {
+    if (open && nodeId) void load()
   },
   { immediate: true },
 )
-
-function formatDate(value: string): string {
-  return new Date(value).toLocaleString()
-}
 </script>
 
 <template>
-  <Sheet
+  <InvocationsSheet
     :open="open"
-    data-testid="outcome-sheet"
+    :title="title"
+    description="Invocations that produced this outcome"
+    test-id="outcome"
+    :loading="loading"
+    :load-error="loadError"
+    :empty="invocations.length === 0"
     @update:open="emit('update:open', $event)"
+    @retry="load"
   >
-    <SheetContent side="right">
-      <SheetHeader>
-        <SheetTitle>{{ title }}</SheetTitle>
-        <SheetDescription>
-          Invocations that produced this outcome
-        </SheetDescription>
-      </SheetHeader>
-      <div class="flex-1 overflow-y-auto px-4">
-        <p v-if="loading" class="text-sm text-muted-foreground">Loading...</p>
-        <div
-          v-else-if="loadError"
-          role="alert"
-          data-testid="outcome-error"
-          class="flex items-center gap-3 text-sm text-destructive"
-        >
-          <span>Could not load invocations</span>
-          <button
-            type="button"
-            data-testid="outcome-retry"
-            class="rounded-md border px-2 py-1 text-xs"
-            @click="load"
-          >
-            Retry
-          </button>
+    <ul class="flex flex-col gap-3">
+      <li
+        v-for="invocation in invocations"
+        :key="invocation.id"
+        data-testid="outcome-invocation"
+        class="rounded-md border p-2 text-sm"
+      >
+        <div class="font-medium">
+          {{ invocation.title ?? invocation.session_id }}
         </div>
-        <p
-          v-else-if="invocations.length === 0"
-          data-testid="outcome-empty"
-          class="text-sm text-muted-foreground"
+        <a
+          v-if="invocation.url"
+          :href="invocation.url"
+          target="_blank"
+          rel="noopener"
+          class="text-xs text-primary underline"
+          >Session</a
         >
-          No invocations yet
-        </p>
-        <ul v-else class="flex flex-col gap-3">
+        <div class="text-xs text-muted-foreground">
+          {{ invocation.status }} -
+          {{ formatDate(invocation.session_created_at) }}
+        </div>
+        <ul v-if="invocation.pull_requests.length" class="mt-1">
           <li
-            v-for="invocation in invocations"
-            :key="invocation.id"
-            data-testid="outcome-invocation"
-            class="rounded-md border p-2 text-sm"
+            v-for="pr in invocation.pull_requests"
+            :key="pr.url"
+            class="flex items-center gap-2 text-xs"
           >
-            <div class="font-medium">
-              {{ invocation.title ?? invocation.session_id }}
-            </div>
             <a
-              v-if="invocation.url"
-              :href="invocation.url"
+              :href="pr.url"
               target="_blank"
               rel="noopener"
-              class="text-xs text-primary underline"
-              >Session</a
+              class="text-primary underline"
+              >{{ pr.url }}</a
             >
-            <div class="text-xs text-muted-foreground">
-              {{ invocation.status }} -
-              {{ formatDate(invocation.session_created_at) }}
-            </div>
-            <ul v-if="invocation.pull_requests.length" class="mt-1">
-              <li
-                v-for="pr in invocation.pull_requests"
-                :key="pr.url"
-                class="flex items-center gap-2 text-xs"
-              >
-                <a
-                  :href="pr.url"
-                  target="_blank"
-                  rel="noopener"
-                  class="text-primary underline"
-                  >{{ pr.url }}</a
-                >
-                <span
-                  class="rounded-full border px-1.5 py-0.5 text-[0.65rem] uppercase"
-                  >{{ pr.state }}</span
-                >
-              </li>
-            </ul>
-            <a
-              v-if="invocation.duplicate_of"
-              :href="invocation.duplicate_of"
-              target="_blank"
-              rel="noopener"
-              class="mt-1 inline-block text-xs text-primary underline"
-              >Duplicate of</a
+            <span
+              class="rounded-full border px-1.5 py-0.5 text-[0.65rem] uppercase"
+              >{{ pr.state }}</span
             >
           </li>
         </ul>
-      </div>
-    </SheetContent>
-  </Sheet>
+        <a
+          v-if="invocation.duplicate_of"
+          :href="invocation.duplicate_of"
+          target="_blank"
+          rel="noopener"
+          class="mt-1 inline-block text-xs text-primary underline"
+          >Duplicate of</a
+        >
+      </li>
+    </ul>
+  </InvocationsSheet>
 </template>
