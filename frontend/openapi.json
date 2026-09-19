@@ -1,6 +1,46 @@
 {
   "components": {
     "schemas": {
+      "CanvasRead": {
+        "properties": {
+          "action_nodes": {
+            "items": {
+              "$ref": "#/components/schemas/NodeRead"
+            },
+            "title": "Action Nodes",
+            "type": "array"
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/EdgeRead"
+            },
+            "title": "Edges",
+            "type": "array"
+          },
+          "outcome_nodes": {
+            "items": {
+              "$ref": "#/components/schemas/NodeRead"
+            },
+            "title": "Outcome Nodes",
+            "type": "array"
+          },
+          "trigger_nodes": {
+            "items": {
+              "$ref": "#/components/schemas/NodeRead"
+            },
+            "title": "Trigger Nodes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "trigger_nodes",
+          "action_nodes",
+          "outcome_nodes",
+          "edges"
+        ],
+        "title": "CanvasRead",
+        "type": "object"
+      },
       "DevinSession": {
         "properties": {
           "session_id": {
@@ -41,6 +81,73 @@
         "title": "DevinSession",
         "type": "object"
       },
+      "EdgeCreate": {
+        "properties": {
+          "source": {
+            "$ref": "#/components/schemas/NodeRef"
+          },
+          "target": {
+            "$ref": "#/components/schemas/NodeRef"
+          }
+        },
+        "required": [
+          "source",
+          "target"
+        ],
+        "title": "EdgeCreate",
+        "type": "object"
+      },
+      "EdgeRead": {
+        "properties": {
+          "automation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Automation Id"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/NodeRef"
+          },
+          "sync_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sync Error"
+          },
+          "sync_status": {
+            "title": "Sync Status",
+            "type": "string"
+          },
+          "target": {
+            "$ref": "#/components/schemas/NodeRef"
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "target",
+          "automation_id",
+          "sync_status",
+          "sync_error"
+        ],
+        "title": "EdgeRead",
+        "type": "object"
+      },
       "ErrorResponse": {
         "properties": {
           "detail": {
@@ -79,6 +186,100 @@
           "status"
         ],
         "title": "HealthResponse",
+        "type": "object"
+      },
+      "NodeCreate": {
+        "properties": {
+          "position": {
+            "$ref": "#/components/schemas/Position"
+          }
+        },
+        "required": [
+          "position"
+        ],
+        "title": "NodeCreate",
+        "type": "object"
+      },
+      "NodeMove": {
+        "properties": {
+          "position": {
+            "$ref": "#/components/schemas/Position"
+          }
+        },
+        "required": [
+          "position"
+        ],
+        "title": "NodeMove",
+        "type": "object"
+      },
+      "NodeRead": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "trigger",
+              "action",
+              "outcome"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "position": {
+            "$ref": "#/components/schemas/Position"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "position"
+        ],
+        "title": "NodeRead",
+        "type": "object"
+      },
+      "NodeRef": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "trigger",
+              "action",
+              "outcome"
+            ],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind"
+        ],
+        "title": "NodeRef",
+        "type": "object"
+      },
+      "Position": {
+        "properties": {
+          "x": {
+            "title": "X",
+            "type": "number"
+          },
+          "y": {
+            "title": "Y",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y"
+        ],
+        "title": "Position",
         "type": "object"
       },
       "SessionCreate": {
@@ -144,6 +345,358 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/canvas": {
+      "get": {
+        "operationId": "get_canvas_api_canvas_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CanvasRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Canvas"
+      }
+    },
+    "/api/canvas/edges": {
+      "post": {
+        "operationId": "create_edge_api_canvas_edges_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EdgeCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EdgeRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Canvas object not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Canvas conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid canvas connection"
+          }
+        },
+        "summary": "Create Edge"
+      }
+    },
+    "/api/canvas/edges/{edge_id}": {
+      "delete": {
+        "operationId": "delete_edge_api_canvas_edges__edge_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "edge_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Edge Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Canvas object not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Canvas conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid canvas connection"
+          }
+        },
+        "summary": "Delete Edge"
+      }
+    },
+    "/api/canvas/nodes/{kind}": {
+      "post": {
+        "operationId": "create_node_api_canvas_nodes__kind__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "trigger",
+                "action",
+                "outcome"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NodeCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Canvas object not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Canvas conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid canvas connection"
+          }
+        },
+        "summary": "Create Node"
+      }
+    },
+    "/api/canvas/nodes/{kind}/{node_id}": {
+      "delete": {
+        "operationId": "delete_node_api_canvas_nodes__kind___node_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "trigger",
+                "action",
+                "outcome"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Node Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Canvas object not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Canvas conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid canvas connection"
+          }
+        },
+        "summary": "Delete Node"
+      },
+      "patch": {
+        "operationId": "move_node_api_canvas_nodes__kind___node_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "trigger",
+                "action",
+                "outcome"
+              ],
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Node Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NodeMove"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NodeRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Canvas object not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Canvas conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid canvas connection"
+          }
+        },
+        "summary": "Move Node"
+      }
+    },
     "/api/devin/sessions": {
       "get": {
         "operationId": "list_sessions_api_devin_sessions_get",
