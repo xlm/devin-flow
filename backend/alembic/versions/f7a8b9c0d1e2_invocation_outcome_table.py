@@ -12,13 +12,34 @@ import sqlalchemy as sa
 import sqlmodel
 from alembic import context, op
 
-from devin_flow.outcomes import derive_outcome_kinds
+from devin_flow.outcomes import STRUCTURED_OUTCOMES, derive_outcome_kinds
 
 # revision identifiers, used by Alembic.
 revision: str = "f7a8b9c0d1e2"
 down_revision: str | Sequence[str] | None = "e5f1a2c3d4b6"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
+
+# Postgres-only equivalent of the Python backfill below, so that offline
+# upgrades (--sql) still populate the link table. pull_requests is json,
+# not jsonb. json_typeof(NULL) is NULL, so NULL structured_output rows are
+# excluded implicitly; the object check keeps JSON array/scalar values
+# from erroring on ->.
+OFFLINE_BACKFILL_SQL = f"""
+INSERT INTO invocation_outcome (invocation_id, kind)
+SELECT id, 'pull_request' FROM invocation
+WHERE EXISTS (
+    SELECT 1 FROM json_array_elements(pull_requests) AS pr
+    WHERE json_typeof(pr -> 'pr_url') = 'string' AND pr ->> 'pr_url' <> ''
+)
+UNION
+SELECT id, structured_output ->> 'outcome' FROM invocation
+WHERE json_typeof(structured_output) = 'object'
+  AND json_typeof(structured_output -> 'outcome') = 'string'
+  AND structured_output ->> 'outcome' IN (
+    {", ".join(f"'{kind}'" for kind in sorted(STRUCTURED_OUTCOMES))}
+  )
+"""
 
 
 def upgrade() -> None:
@@ -35,10 +56,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("invocation_id", "kind"),
     )
     if context.is_offline_mode():
-        op.execute(
-            "-- invocation_outcome backfill needs an online upgrade "
-            "(reads invocation rows in Python)"
-        )
+        op.execute(OFFLINE_BACKFILL_SQL)
         return
     invocation = sa.table(
         "invocation",
