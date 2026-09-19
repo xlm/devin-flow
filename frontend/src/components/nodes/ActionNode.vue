@@ -48,8 +48,8 @@ function saveInstructions(event: Event) {
   <CanvasNodeShell
     :id="id"
     kind="action"
-    :incomplete="reason !== null"
-    :status="reason === 'no-trigger' ? 'No Trigger' : 'Incomplete'"
+    :complete="reason === null"
+    :status="reason === 'no-trigger' ? 'No Trigger' : undefined"
   >
     <template #toolbar>
       <button
