@@ -46,7 +46,9 @@ _Avoid_: Connection, link, wire
 **Automation**:
 The object on the Devin side that an Action node provisions and keeps in
 sync. Identified by its Devin `automation_id`. Never created twice for the
-same Action node; disabled rather than deleted.
+same Action node; disabled rather than deleted. Devin only fires GitHub
+Automations on private repos unless the connection's Automation scope is
+set to all installed repos (see README prerequisites).
 _Avoid_: Flow, job, rule
 
 **Playbook**:
