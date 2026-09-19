@@ -12,6 +12,8 @@
     "typecheck": "pnpm --filter frontend typecheck",
     "test": "pnpm --filter frontend test",
     "test:coverage": "pnpm --filter frontend test:coverage",
-    "generate:api": "uv run python -m devin_flow.openapi > frontend/openapi.json && pnpm --filter frontend generate:api"
+    "generate:api": "uv run python -m devin_flow.openapi > frontend/openapi.json && pnpm --filter frontend generate:api",
+    "e2e": "pnpm --filter frontend exec playwright test",
+    "e2e:install": "pnpm --filter frontend e2e:install"
   }
 }
