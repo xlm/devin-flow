@@ -1,27 +1,33 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
 import FlowCanvas from '@/components/FlowCanvas.vue'
-import { client } from '@/api/client'
+import { useApiHealth, type IndicatorTone } from '@/composables/useApiHealth'
 
-const status = ref<'loading' | 'ok' | 'error'>('loading')
+const { indicator } = useApiHealth()
 
-onMounted(async () => {
-  try {
-    const { data } = await client.GET('/api/health')
-    status.value = data?.status === 'ok' ? 'ok' : 'error'
-  } catch {
-    status.value = 'error'
-  }
-})
+const DOT_CLASS: Record<IndicatorTone, string> = {
+  loading: 'bg-muted-foreground/50',
+  green: 'bg-emerald-500',
+  amber: 'bg-amber-500',
+  red: 'bg-red-500',
+}
 </script>
 
 <template>
   <main class="relative">
     <FlowCanvas />
     <p
-      class="bg-card text-muted-foreground pointer-events-none absolute top-4 right-4 z-10 rounded-md border px-2 py-1 text-xs"
+      role="status"
+      data-testid="api-status"
+      :data-tone="indicator.tone"
+      :title="indicator.title"
+      class="bg-card text-muted-foreground pointer-events-none absolute top-4 right-4 z-10 flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs"
     >
-      API: {{ status }}
+      <span
+        aria-hidden="true"
+        class="size-2 rounded-full"
+        :class="DOT_CLASS[indicator.tone]"
+      />
+      {{ indicator.label }}
     </p>
   </main>
 </template>
