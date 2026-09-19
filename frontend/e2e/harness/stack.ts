@@ -226,7 +226,7 @@ export async function startStack(): Promise<Stack> {
     await waitForUrl('http://127.0.0.1:8000/api/health')
     vite = spawnLogged(
       'pnpm',
-      ['exec', 'vite', '--port', '5174', '--strictPort'],
+      ['exec', 'vite', '--host', '127.0.0.1', '--port', '5174', '--strictPort'],
       path.join(root, 'frontend'),
       env,
       path.join(results, 'vite.log'),
