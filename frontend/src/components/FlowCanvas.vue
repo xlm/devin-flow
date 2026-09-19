@@ -28,7 +28,6 @@ const nodes = ref<Node[]>([])
 const edges = ref<Edge[]>([])
 const nodeSnapshots = new Map<string, Node>()
 const edgeSnapshots = new Map<string, Edge>()
-const dragPositions = new Map<string, { x: number; y: number }>()
 const saveGenerations = new Map<string, number>()
 const saveChains = new Map<string, Promise<void>>()
 const cascadedNodeIds = new Set<string>()
@@ -39,7 +38,6 @@ const {
   addNodes,
   addEdges,
   getEdges,
-  onNodeDragStart,
   onNodeDragStop,
   onNodesChange,
   onEdgesChange,
@@ -117,7 +115,6 @@ async function doSaveNodePosition(
   node: Node,
   kind: NodeKind,
   position: { x: number; y: number },
-  before: { x: number; y: number },
   generation: number,
 ) {
   try {
@@ -125,36 +122,38 @@ async function doSaveNodePosition(
       params: { path: { kind, node_id: node.id } },
       body: { position },
     })
-    if (generation !== saveGenerations.get(node.id)) return
-    if (error) {
-      const current = findNode(node.id)
-      if (current) current.position = { ...before }
-    } else {
+    if (!error) {
       const savedNode = copyNode(node)
       savedNode.position = { ...position }
       nodeSnapshots.set(node.id, savedNode)
+      return
     }
+    if (generation !== saveGenerations.get(node.id)) return
+    const savedPosition = nodeSnapshots.get(node.id)?.position
+    if (!savedPosition) return
+    const current = findNode(node.id)
+    if (current) current.position = { ...savedPosition }
   } catch {
     if (generation !== saveGenerations.get(node.id)) return
+    const savedPosition = nodeSnapshots.get(node.id)?.position
+    if (!savedPosition) return
     const current = findNode(node.id)
-    if (current) current.position = { ...before }
+    if (current) current.position = { ...savedPosition }
   }
 }
 
 function saveNodePosition(event: NodeDragEvent): Promise<void> | undefined {
   const node = event.node
   const kind = kindOf(node)
-  const before = dragPositions.get(node.id)
-  if (!kind || !before) return
+  if (!kind) return
   const position = { ...node.position }
-  const previousPosition = { ...before }
   const generation = (saveGenerations.get(node.id) ?? 0) + 1
   saveGenerations.set(node.id, generation)
   const savedNode = copyNode(node)
   savedNode.position = { ...position }
   const previous = saveChains.get(node.id) ?? Promise.resolve()
   const next = previous.then(() =>
-    doSaveNodePosition(savedNode, kind, position, previousPosition, generation),
+    doSaveNodePosition(savedNode, kind, position, generation),
   )
   saveChains.set(
     node.id,
@@ -281,9 +280,6 @@ async function saveConnection(connection: Connection) {
   }
 }
 
-onNodeDragStart(({ node }) => {
-  dragPositions.set(node.id, { ...node.position })
-})
 onNodeDragStop(saveNodePosition)
 onNodesChange((changes) => {
   changes
