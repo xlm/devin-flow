@@ -75,10 +75,6 @@ class DevinClient:
 
 
 def create_client(settings: Settings) -> DevinClient:
-    if not settings.devin_api_token:
-        raise DevinNotConfiguredError("DEVIN_API_TOKEN is not set")
-    if not settings.devin_org_id:
-        raise DevinNotConfiguredError("DEVIN_ORG_ID is not set")
     url = httpx.URL(settings.devin_api_base_url)
     if url.scheme != "https" and not (
         url.scheme == "http" and url.host in {"localhost", "127.0.0.1", "::1"}

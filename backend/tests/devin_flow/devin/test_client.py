@@ -1,4 +1,3 @@
-from collections.abc import Iterator
 from pathlib import Path
 
 import httpx
@@ -16,32 +15,11 @@ from devin_flow.devin.client import (
 
 
 @pytest.fixture(autouse=True)
-def clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[None]:
-    monkeypatch.delenv("DEVIN_API_TOKEN", raising=False)
+def clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.delenv("DEVIN_API_BASE_URL", raising=False)
-    monkeypatch.delenv("DEVIN_ORG_ID", raising=False)
     monkeypatch.chdir(tmp_path)
     get_settings.cache_clear()
     get_devin_client.cache_clear()
-    yield
-    get_settings.cache_clear()
-    get_devin_client.cache_clear()
-
-
-@pytest.mark.parametrize("token", [None, ""])
-def test_create_client_requires_token(token: str | None) -> None:
-    settings = get_settings().model_copy(update={"devin_api_token": token})
-    with pytest.raises(DevinNotConfiguredError, match="DEVIN_API_TOKEN is not set"):
-        create_client(settings)
-
-
-@pytest.mark.parametrize("org_id", [None, ""])
-def test_create_client_requires_org_id(org_id: str | None) -> None:
-    settings = get_settings().model_copy(
-        update={"devin_api_token": "secret", "devin_org_id": org_id}
-    )
-    with pytest.raises(DevinNotConfiguredError, match="DEVIN_ORG_ID is not set"):
-        create_client(settings)
 
 
 def test_create_client_configures_base_url_and_authorization() -> None:

@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from devin_flow.config import DEFAULT_STATIC_DIR, Settings, get_settings
 
@@ -9,9 +10,7 @@ from devin_flow.config import DEFAULT_STATIC_DIR, Settings, get_settings
 def clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("STATIC_DIR", raising=False)
-    monkeypatch.delenv("DEVIN_API_TOKEN", raising=False)
     monkeypatch.delenv("DEVIN_API_BASE_URL", raising=False)
-    monkeypatch.delenv("DEVIN_ORG_ID", raising=False)
     monkeypatch.chdir(tmp_path)  # no stray .env
     get_settings.cache_clear()
 
@@ -22,9 +21,9 @@ def test_defaults() -> None:
         "postgresql+psycopg://devin:devin@localhost:5432/devin_flow"
     )
     assert settings.static_dir == DEFAULT_STATIC_DIR
-    assert settings.devin_api_token is None
+    assert settings.devin_api_token == "test-token"
     assert settings.devin_api_base_url == "https://api.devin.ai/v3"
-    assert settings.devin_org_id is None
+    assert settings.devin_org_id == "org-test"
     assert DEFAULT_STATIC_DIR.parts[-2:] == ("frontend", "dist")
 
 
@@ -53,3 +52,25 @@ def test_get_settings_is_cached() -> None:
     assert get_settings() is get_settings()
     get_settings.cache_clear()
     assert get_settings() is not None
+
+
+@pytest.mark.parametrize(
+    ("variable", "value"),
+    [
+        ("DEVIN_API_TOKEN", None),
+        ("DEVIN_API_TOKEN", ""),
+        ("DEVIN_ORG_ID", None),
+        ("DEVIN_ORG_ID", ""),
+    ],
+)
+def test_devin_credentials_are_required(
+    monkeypatch: pytest.MonkeyPatch,
+    variable: str,
+    value: str | None,
+) -> None:
+    if value is None:
+        monkeypatch.delenv(variable, raising=False)
+    else:
+        monkeypatch.setenv(variable, value)
+    with pytest.raises(ValidationError):
+        Settings()

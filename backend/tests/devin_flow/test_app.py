@@ -1,36 +1,38 @@
-import importlib
-from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-import devin_flow.app
 from devin_flow.app import create_app
+from devin_flow.config import DEFAULT_STATIC_DIR, get_settings
+from devin_flow.web import spa
 
 
-@pytest.fixture
-def reload_app_module() -> Iterator[None]:
-    yield
-    importlib.reload(devin_flow.app)
-
-
-@pytest.mark.usefixtures("reload_app_module")
 def test_static_dir_env_var_overrides_default(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    (tmp_path / "index.html").write_text("<html>spa</html>")
     monkeypatch.setenv("STATIC_DIR", str(tmp_path))
-    module = importlib.reload(devin_flow.app)
-    assert tmp_path == module.STATIC_DIR
+    get_settings.cache_clear()
+    response = TestClient(create_app()).get("/")
+    assert response.status_code == 200
+    assert response.text == "<html>spa</html>"
 
 
-@pytest.mark.usefixtures("reload_app_module")
 def test_static_dir_defaults_to_frontend_dist(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("STATIC_DIR", raising=False)
-    module = importlib.reload(devin_flow.app)
-    assert module.STATIC_DIR.parts[-2:] == ("frontend", "dist")
+    get_settings.cache_clear()
+    mounted: list[Path] = []
+
+    def mount_spa(_app: FastAPI, static_dir: Path) -> None:
+        mounted.append(static_dir)
+
+    monkeypatch.setattr(spa, "mount_spa", mount_spa)
+    create_app()
+    assert mounted == [DEFAULT_STATIC_DIR]
 
 
 def test_root_is_404_without_static_dir(tmp_path: Path) -> None:
