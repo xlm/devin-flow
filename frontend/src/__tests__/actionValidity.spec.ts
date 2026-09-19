@@ -89,29 +89,60 @@ describe('action validity', () => {
   it('finds only linked trigger edges', () => {
     expect(
       hasLinkedTrigger('n1', [
-        { target: 'n2', data: { sourceKind: 'trigger' } },
-        { target: 'n1', data: { sourceKind: 'action' } },
+        { source: 'trigger', target: 'n2', data: { sourceKind: 'trigger' } },
+        { source: 'action', target: 'n1', data: { sourceKind: 'action' } },
       ]),
     ).toBe(false)
     expect(
       hasLinkedTrigger('n1', [
-        { target: 'n1' },
-        { target: 'n1', data: { sourceKind: 'trigger' } },
+        { source: 'action', target: 'n1' },
+        { source: 'trigger', target: 'n1', data: { sourceKind: 'trigger' } },
       ]),
     ).toBe(true)
   })
 
   it('prioritizes incomplete fields over a missing trigger', () => {
-    expect(actionInvalidReason('n1', { name: '', playbookId: null }, [])).toBe(
-      'incomplete',
-    )
     expect(
-      actionInvalidReason('n1', { name: 'Triage', playbookId: 'pb-1' }, []),
+      actionInvalidReason(
+        'n1',
+        { name: '', playbookId: null },
+        [],
+        () => undefined,
+      ),
+    ).toBe('incomplete')
+    expect(
+      actionInvalidReason(
+        'n1',
+        { name: 'Triage', playbookId: 'pb-1' },
+        [],
+        () => undefined,
+      ),
     ).toBe('no-trigger')
     expect(
-      actionInvalidReason('n1', { name: 'Triage', playbookId: 'pb-1' }, [
-        { target: 'n1', data: { sourceKind: 'trigger' } },
-      ]),
+      actionInvalidReason(
+        'n1',
+        { name: 'Triage', playbookId: 'pb-1' },
+        [{ source: 'trigger', target: 'n1', data: { sourceKind: 'trigger' } }],
+        () => ({
+          trigger: {
+            event_action: 'opened',
+            repository_full_name: 'octo/repo',
+          },
+        }),
+      ),
     ).toBeNull()
+    expect(
+      actionInvalidReason(
+        'n1',
+        { name: 'Triage', playbookId: 'pb-1' },
+        [{ source: 'trigger', target: 'n1', data: { sourceKind: 'trigger' } }],
+        () => ({
+          trigger: {
+            event_action: 'opened',
+            repository_full_name: null,
+          },
+        }),
+      ),
+    ).toBe('trigger-incomplete')
   })
 })

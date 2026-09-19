@@ -5,6 +5,7 @@ import type { Component } from 'vue'
 
 const mocks = vi.hoisted(() => ({
   removeNodes: vi.fn(),
+  findNode: vi.fn(),
   reloadPlaybooks: vi.fn(),
   updateNodeData: vi.fn(),
   GET: vi.fn(),
@@ -33,6 +34,7 @@ vi.mock('@vue-flow/core', () => ({
   Position: { Left: 'left', Right: 'right', Top: 'top' },
   useVueFlow: () => ({
     removeNodes: mocks.removeNodes,
+    findNode: mocks.findNode,
     edges: { value: [] },
     updateNodeData: mocks.updateNodeData,
   }),

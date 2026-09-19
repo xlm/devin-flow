@@ -15,19 +15,26 @@ import CanvasNodeShell from './CanvasNodeShell.vue'
 
 const props = defineProps<NodeProps>()
 const saveNodeFields = inject(SAVE_NODE_FIELDS, async () => false)
-const { edges } = useVueFlow()
+const { edges, findNode } = useVueFlow()
 const { playbooks, loading, error, reload } = usePlaybooks()
 const saveError = ref(false)
 
 const fields = computed(() => actionFieldsFromData(props.data))
 const sync = computed(() => syncStateFromData(props.data))
 const reason = computed(() =>
-  actionInvalidReason(props.id, fields.value, edges.value),
+  actionInvalidReason(
+    props.id,
+    fields.value,
+    edges.value,
+    (nodeId) => findNode(nodeId)?.data,
+  ),
 )
 const hint = computed(() =>
   reason.value === 'no-trigger'
     ? 'Connect a Trigger to this Action'
-    : (actionIncompleteHint(fields.value) ?? undefined),
+    : reason.value === 'trigger-incomplete'
+      ? 'Complete the connected Trigger'
+      : (actionIncompleteHint(fields.value) ?? undefined),
 )
 const syncBadgeClasses: Record<SyncStatus, string> = {
   enabled: 'bg-green-100 text-green-800',
@@ -77,7 +84,13 @@ async function toggleEnabled() {
     :id="id"
     kind="action"
     :complete="reason === null"
-    :status="reason === 'no-trigger' ? 'No Trigger' : undefined"
+    :status="
+      reason === 'no-trigger'
+        ? 'No Trigger'
+        : reason === 'trigger-incomplete'
+          ? 'Trigger incomplete'
+          : undefined
+    "
     :hint="hint"
   >
     <template #toolbar>
