@@ -11,6 +11,11 @@ from sqlmodel import Session, select
 
 from devin_flow.api import canvas as canvas_api
 from devin_flow.devin import DevinClient, get_devin_client
+from devin_flow.devin.client import (
+    Automation,
+    AutomationUpdate,
+    DevinNotConfiguredError,
+)
 from devin_flow.models import ActionNode, Edge, EventAction, TriggerNode
 
 
@@ -888,6 +893,39 @@ def test_action_delete_hard_deletes_after_upstream_success(
     assert response.status_code == 204
     assert unit_session.get(ActionNode, action.id) is None
     assert json_body(mock_devin[1][0]) == {"enabled": False}
+
+
+def test_action_delete_tombstones_when_devin_is_not_configured(
+    unit_client: TestClient,
+    unit_session: Session,
+) -> None:
+    class NotConfiguredClient(DevinClient):
+        def update_automation(
+            self,
+            automation_id: str,
+            payload: AutomationUpdate,
+        ) -> Automation:
+            raise DevinNotConfiguredError
+
+    client = NotConfiguredClient(httpx.Client(), "org-test")
+    cast(FastAPI, unit_client.app).dependency_overrides[get_devin_client] = lambda: (
+        client
+    )
+    action = ActionNode(
+        position_x=1,
+        position_y=2,
+        automation_id="auto-1",
+    )
+    unit_session.add(action)
+    unit_session.commit()
+    response = unit_client.delete(f"/api/canvas/nodes/action/{action.id}")
+    assert response.status_code == 204
+    stored = unit_session.get(ActionNode, action.id)
+    assert stored is not None
+    assert stored.deleted_at is not None
+    assert stored.sync_status == "error"
+    assert stored.sync_error == "devin api not configured"
+    client.http.close()
 
 
 def test_position_only_action_patch_does_not_sync(

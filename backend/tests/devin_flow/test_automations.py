@@ -1,4 +1,5 @@
 import json
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import httpx
@@ -114,6 +115,10 @@ def test_connected_nodes_and_payload(unit_session: Session) -> None:
     connect(unit_session, source, node)
     assert connected_trigger(unit_session, node.id) == source
     assert connected_action(unit_session, source.id) == node
+    node.deleted_at = datetime.now(UTC)
+    unit_session.add(node)
+    unit_session.commit()
+    assert connected_trigger(unit_session, node.id) is None
     payload = build_automation_payload(node, source)
     assert payload.model_dump() == {
         "name": "Triage: octo/repo issue opened",
