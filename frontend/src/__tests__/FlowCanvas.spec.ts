@@ -8,7 +8,10 @@ import { SAVE_NODE_FIELDS, type SaveNodeFields } from '@/lib/canvasInjection'
 type DragHandler = (event: { node: Node }) => void | Promise<void>
 type ChangeHandler = (changes: { type: string; id: string }[]) => void
 type ConnectHandler = (connection: { source: string; target: string }) => void
-type NodeClickHandler = (event: { node: Node }) => void
+type NodeClickHandler = (event: {
+  node: Node
+  event?: { target: EventTarget | null }
+}) => void
 
 const mocks = vi.hoisted(() => {
   return {
@@ -2130,6 +2133,44 @@ describe('FlowCanvas', () => {
       open: true,
       nodeId: 'outcome',
       kind: null,
+    })
+    wrapper.unmount()
+  })
+
+  it('ignores outcome clicks originating from interactive controls', async () => {
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    const select = document.createElement('select')
+    wrapper.element.appendChild(select)
+    mocks.handlers.nodeClick?.({
+      node: {
+        id: 'outcome',
+        data: { kind: 'outcome', outcome: { kind: 'duplicate' } },
+      } as Node,
+      event: { target: select },
+    })
+    await flushPromises()
+    expect(mocks.sheetProps?.open).not.toBe(true)
+    wrapper.unmount()
+  })
+
+  it('opens the sheet for outcome clicks on non-interactive elements', async () => {
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    const body = document.createElement('div')
+    wrapper.element.appendChild(body)
+    mocks.handlers.nodeClick?.({
+      node: {
+        id: 'outcome',
+        data: { kind: 'outcome', outcome: { kind: 'duplicate' } },
+      } as Node,
+      event: { target: body },
+    })
+    await flushPromises()
+    expect(mocks.sheetProps).toMatchObject({
+      open: true,
+      nodeId: 'outcome',
+      kind: 'duplicate',
     })
     wrapper.unmount()
   })
