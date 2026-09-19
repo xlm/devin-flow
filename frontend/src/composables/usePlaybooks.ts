@@ -52,7 +52,7 @@ export function usePlaybooks(): {
     error,
     reload: async () => {
       loaded = false
-      await fetchPlaybooks()
+      await (request ?? fetchPlaybooks())
     },
   }
 }

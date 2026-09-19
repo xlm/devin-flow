@@ -44,7 +44,7 @@ describe('usePlaybooks', () => {
     expect(state.error.value).toBe(true)
   })
 
-  it('deduplicates concurrent calls and reloads', async () => {
+  it('deduplicates concurrent calls and overlapping reloads', async () => {
     let resolve: ((value: unknown) => void) | undefined
     GET.mockImplementationOnce(
       () =>
@@ -62,7 +62,9 @@ describe('usePlaybooks', () => {
     await flushPromises()
     expect(first.playbooks.value).toEqual([{ id: 'pb-1', title: 'Triage' }])
     expect(second.playbooks.value).toEqual(first.playbooks.value)
-    await first.reload()
+    const firstReload = first.reload()
+    const secondReload = first.reload()
+    await Promise.all([firstReload, secondReload])
     expect(GET).toHaveBeenCalledTimes(2)
     expect(first.playbooks.value).toEqual([{ id: 'pb-2', title: 'Deploy' }])
   })
