@@ -66,17 +66,21 @@ def session_payload(
     }
 
 
-def test_first_poll_lists_all_live_automations(unit_session: Session) -> None:
+def test_first_poll_lists_all_owned_automations(unit_session: Session) -> None:
     live = add_action(unit_session, "auto-1")
     add_action(unit_session, "auto-2")
-    add_action(unit_session, "auto-deleted", deleted=True)
+    tombstoned = add_action(unit_session, "auto-deleted", deleted=True)
     add_action(unit_session, None)
     requests: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
         requests.append(request)
         assert request.url.path == "/organizations/org-test/sessions"
-        assert request.url.params.get_list("automation_ids") == ["auto-1", "auto-2"]
+        assert request.url.params.get_list("automation_ids") == [
+            "auto-1",
+            "auto-2",
+            "auto-deleted",
+        ]
         assert "created_after" not in request.url.params
         return httpx.Response(
             200,
@@ -90,6 +94,7 @@ def test_first_poll_lists_all_live_automations(unit_session: Session) -> None:
                         ],
                     ),
                     session_payload("s-2", "auto-1", status="exit"),
+                    session_payload("s-3", "auto-deleted", status="exit"),
                     session_payload("s-unknown", "auto-gone"),
                 ],
                 "has_next_page": False,
@@ -98,7 +103,7 @@ def test_first_poll_lists_all_live_automations(unit_session: Session) -> None:
 
     result = poll_once(unit_session, make_client(httpx.MockTransport(handler)))
 
-    assert result == PollResult(listed=3, upserted=2, refreshed=0)
+    assert result == PollResult(listed=4, upserted=3, refreshed=0)
     assert len(requests) == 1
     invocations = unit_session.exec(
         select(Invocation).order_by(Invocation.session_id)
@@ -106,6 +111,7 @@ def test_first_poll_lists_all_live_automations(unit_session: Session) -> None:
     assert [(i.session_id, i.action_node_id) for i in invocations] == [
         ("s-1", live.id),
         ("s-2", live.id),
+        ("s-3", tombstoned.id),
     ]
     first = invocations[0]
     assert first.automation_id == "auto-1"
