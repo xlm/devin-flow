@@ -99,17 +99,6 @@
       },
       "EdgeRead": {
         "properties": {
-          "automation_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Automation Id"
-          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -118,21 +107,6 @@
           "source": {
             "$ref": "#/components/schemas/NodeRef"
           },
-          "sync_error": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sync Error"
-          },
-          "sync_status": {
-            "title": "Sync Status",
-            "type": "string"
-          },
           "target": {
             "$ref": "#/components/schemas/NodeRef"
           }
@@ -140,10 +114,7 @@
         "required": [
           "id",
           "source",
-          "target",
-          "automation_id",
-          "sync_status",
-          "sync_error"
+          "target"
         ],
         "title": "EdgeRead",
         "type": "object"

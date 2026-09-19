@@ -1,4 +1,3 @@
-from datetime import UTC, datetime
 from typing import cast
 from uuid import UUID, uuid4
 
@@ -8,7 +7,7 @@ from httpx import Response
 from sqlmodel import Session
 
 from devin_flow.api import canvas as canvas_api
-from devin_flow.models import Edge
+from devin_flow.models import ActionNode, Edge
 
 
 def create_node(client: TestClient, kind: str, x: float = 1, y: float = 2) -> str:
@@ -59,6 +58,16 @@ def test_create_nodes_in_kind_lists(unit_client: TestClient) -> None:
         1,
     ]
     assert canvas["trigger_nodes"][0]["position"] == {"x": 1, "y": 2}
+
+
+def test_action_node_defaults_sync_status(unit_session: Session) -> None:
+    node = ActionNode(position_x=1, position_y=2)
+    unit_session.add(node)
+    unit_session.commit()
+    assert node.sync_status == "unprovisioned"
+    assert node.automation_id is None
+    assert node.sync_error is None
+    assert node.deleted_at is None
 
 
 def test_unknown_node_kind_is_unprocessable(unit_client: TestClient) -> None:
@@ -124,9 +133,6 @@ def test_create_edges_returns_full_shape(unit_client: TestClient) -> None:
         "id": response.json()["id"],
         "source": {"id": trigger_id, "kind": "trigger"},
         "target": {"id": action_id, "kind": "action"},
-        "automation_id": None,
-        "sync_status": "unprovisioned",
-        "sync_error": None,
     }
 
 
@@ -222,23 +228,6 @@ def test_create_edge_database_conflict(
     response = create_edge(unit_client, trigger_id, "trigger", action_id, "action")
     assert response.status_code == 409
     assert response.json()["detail"] == "edge conflicts with an existing edge"
-
-
-def test_get_canvas_excludes_soft_deleted_edge(
-    unit_client: TestClient, unit_session: Session
-) -> None:
-    trigger_id = create_node(unit_client, "trigger")
-    action_id = create_node(unit_client, "action")
-    edge_id = create_edge(
-        unit_client, trigger_id, "trigger", action_id, "action"
-    ).json()["id"]
-    edge = unit_session.get(Edge, UUID(edge_id))
-    assert edge is not None
-    edge.deleted_at = datetime.now(UTC)
-    unit_session.add(edge)
-    unit_session.commit()
-    assert unit_client.get("/api/canvas").json()["edges"] == []
-    assert unit_client.delete(f"/api/canvas/edges/{edge_id}").status_code == 404
 
 
 def test_delete_edge_is_hard_delete(unit_client: TestClient) -> None:

@@ -24,13 +24,36 @@ def test_migrations_match_models(postgres_engine: Engine) -> None:
 
 
 def test_canvas_tables_exist(postgres_engine: Engine) -> None:
-    assert sorted(inspect(postgres_engine).get_table_names()) == [
+    inspector = inspect(postgres_engine)
+    assert sorted(inspector.get_table_names()) == [
         "action_node",
         "alembic_version",
         "edge",
         "outcome_node",
         "trigger_node",
     ]
+    action_columns = {column["name"] for column in inspector.get_columns("action_node")}
+    edge_columns = {column["name"] for column in inspector.get_columns("edge")}
+    assert {
+        "automation_id",
+        "sync_status",
+        "sync_error",
+        "deleted_at",
+    } <= action_columns
+    assert (
+        not {
+            "automation_id",
+            "sync_status",
+            "sync_error",
+            "deleted_at",
+        }
+        & edge_columns
+    )
+    assert {index["name"] for index in inspector.get_indexes("edge")} >= {
+        "ux_edge_pair",
+        "ux_edge_trigger_source",
+        "ux_edge_trigger_target",
+    }
 
 
 def test_seeded_session_is_empty_canvas(seeded_session: Session) -> None:

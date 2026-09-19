@@ -31,6 +31,10 @@ class TriggerNode(NodeBase, table=True):
 
 class ActionNode(NodeBase, table=True):
     __tablename__ = "action_node"
+    automation_id: str | None = None
+    sync_status: str = "unprovisioned"
+    sync_error: str | None = None
+    deleted_at: datetime | None = Field(default=None, sa_type=TIMESTAMP, nullable=True)
 
 
 class OutcomeNode(NodeBase, table=True):
@@ -48,26 +52,24 @@ class Edge(SQLModel, table=True):
     __tablename__ = "edge"
     __table_args__ = (
         Index(
-            "ux_edge_live_pair",
+            "ux_edge_pair",
             "source_id",
             "target_id",
             unique=True,
-            postgresql_where=text("deleted_at IS NULL"),
-            sqlite_where=text("deleted_at IS NULL"),
         ),
         Index(
-            "ux_edge_live_trigger_source",
+            "ux_edge_trigger_source",
             "source_id",
             unique=True,
-            postgresql_where=text("source_kind = 'trigger' AND deleted_at IS NULL"),
-            sqlite_where=text("source_kind = 'trigger' AND deleted_at IS NULL"),
+            postgresql_where=text("source_kind = 'trigger'"),
+            sqlite_where=text("source_kind = 'trigger'"),
         ),
         Index(
-            "ux_edge_live_trigger_target",
+            "ux_edge_trigger_target",
             "target_id",
             unique=True,
-            postgresql_where=text("source_kind = 'trigger' AND deleted_at IS NULL"),
-            sqlite_where=text("source_kind = 'trigger' AND deleted_at IS NULL"),
+            postgresql_where=text("source_kind = 'trigger'"),
+            sqlite_where=text("source_kind = 'trigger'"),
         ),
     )
 
@@ -76,10 +78,6 @@ class Edge(SQLModel, table=True):
     source_kind: str
     target_id: UUID = Field(index=True)
     target_kind: str
-    automation_id: str | None = None
-    sync_status: str = "unprovisioned"
-    sync_error: str | None = None
-    deleted_at: datetime | None = Field(default=None, sa_type=TIMESTAMP, nullable=True)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
         sa_type=TIMESTAMP,
