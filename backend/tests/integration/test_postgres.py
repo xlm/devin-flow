@@ -3,13 +3,11 @@ from collections.abc import Iterator
 import pytest
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
-from fastapi.testclient import TestClient
-from sqlalchemy import Engine
-from sqlmodel import Session, SQLModel, select, text
+from sqlalchemy import Engine, inspect
+from sqlmodel import Session, SQLModel, text
 
 from devin_flow import db, seed
 from devin_flow.config import get_settings
-from devin_flow.models import Item
 
 pytestmark = pytest.mark.docker
 
@@ -25,33 +23,27 @@ def test_migrations_match_models(postgres_engine: Engine) -> None:
         assert compare_metadata(context, SQLModel.metadata) == []
 
 
-def test_items_endpoints(client: TestClient) -> None:
-    assert client.get("/api/items").json() == []
-    created = client.post("/api/items", json={"name": "widget"})
-    assert created.status_code == 201
-    assert client.get("/api/items").json() == [created.json()]
-    assert client.post("/api/items", json={"name": "widget"}).status_code == 409
-    assert client.get("/api/items").json() == [created.json()]
-    assert client.post("/api/items", json={"name": "gadget"}).status_code == 201
-    assert [item["name"] for item in client.get("/api/items").json()] == [
-        "widget",
-        "gadget",
-    ]
+def test_item_table_is_dropped(postgres_engine: Engine) -> None:
+    assert inspect(postgres_engine).get_table_names() == ["alembic_version"]
 
 
-def test_seeded_session_has_seed_items(seeded_session: Session) -> None:
-    stored = seeded_session.exec(select(Item.name).order_by(Item.name)).all()
-    assert list(stored) == sorted(seed.SEED_ITEM_NAMES)
+def test_seeded_session_is_empty_canvas(seeded_session: Session) -> None:
+    assert inspect(seeded_session.connection()).get_table_names() == ["alembic_version"]
 
 
-def test_seed_twice_does_not_duplicate(seeded_session: Session) -> None:
+def test_seed_twice_is_idempotent(seeded_session: Session) -> None:
     seed.seed(seeded_session)
-    assert len(seeded_session.exec(select(Item)).all()) == len(seed.SEED_ITEM_NAMES)
+    assert inspect(seeded_session.connection()).get_table_names() == ["alembic_version"]
 
 
 def test_tests_are_isolated(session: Session) -> None:
-    # rows committed by the previous tests were rolled back with their transaction
-    assert session.exec(select(Item)).all() == []
+    # a temp table created here is rolled back with the test transaction
+    session.exec(text("create table scratch (id int)"))  # type: ignore[call-overload]
+    assert "scratch" in inspect(session.connection()).get_table_names()
+
+
+def test_previous_test_scratch_table_is_gone(session: Session) -> None:
+    assert "scratch" not in inspect(session.connection()).get_table_names()
 
 
 @pytest.fixture
@@ -70,4 +62,4 @@ def configured_for_container(
 @pytest.mark.usefixtures("configured_for_container")
 def test_get_session_connects_to_configured_database() -> None:
     session = next(db.get_session())
-    assert session.exec(select(Item)).all() == []
+    assert session.scalar(text("select 1")) == 1

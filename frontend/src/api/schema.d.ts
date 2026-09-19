@@ -39,33 +39,10 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/items": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List Items */
-        get: operations["list_items_api_items_get"];
-        put?: never;
-        /** Create Item */
-        post: operations["create_item_api_items_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** ConflictResponse */
-        ConflictResponse: {
-            /** Detail */
-            detail: string;
-        };
         /** DevinSession */
         DevinSession: {
             /** Session Id */
@@ -94,18 +71,6 @@ export interface components {
              * @constant
              */
             status: "ok";
-        };
-        /** ItemCreate */
-        ItemCreate: {
-            /** Name */
-            name: string;
-        };
-        /** ItemRead */
-        ItemRead: {
-            /** Id */
-            id: number;
-            /** Name */
-            name: string;
         };
         /** SessionCreate */
         SessionCreate: {
@@ -250,68 +215,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
-                };
-            };
-        };
-    };
-    list_items_api_items_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ItemRead"][];
-                };
-            };
-        };
-    };
-    create_item_api_items_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ItemCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ItemRead"];
-                };
-            };
-            /** @description Name already taken */
-            409: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ConflictResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
