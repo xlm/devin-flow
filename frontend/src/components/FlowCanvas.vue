@@ -175,17 +175,26 @@ function edgeCandidates(): Array<CanvasEdge & { sourceKind: NodeKind }> {
   return candidates
 }
 
-function connectionError(connection: Connection): string | null {
+type NodeRef = { id: string; kind: NodeKind }
+
+function resolveConnection(
+  connection: Connection,
+): { source: NodeRef; target: NodeRef } | null {
   const source = findNode(connection.source)
   const target = findNode(connection.target)
   const sourceKind = source && kindOf(source)
   const targetKind = target && kindOf(target)
-  if (!sourceKind || !targetKind) return 'node not found'
-  return connectError(
-    { id: connection.source, kind: sourceKind },
-    { id: connection.target, kind: targetKind },
-    edgeCandidates(),
-  )
+  if (!sourceKind || !targetKind) return null
+  return {
+    source: { id: connection.source, kind: sourceKind },
+    target: { id: connection.target, kind: targetKind },
+  }
+}
+
+function connectionError(connection: Connection): string | null {
+  const resolved = resolveConnection(connection)
+  if (!resolved) return 'node not found'
+  return connectError(resolved.source, resolved.target, edgeCandidates())
 }
 
 function validConnection(connection: Connection): boolean {
@@ -193,18 +202,11 @@ function validConnection(connection: Connection): boolean {
 }
 
 async function saveConnection(connection: Connection) {
-  const error = connectionError(connection)
-  if (error) return
-  const source = findNode(connection.source)
-  const target = findNode(connection.target)
-  const sourceKind = kindOf(source!)!
-  const targetKind = kindOf(target!)!
+  const refs = resolveConnection(connection)
+  if (!refs || connectError(refs.source, refs.target, edgeCandidates())) return
   try {
     const { data } = await client.POST('/api/canvas/edges', {
-      body: {
-        source: { id: connection.source, kind: sourceKind },
-        target: { id: connection.target, kind: targetKind },
-      },
+      body: refs,
     })
     if (data) {
       const edge = mapEdge(data)
