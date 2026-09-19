@@ -33,7 +33,7 @@ def upgrade() -> None:
     op.add_column(
         "action_node",
         sa.Column(
-            "extra_instructions",
+            "prompt",
             sqlmodel.sql.sqltypes.AutoString(),
             nullable=False,
             server_default="",
@@ -52,5 +52,5 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Downgrade schema."""
     op.drop_column("action_node", "playbook_id")
-    op.drop_column("action_node", "extra_instructions")
+    op.drop_column("action_node", "prompt")
     op.drop_column("action_node", "name")

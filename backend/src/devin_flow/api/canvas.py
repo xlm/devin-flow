@@ -69,13 +69,13 @@ class NodeRead(BaseModel):
 class ActionFields(BaseModel):
     name: str | None = Field(default=None, max_length=200)
     playbook_id: str | None = Field(default=None, min_length=1, max_length=200)
-    extra_instructions: str | None = Field(default=None, max_length=20_000)
+    prompt: str | None = Field(default=None, max_length=20_000)
 
 
 class ActionNodeRead(NodeRead):
     name: str
     playbook_id: str | None
-    extra_instructions: str
+    prompt: str
 
 
 class NodeCreate(ActionFields):
@@ -123,7 +123,7 @@ def node_read(node: NodeBase, kind: NodeKind) -> NodeRead | ActionNodeRead:
             **fields,
             name=node.name,
             playbook_id=node.playbook_id,
-            extra_instructions=node.extra_instructions,
+            prompt=node.prompt,
         )
     return NodeRead(
         trigger=(
@@ -142,21 +142,21 @@ def apply_action_fields(node: NodeBase, payload: ActionFields) -> None:
     fields = payload.model_fields_set & {
         "name",
         "playbook_id",
-        "extra_instructions",
+        "prompt",
     }
     if not fields:
         return
     if not isinstance(node, ActionNode):
         raise HTTPException(
             422,
-            "only action nodes have name, playbook_id and extra_instructions",
+            "only action nodes have name, playbook_id and prompt",
         )
     if "name" in fields:
         node.name = payload.name or ""
     if "playbook_id" in fields:
         node.playbook_id = payload.playbook_id
-    if "extra_instructions" in fields:
-        node.extra_instructions = payload.extra_instructions or ""
+    if "prompt" in fields:
+        node.prompt = payload.prompt or ""
 
 
 def edge_read(edge: Edge) -> EdgeRead:

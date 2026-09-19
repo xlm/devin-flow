@@ -13,23 +13,23 @@ describe('action validity', () => {
       actionFieldsFromData({
         name: 'Triage',
         playbookId: 'pb-1',
-        extraInstructions: 'Notes',
+        prompt: 'Notes',
       }),
     ).toEqual({
       name: 'Triage',
       playbookId: 'pb-1',
-      extraInstructions: 'Notes',
+      prompt: 'Notes',
     })
     expect(
       actionFieldsFromData({
         name: 1,
         playbookId: false,
-        extraInstructions: null,
+        prompt: null,
       }),
     ).toEqual({
       name: '',
       playbookId: null,
-      extraInstructions: '',
+      prompt: '',
     })
   })
 
@@ -41,12 +41,12 @@ describe('action validity', () => {
         position: { x: 1, y: 2 },
         name: 'Triage',
         playbook_id: 'pb-1',
-        extra_instructions: 'Notes',
+        prompt: 'Notes',
       }),
     ).toEqual({
       name: 'Triage',
       playbookId: 'pb-1',
-      extraInstructions: 'Notes',
+      prompt: 'Notes',
     })
   })
 

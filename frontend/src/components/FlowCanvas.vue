@@ -206,12 +206,12 @@ async function doSaveNodeFields(
   const body: {
     name?: string
     playbook_id?: string | null
-    extra_instructions?: string
+    prompt?: string
   } = {}
   if (fields.name !== undefined) body.name = fields.name
   if (fields.playbookId !== undefined) body.playbook_id = fields.playbookId
-  if (fields.extraInstructions !== undefined) {
-    body.extra_instructions = fields.extraInstructions
+  if (fields.prompt !== undefined) {
+    body.prompt = fields.prompt
   }
   let failed = false
   try {

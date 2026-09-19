@@ -250,13 +250,13 @@ def test_create_action_node_persists_and_returns_fields(
             "position": {"x": 1, "y": 2},
             "name": "Triage",
             "playbook_id": "pb-1",
-            "extra_instructions": "Use the repository context",
+            "prompt": "Use the repository context",
         },
     )
     assert response.status_code == 201
     assert response.json()["name"] == "Triage"
     assert response.json()["playbook_id"] == "pb-1"
-    assert response.json()["extra_instructions"] == "Use the repository context"
+    assert response.json()["prompt"] == "Use the repository context"
 
 
 def test_create_action_node_defaults_fields(unit_client: TestClient) -> None:
@@ -267,7 +267,7 @@ def test_create_action_node_defaults_fields(unit_client: TestClient) -> None:
     assert response.status_code == 201
     assert response.json()["name"] == ""
     assert response.json()["playbook_id"] is None
-    assert response.json()["extra_instructions"] == ""
+    assert response.json()["prompt"] == ""
 
 
 def test_canvas_action_nodes_include_fields_but_other_nodes_do_not(
@@ -283,7 +283,7 @@ def test_canvas_action_nodes_include_fields_but_other_nodes_do_not(
         "position",
         "name",
         "playbook_id",
-        "extra_instructions",
+        "prompt",
     }
     assert action_id == canvas["action_nodes"][0]["id"]
     assert "name" not in canvas["trigger_nodes"][0]
@@ -303,7 +303,7 @@ def test_action_patch_preserves_omitted_fields_and_clears_null(
             "position": {"x": 1, "y": 2},
             "name": "Triage",
             "playbook_id": "pb-1",
-            "extra_instructions": "Keep this",
+            "prompt": "Keep this",
         },
     )
     node_id = response.json()["id"]
@@ -313,7 +313,7 @@ def test_action_patch_preserves_omitted_fields_and_clears_null(
     assert response.status_code == 200
     assert response.json()["name"] == "Updated"
     assert response.json()["playbook_id"] == "pb-1"
-    assert response.json()["extra_instructions"] == "Keep this"
+    assert response.json()["prompt"] == "Keep this"
     response = unit_client.patch(
         f"/api/canvas/nodes/action/{node_id}", json={"name": None}
     )
@@ -321,10 +321,10 @@ def test_action_patch_preserves_omitted_fields_and_clears_null(
     assert response.json()["name"] == ""
     response = unit_client.patch(
         f"/api/canvas/nodes/action/{node_id}",
-        json={"extra_instructions": None},
+        json={"prompt": None},
     )
     assert response.status_code == 200
-    assert response.json()["extra_instructions"] == ""
+    assert response.json()["prompt"] == ""
     response = unit_client.patch(
         f"/api/canvas/nodes/action/{node_id}", json={"playbook_id": None}
     )
@@ -343,7 +343,7 @@ def test_action_patch_without_position_updates_fields_and_timestamp(
     )
     response = unit_client.patch(
         f"/api/canvas/nodes/action/{node_id}",
-        json={"name": "Updated", "extra_instructions": "Notes"},
+        json={"name": "Updated", "prompt": "Notes"},
     )
     assert response.status_code == 200
     assert response.json()["position"] == {"x": 1, "y": 2}
@@ -364,7 +364,7 @@ def test_action_fields_on_trigger_are_rejected(unit_client: TestClient) -> None:
     assert response.status_code == 422
     assert (
         response.json()["detail"]
-        == "only action nodes have name, playbook_id and extra_instructions"
+        == "only action nodes have name, playbook_id and prompt"
     )
 
 
@@ -383,7 +383,7 @@ def test_position_only_patch_on_trigger_still_works(unit_client: TestClient) -> 
     [
         ("playbook_id", ""),
         ("name", "x" * 201),
-        ("extra_instructions", "x" * 20_001),
+        ("prompt", "x" * 20_001),
     ],
 )
 def test_action_field_validation(

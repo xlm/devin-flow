@@ -165,8 +165,6 @@ export interface components {
     schemas: {
         /** ActionNodeRead */
         ActionNodeRead: {
-            /** Extra Instructions */
-            extra_instructions: string;
             /**
              * Id
              * Format: uuid
@@ -182,6 +180,8 @@ export interface components {
             /** Playbook Id */
             playbook_id: string | null;
             position: components["schemas"]["Position"];
+            /** Prompt */
+            prompt: string;
             trigger?: components["schemas"]["TriggerRead"] | null;
         };
         /** CanvasRead */
@@ -241,13 +241,13 @@ export interface components {
         };
         /** NodeCreate */
         NodeCreate: {
-            /** Extra Instructions */
-            extra_instructions?: string | null;
             /** Name */
             name?: string | null;
             /** Playbook Id */
             playbook_id?: string | null;
             position: components["schemas"]["Position"];
+            /** Prompt */
+            prompt?: string | null;
             trigger?: components["schemas"]["TriggerUpdate"] | null;
         };
         /** NodeRead */
@@ -280,13 +280,13 @@ export interface components {
         };
         /** NodeUpdate */
         NodeUpdate: {
-            /** Extra Instructions */
-            extra_instructions?: string | null;
             /** Name */
             name?: string | null;
             /** Playbook Id */
             playbook_id?: string | null;
             position?: components["schemas"]["Position"] | null;
+            /** Prompt */
+            prompt?: string | null;
             trigger?: components["schemas"]["TriggerUpdate"] | null;
         };
         /** PlaybookOption */
