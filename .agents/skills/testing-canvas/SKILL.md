@@ -95,6 +95,11 @@ to `FlowCanvas.vue` as unverified until it has run in the real browser.
    sheet shows `No invocations yet`.
    Relevant selectors: `outcome-invocation`, `outcome-empty`, `outcome-error`,
    `outcome-retry`.
+   Clicking a Trigger->Action edge or its `N invocations` label opens the
+   action sheet (`action-sheet`, `action-invocation`). Each row leads with
+   the triggering issue link, derived from `structured_output.issue_url` or
+   a `#N` reference in the session title resolved against the Trigger's
+   repository; rows without either show `Issue unknown`.
 4. Stop only the backend and confirm its port is closed. Change a saved
    picker value: expect rollback, `Could not save`, unchanged Ready state
    and edge count. Open the sheet: expect `Could not load invocations`.
