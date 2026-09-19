@@ -627,6 +627,13 @@ def test_list_automations_filters_metadata_and_follows_cursor() -> None:
 def test_create_and_update_automation_use_json_payloads() -> None:
     payload = automation_payload()
     calls: list[httpx.Request] = []
+    update = AutomationUpdate(
+        name=payload.name,
+        enabled=False,
+        triggers=payload.triggers,
+        actions=payload.actions,
+        metadata=payload.metadata,
+    )
 
     def handler(request: httpx.Request) -> httpx.Response:
         calls.append(request)
@@ -636,7 +643,15 @@ def test_create_and_update_automation_use_json_payloads() -> None:
         else:
             assert request.method == "PATCH"
             assert request.url.path.endswith("/automations/auto-1")
-            assert json.loads(request.read()) == {"enabled": False}
+            body = json.loads(request.read())
+            assert body == update.model_dump()
+            assert all(
+                condition["operator"] == "eq"
+                for group in body["triggers"][0]["conditions"]["any"]
+                for condition in group["all"]
+            )
+            assert body["actions"][0]["type"] == "start_session"
+            assert "run_as" not in body
         return httpx.Response(
             201 if request.method == "POST" else 200,
             json={
@@ -649,9 +664,6 @@ def test_create_and_update_automation_use_json_payloads() -> None:
 
     client = make_client(httpx.MockTransport(handler))
     assert client.create_automation(payload).automation_id == "auto-1"
-    assert (
-        client.update_automation("auto-1", AutomationUpdate(enabled=False)).enabled
-        is False
-    )
+    assert client.update_automation("auto-1", update).enabled is False
     assert [call.method for call in calls] == ["POST", "PATCH"]
     client.http.close()

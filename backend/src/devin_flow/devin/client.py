@@ -253,7 +253,7 @@ class DevinClient:
         with _upstream_errors():
             response = self.http.patch(
                 f"/organizations/{self.org_id}/automations/{automation_id}",
-                json=payload.model_dump(exclude_unset=True),
+                json=payload.model_dump(exclude_none=True),
             )
             response.raise_for_status()
             return Automation.model_validate(response.json())
