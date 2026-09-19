@@ -203,15 +203,71 @@ describe('ActionNode', () => {
     expect(GET).toHaveBeenCalledTimes(2)
   })
 
-  it('disables the future automation switch', async () => {
+  it('disables the switch when the action is invalid', async () => {
     GET.mockResolvedValue({ data: [], error: undefined })
     const wrapper = mountAction()
     await flushPromises()
     const button = wrapper.get('[data-testid="enable-switch"]')
     expect((button.element as HTMLButtonElement).disabled).toBe(true)
+    expect(button.attributes('aria-checked')).toBe('false')
     expect(button.attributes('title')).toBe(
-      'Enabling the Automation activates in a later ticket',
+      'Enter a name and choose a Playbook',
     )
+  })
+
+  it('enables a complete action and reports save failures', async () => {
+    GET.mockResolvedValue({ data: [], error: undefined })
+    const save = vi
+      .fn()
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false)
+    const wrapper = mountAction(
+      {
+        name: 'Triage',
+        playbookId: 'pb-1',
+        enabled: false,
+      },
+      save,
+    )
+    edges.value = [
+      {
+        id: 'edge',
+        source: 'trigger',
+        target: 'n1',
+        data: { sourceKind: 'trigger' },
+      },
+    ]
+    await flushPromises()
+    await wrapper.get('[data-testid="enable-switch"]').trigger('click')
+    await flushPromises()
+    expect(save).toHaveBeenCalledWith('n1', { enabled: true })
+    expect(wrapper.find('[data-testid="save-error"]').exists()).toBe(false)
+    await wrapper.setProps({
+      data: {
+        name: 'Triage',
+        playbookId: 'pb-1',
+        enabled: true,
+      },
+    })
+    await wrapper.get('[data-testid="enable-switch"]').trigger('click')
+    await flushPromises()
+    expect(save).toHaveBeenLastCalledWith('n1', { enabled: false })
+    expect(wrapper.find('[data-testid="save-error"]').exists()).toBe(true)
+  })
+
+  it('shows sync status and error on the badge', async () => {
+    GET.mockResolvedValue({ data: [], error: undefined })
+    const wrapper = mountAction({
+      name: 'Triage',
+      playbookId: 'pb-1',
+      syncStatus: 'error',
+      syncError: 'devin api returned HTTP 500',
+    })
+    await flushPromises()
+    const badge = wrapper.get('[data-testid="sync-badge"]')
+    expect(badge.text()).toBe('error')
+    expect(badge.attributes('data-sync-status')).toBe('error')
+    expect(badge.attributes('title')).toBe('devin api returned HTTP 500')
   })
 
   it('works without an injected saver', async () => {

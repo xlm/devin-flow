@@ -20,10 +20,16 @@ import { nodeTypes } from '@/components/nodes/nodeTypes'
 import { useTheme } from '@/composables/useTheme'
 import {
   actionFieldsOf,
+  syncStateFromData,
   type ActionFields,
   type ActionNodeRead,
 } from '@/lib/actionValidity'
-import { SAVE_NODE_FIELDS, type SaveNodeFields } from '@/lib/canvasInjection'
+import {
+  REFRESH_SYNC_STATE,
+  SAVE_NODE_FIELDS,
+  type RefreshSyncState,
+  type SaveNodeFields,
+} from '@/lib/canvasInjection'
 import {
   connectError,
   kindOf,
@@ -75,7 +81,13 @@ function mapNode(node: NodeRead | ActionNodeRead): Node {
   }
   if (node.kind === 'trigger') data.trigger = node.trigger
   if ('name' in node) {
-    data = { ...data, ...actionFieldsOf(node) }
+    data = {
+      ...data,
+      ...actionFieldsOf(node),
+    }
+    if (!('enabled' in node)) delete data.enabled
+    if ('sync_status' in node) data.syncStatus = node.sync_status
+    if ('sync_error' in node) data.syncError = node.sync_error
   }
   return {
     id: node.id,
@@ -207,21 +219,40 @@ async function doSaveNodeFields(
     name?: string
     playbook_id?: string | null
     prompt?: string
+    enabled?: boolean
   } = {}
   if (fields.name !== undefined) body.name = fields.name
   if (fields.playbookId !== undefined) body.playbook_id = fields.playbookId
   if (fields.prompt !== undefined) {
     body.prompt = fields.prompt
   }
+  if (fields.enabled !== undefined) body.enabled = fields.enabled
   let failed = false
   try {
-    const { error } = await client.PATCH('/api/canvas/nodes/{kind}/{node_id}', {
-      params: { path: { kind, node_id: node.id } },
-      body,
-    })
+    const { data, error } = await client.PATCH(
+      '/api/canvas/nodes/{kind}/{node_id}',
+      {
+        params: { path: { kind, node_id: node.id } },
+        body,
+      },
+    )
     if (!error) {
       const base = nodeSnapshots.get(node.id) ?? copyNode(node)
       base.data = { ...base.data, ...fields }
+      if (data && 'sync_status' in data) {
+        const sync = syncStateFromData({
+          syncStatus: data.sync_status,
+          syncError: data.sync_error,
+        })
+        base.data = {
+          ...base.data,
+          enabled: data.enabled,
+          syncStatus: sync.status,
+          syncError: sync.error,
+        }
+        const current = findNode(node.id)
+        if (current) current.data = { ...current.data, ...base.data }
+      }
       nodeSnapshots.set(node.id, base)
     } else {
       failed = true
@@ -283,6 +314,41 @@ const saveNodeFields: SaveNodeFields = async (
 
 provide(SAVE_NODE_FIELDS, saveNodeFields)
 
+async function refreshSyncState() {
+  try {
+    const { data, error } = await client.GET('/api/canvas')
+    if (error || !data) return
+    data.action_nodes.forEach((action) => {
+      const sync = syncStateFromData({
+        syncStatus: action.sync_status,
+        syncError: action.sync_error,
+      })
+      const current = findNode(action.id)
+      if (current) {
+        current.data = {
+          ...current.data,
+          enabled: action.enabled,
+          syncStatus: sync.status,
+          syncError: sync.error,
+        }
+      }
+      const snapshot = nodeSnapshots.get(action.id)
+      if (snapshot) {
+        snapshot.data = {
+          ...snapshot.data,
+          enabled: action.enabled,
+          syncStatus: sync.status,
+          syncError: sync.error,
+        }
+      }
+    })
+  } catch {
+    return
+  }
+}
+
+provide<RefreshSyncState>(REFRESH_SYNC_STATE, refreshSyncState)
+
 async function removeNode(change: Extract<NodeChange, { type: 'remove' }>) {
   const snapshot = nodeSnapshots.get(change.id) ?? findNode(change.id)
   if (!snapshot) {
@@ -334,6 +400,7 @@ async function removeEdge(change: Extract<EdgeChange, { type: 'remove' }>) {
     )
     if (!error || response?.status === 404) {
       edgeSnapshots.delete(snapshot.id)
+      await refreshSyncState()
     } else {
       addEdges([copyEdge(snapshot)])
     }
@@ -394,6 +461,7 @@ async function saveConnection(connection: Connection) {
       const edge = mapEdge(data)
       edgeSnapshots.set(edge.id, copyEdge(edge))
       addEdges([edge])
+      await refreshSyncState()
     }
   } catch {
     // The edge was never added locally, so there is nothing to revert.

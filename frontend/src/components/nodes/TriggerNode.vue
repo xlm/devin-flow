@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, inject, onMounted, ref, watch } from 'vue'
 import type { NodeProps } from '@vue-flow/core'
 import { useVueFlow } from '@vue-flow/core'
 import { client } from '@/api/client'
@@ -8,6 +8,7 @@ import {
   type TriggerRead,
   type TriggerUpdate,
 } from '@/lib/connectRules'
+import { REFRESH_SYNC_STATE } from '@/lib/canvasInjection'
 import CanvasNodeShell from './CanvasNodeShell.vue'
 
 type TriggerData = {
@@ -18,6 +19,7 @@ type TriggerData = {
 
 const props = defineProps<NodeProps<TriggerData>>()
 const { updateNodeData } = useVueFlow()
+const refreshSyncState = inject(REFRESH_SYNC_STATE, async () => {})
 
 const eventAction = ref<EventAction | ''>('')
 const repository = ref('')
@@ -99,6 +101,7 @@ function save(patch: TriggerUpdate) {
       }
       saveError.value = false
       updateNodeData(props.id, { trigger: data.trigger })
+      await refreshSyncState()
     } catch {
       revert(snapshot)
     }

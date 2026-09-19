@@ -165,6 +165,10 @@ export interface components {
     schemas: {
         /** ActionNodeRead */
         ActionNodeRead: {
+            /** Automation Id */
+            automation_id: string | null;
+            /** Enabled */
+            enabled: boolean;
             /**
              * Id
              * Format: uuid
@@ -182,6 +186,13 @@ export interface components {
             position: components["schemas"]["Position"];
             /** Prompt */
             prompt: string;
+            /** Sync Error */
+            sync_error: string | null;
+            /**
+             * Sync Status
+             * @enum {string}
+             */
+            sync_status: "unprovisioned" | "pending" | "enabled" | "disabled" | "error";
             trigger?: components["schemas"]["TriggerRead"] | null;
         };
         /** CanvasRead */
@@ -241,6 +252,8 @@ export interface components {
         };
         /** NodeCreate */
         NodeCreate: {
+            /** Enabled */
+            enabled?: boolean | null;
             /** Name */
             name?: string | null;
             /** Playbook Id */
@@ -280,6 +293,8 @@ export interface components {
         };
         /** NodeUpdate */
         NodeUpdate: {
+            /** Enabled */
+            enabled?: boolean | null;
             /** Name */
             name?: string | null;
             /** Playbook Id */

@@ -104,6 +104,7 @@ function mountNode(component: Component) {
               name: '',
               playbookId: null,
               prompt: '',
+              enabled: false,
             },
           }
         : {

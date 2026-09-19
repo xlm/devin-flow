@@ -127,6 +127,9 @@ const canvas = {
       name: '',
       playbook_id: null,
       prompt: '',
+      enabled: false,
+      sync_status: 'unprovisioned',
+      sync_error: null,
     },
   ],
   outcome_nodes: [{ id: 'outcome', kind: 'outcome', position: { x: 5, y: 6 } }],
@@ -224,6 +227,9 @@ describe('FlowCanvas', () => {
           name: '',
           playbookId: null,
           prompt: '',
+          enabled: false,
+          syncStatus: 'unprovisioned',
+          syncError: null,
         },
       },
       {
@@ -863,6 +869,74 @@ describe('FlowCanvas', () => {
       playbookId: null,
       prompt: '',
     })
+    wrapper.unmount()
+  })
+
+  it('applies synchronization data from an action save response', async () => {
+    const node = {
+      id: 'action',
+      position: { x: 3, y: 4 },
+      data: {
+        kind: 'action',
+        name: 'Triage',
+        playbookId: 'pb-1',
+        prompt: '',
+        enabled: false,
+      },
+    } as Node
+    const provided = { value: undefined as SaveNodeFields | undefined }
+    mocks.findNode.mockReturnValue(node)
+    mocks.PATCH.mockResolvedValue(
+      response({
+        id: 'action',
+        kind: 'action',
+        position: { x: 3, y: 4 },
+        name: 'Triage',
+        playbook_id: 'pb-1',
+        prompt: '',
+        enabled: true,
+        sync_status: 'enabled',
+        sync_error: null,
+        automation_id: 'auto-1',
+      }),
+    )
+    const wrapper = mount(FlowCanvas, {
+      global: { stubs: { NodePalette: saveProbe(provided) } },
+    })
+    await flushPromises()
+    mocks.findNode.mockReturnValue(node)
+    expect(await provided.value?.('action', { enabled: true })).toBe(true)
+    expect(node.data).toEqual({
+      kind: 'action',
+      label: 'Action',
+      name: '',
+      playbookId: null,
+      prompt: '',
+      enabled: true,
+      syncStatus: 'enabled',
+      syncError: null,
+    })
+    expect(mocks.PATCH).toHaveBeenLastCalledWith(
+      '/api/canvas/nodes/{kind}/{node_id}',
+      expect.objectContaining({ body: { enabled: true } }),
+    )
+    mocks.PATCH.mockResolvedValue(
+      response({
+        id: 'action',
+        kind: 'action',
+        position: { x: 3, y: 4 },
+        name: 'Triage',
+        playbook_id: 'pb-1',
+        prompt: '',
+        enabled: false,
+        sync_status: 'disabled',
+        sync_error: null,
+        automation_id: 'auto-1',
+      }),
+    )
+    mocks.findNode.mockReturnValueOnce(node).mockReturnValueOnce(undefined)
+    expect(await provided.value?.('action', { enabled: false })).toBe(true)
+    vi.runAllTimers()
     wrapper.unmount()
   })
 
@@ -1598,6 +1672,9 @@ describe('FlowCanvas', () => {
     )
     mocks.handlers.connect?.({ source: 'action', target: 'trigger' })
     expect(mocks.POST).not.toHaveBeenCalled()
+    mocks.GET.mockResolvedValueOnce(
+      response(undefined, { detail: 'refresh failed' }),
+    )
     mocks.POST.mockResolvedValue(
       response({
         id: 'new-edge',
@@ -1623,6 +1700,51 @@ describe('FlowCanvas', () => {
     mocks.POST.mockRejectedValue(new Error('down'))
     await mocks.handlers.connect?.({ source: 'action', target: 'outcome' })
     expect(mocks.addEdges).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+
+  it('refreshes action synchronization after creating an edge', async () => {
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    const nodes = vueFlow(wrapper).props('nodes') as Node[]
+    const action = nodes.find((node) => node.id === 'action')
+    mocks.findNode.mockImplementation((id: string) =>
+      nodes.find((node) => node.id === id),
+    )
+    mocks.POST.mockResolvedValue(
+      response({
+        id: 'new-edge',
+        source: { id: 'trigger', kind: 'trigger' },
+        target: { id: 'action', kind: 'action' },
+      }),
+    )
+    mocks.GET.mockResolvedValueOnce(
+      response({
+        ...canvas,
+        action_nodes: [
+          {
+            ...canvas.action_nodes[0],
+            enabled: true,
+            sync_status: 'enabled',
+          },
+          {
+            ...canvas.action_nodes[0],
+            id: 'unknown',
+          },
+        ],
+      }),
+    )
+    await mocks.handlers.connect?.({ source: 'action', target: 'outcome' })
+    expect(action?.data).toMatchObject({
+      enabled: true,
+      syncStatus: 'enabled',
+      syncError: null,
+    })
+    mocks.GET.mockRejectedValueOnce(new Error('refresh failed'))
+    await mocks.handlers.connect?.({ source: 'action', target: 'outcome' })
+    await flushPromises()
+    await flushPromises()
+    vi.runAllTimers()
     wrapper.unmount()
   })
 

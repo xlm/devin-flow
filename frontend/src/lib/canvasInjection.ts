@@ -8,3 +8,8 @@ export type SaveNodeFields = (
 
 export const SAVE_NODE_FIELDS: InjectionKey<SaveNodeFields> =
   Symbol('saveNodeFields')
+
+export type RefreshSyncState = () => Promise<void>
+
+export const REFRESH_SYNC_STATE: InjectionKey<RefreshSyncState> =
+  Symbol('refreshSyncState')

@@ -6,6 +6,8 @@ import {
   actionFieldsFromData,
   actionIncompleteHint,
   actionInvalidReason,
+  syncStateFromData,
+  type SyncStatus,
 } from '@/lib/actionValidity'
 import { SAVE_NODE_FIELDS } from '@/lib/canvasInjection'
 import { usePlaybooks } from '@/composables/usePlaybooks'
@@ -18,9 +20,22 @@ const { playbooks, loading, error, reload } = usePlaybooks()
 const saveError = ref(false)
 
 const fields = computed(() => actionFieldsFromData(props.data))
+const sync = computed(() => syncStateFromData(props.data))
 const reason = computed(() =>
   actionInvalidReason(props.id, fields.value, edges.value),
 )
+const hint = computed(() =>
+  reason.value === 'no-trigger'
+    ? 'Connect a Trigger to this Action'
+    : (actionIncompleteHint(fields.value) ?? undefined),
+)
+const syncBadgeClasses: Record<SyncStatus, string> = {
+  enabled: 'bg-green-100 text-green-800',
+  error: 'bg-destructive text-destructive-foreground',
+  pending: 'bg-muted text-muted-foreground',
+  disabled: 'bg-muted text-muted-foreground',
+  unprovisioned: 'bg-muted text-muted-foreground',
+}
 const unknownPlaybook = computed(() => {
   if (
     !fields.value.playbookId ||
@@ -49,6 +64,12 @@ async function saveInstructions(event: Event) {
     prompt: (event.target as HTMLTextAreaElement).value,
   }))
 }
+
+async function toggleEnabled() {
+  saveError.value = !(await saveNodeFields(props.id, {
+    enabled: !fields.value.enabled,
+  }))
+}
 </script>
 
 <template>
@@ -57,24 +78,30 @@ async function saveInstructions(event: Event) {
     kind="action"
     :complete="reason === null"
     :status="reason === 'no-trigger' ? 'No Trigger' : undefined"
-    :hint="
-      reason === 'no-trigger'
-        ? 'Connect a Trigger to this Action'
-        : (actionIncompleteHint(fields) ?? undefined)
-    "
+    :hint="hint"
   >
     <template #toolbar>
       <button
         type="button"
         role="switch"
-        aria-checked="false"
-        disabled
+        :aria-checked="fields.enabled ? 'true' : 'false'"
+        :disabled="!fields.enabled && reason !== null"
         data-testid="enable-switch"
-        title="Enabling the Automation activates in a later ticket"
-        aria-label="Enable Automation"
+        :title="
+          !fields.enabled && reason !== null
+            ? hint
+            : fields.enabled
+              ? 'Disable Automation'
+              : 'Enable Automation'
+        "
+        :aria-label="
+          fields.enabled ? 'Disable Automation' : 'Enable Automation'
+        "
         class="rounded-full border px-2 py-0.5 text-xs"
+        :class="fields.enabled && 'bg-primary text-primary-foreground'"
+        @click="toggleEnabled"
       >
-        Enable
+        {{ fields.enabled ? 'Disable' : 'Enable' }}
       </button>
     </template>
     <p
@@ -85,6 +112,15 @@ async function saveInstructions(event: Event) {
     >
       Could not save
     </p>
+    <span
+      data-testid="sync-badge"
+      :data-sync-status="sync.status"
+      :title="sync.error ?? undefined"
+      class="rounded px-1.5 py-0.5 text-[10px] uppercase"
+      :class="syncBadgeClasses[sync.status]"
+    >
+      {{ sync.status }}
+    </span>
     <div class="space-y-2 text-xs">
       <label class="block">
         <span class="sr-only">Action name</span>
