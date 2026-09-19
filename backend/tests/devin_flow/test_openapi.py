@@ -9,6 +9,7 @@ def test_dump_openapi_includes_health_endpoint() -> None:
     spec = json.loads(dump_openapi())
     assert spec["paths"]["/api/health"]["get"]
     assert spec["components"]["schemas"]["HealthResponse"]
+    assert "/api/canvas" in spec["paths"]
 
 
 def test_dump_openapi_has_no_items_endpoints() -> None:

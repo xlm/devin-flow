@@ -19,6 +19,8 @@
 - `backend/alembic/` + `backend/alembic.ini` - migrations (target
   metadata is `SQLModel.metadata`, URL from `Settings`). Never
   `create_all` against Postgres; add a migration instead.
+- `canvas.py` holds connect rules, `models/canvas.py` holds the node and edge
+  tables, and `api/canvas.py` holds the Canvas routes.
 - `backend/tests/` - pytest tests; test files mirror `src` under
   `tests/devin_flow/` (pytest runs with `--import-mode=importlib`).
   `conftest.py` provides `unit_session`/`unit_client` (in-memory sqlite,
