@@ -46,12 +46,27 @@ const emptyTrigger: TriggerRead = {
 }
 
 function mountNode(trigger = emptyTrigger) {
-  return mount(TriggerNode, {
+  const wrapper = mount(TriggerNode, {
     props: {
       id: 'node-1',
       data: { kind: 'trigger', label: 'Trigger', trigger },
     } as never,
   })
+  mocks.updateNodeData.mockImplementation(
+    (_id: string, update: { trigger: TriggerRead }) => {
+      void wrapper.setProps({
+        data: {
+          ...(wrapper.props('data') as {
+            kind: 'trigger'
+            label: string
+            trigger?: TriggerRead
+          }),
+          ...update,
+        },
+      })
+    },
+  )
+  return wrapper
 }
 
 function repositoryResponse(repo = 'octo/repo') {
@@ -226,6 +241,27 @@ describe('TriggerNode', () => {
     wrapper.unmount()
   })
 
+  it('stays incomplete when local edits are not confirmed', async () => {
+    mocks.GET.mockResolvedValueOnce({ error: { detail: 'failed' } })
+    const wrapper = mountNode()
+    await flushPromises()
+    await wrapper.find('[data-testid="trigger-event"]').setValue('opened')
+    await flushPromises()
+    mocks.PATCH.mockClear()
+    const input = wrapper.find('[data-testid="trigger-repository-input"]')
+    await input.setValue('invalid')
+    await input.trigger('change')
+    expect(
+      wrapper.find('[data-testid="trigger-repository-invalid"]').exists(),
+    ).toBe(true)
+    expect(mocks.PATCH).not.toHaveBeenCalled()
+    expect(
+      wrapper.find('[data-testid="canvas-node"]').attributes('data-incomplete'),
+    ).toBe('true')
+    expect(wrapper.text()).toContain('Incomplete')
+    wrapper.unmount()
+  })
+
   it('saves event changes', async () => {
     const wrapper = mountNode()
     await flushPromises()
@@ -235,6 +271,23 @@ describe('TriggerNode', () => {
       '/api/canvas/nodes/{kind}/{node_id}',
       expect.objectContaining({
         body: { trigger: { event_action: 'closed' } },
+      }),
+    )
+    wrapper.unmount()
+  })
+
+  it('clears a saved event', async () => {
+    const wrapper = mountNode({
+      event_action: 'opened',
+      repository_full_name: 'octo/repo',
+    })
+    await flushPromises()
+    await wrapper.find('[data-testid="trigger-event"]').setValue('')
+    await flushPromises()
+    expect(mocks.PATCH).toHaveBeenCalledWith(
+      '/api/canvas/nodes/{kind}/{node_id}',
+      expect.objectContaining({
+        body: { trigger: { event_action: null } },
       }),
     )
     wrapper.unmount()
@@ -295,6 +348,48 @@ describe('TriggerNode', () => {
     resolveFirst?.(savedResponse())
     await flushPromises()
     expect(mocks.PATCH).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
+  it('rolls back a queued failure to the latest confirmed state', async () => {
+    let resolveFirst:
+      ((value: ReturnType<typeof savedResponse>) => void) | undefined
+    mocks.PATCH.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirst = resolve
+        }),
+    )
+    mocks.PATCH.mockImplementationOnce(() => Promise.reject(new Error('down')))
+    const wrapper = mountNode({
+      event_action: 'opened',
+      repository_full_name: 'octo/one',
+    })
+    await flushPromises()
+    await wrapper.find('[data-testid="trigger-event"]').setValue('closed')
+    await wrapper
+      .find('[data-testid="trigger-repository"]')
+      .setValue('octo/two')
+    resolveFirst?.(
+      savedResponse({
+        event_action: 'closed',
+        repository_full_name: 'octo/one',
+      }),
+    )
+    await flushPromises()
+    expect(
+      (
+        wrapper.find('[data-testid="trigger-event"]')
+          .element as HTMLSelectElement
+      ).value,
+    ).toBe('closed')
+    expect(
+      (
+        wrapper.find('[data-testid="trigger-repository"]')
+          .element as HTMLSelectElement
+      ).value,
+    ).toBe('octo/one')
+    expect(wrapper.find('[role="alert"]').text()).toBe('Could not save')
     wrapper.unmount()
   })
 })
