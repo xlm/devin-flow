@@ -244,6 +244,27 @@ describe('FlowCanvas', () => {
     wrapper.unmount()
   })
 
+  it('shares an in-flight load across duplicate retries', async () => {
+    let resolveRetry: ((value: ReturnType<typeof response>) => void) | undefined
+    mocks.GET.mockRejectedValueOnce(new Error('down')).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRetry = resolve
+        }),
+    )
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    const retry = wrapper.find('[data-testid="load-retry"]')
+    await retry.trigger('click')
+    await retry.trigger('click')
+    expect(mocks.GET).toHaveBeenCalledTimes(2)
+    resolveRetry?.(response(canvas))
+    await flushPromises()
+    expect(vueFlow(wrapper).props('nodes')).toHaveLength(3)
+    expect(wrapper.find('[data-testid="load-error"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
   it('clears snapshots when retrying a different canvas', async () => {
     mocks.GET.mockResolvedValueOnce(response(canvas))
       .mockRejectedValueOnce(new Error('down'))
