@@ -252,8 +252,6 @@ export interface components {
         };
         /** NodeCreate */
         NodeCreate: {
-            /** Enabled */
-            enabled?: boolean | null;
             /** Name */
             name?: string | null;
             /** Playbook Id */
