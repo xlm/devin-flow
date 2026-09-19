@@ -1,8 +1,10 @@
 # Issue triage
 
 Triage a newly opened GitHub issue in the repository it was filed against.
-The triggering issue payload is appended to this prompt. Report the result
-as structured output matching the schema in `issue-triage.schema.json`.
+The triggering issue payload is appended to this prompt. Finish by
+reporting structured output with an `outcome` of `duplicate`,
+`not_a_bug`, `not_reproducible` or `fixed`, plus `duplicate_of` for
+duplicates and `pr_url` for fixes.
 
 ## Procedure
 
