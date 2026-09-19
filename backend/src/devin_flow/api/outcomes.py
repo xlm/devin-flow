@@ -39,7 +39,9 @@ class OutcomeInvocationRead(BaseModel):
     },
 )
 def list_outcome_invocations(
-    node_id: UUID, session: SessionDep
+    node_id: UUID,
+    session: SessionDep,
+    action_node_id: UUID | None = None,
 ) -> list[OutcomeInvocationRead]:
     node = session.get(OutcomeNode, node_id)
     if node is None:
@@ -53,6 +55,10 @@ def list_outcome_invocations(
     action_ids = [edge.source_id for edge in edges]
     if not action_ids or node.kind is None:
         return []
+    if action_node_id is not None:
+        if action_node_id not in action_ids:
+            return []
+        action_ids = [action_node_id]
     invocations = session.exec(
         select(Invocation)
         .where(col(Invocation.action_node_id).in_(action_ids))

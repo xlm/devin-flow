@@ -994,7 +994,9 @@ export interface operations {
     };
     list_outcome_invocations_api_outcome_nodes__node_id__invocations_get: {
         parameters: {
-            query?: never;
+            query?: {
+                action_node_id?: string | null;
+            };
             header?: never;
             path: {
                 node_id: string;
