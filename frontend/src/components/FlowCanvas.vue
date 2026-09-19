@@ -33,7 +33,7 @@ const edgeSnapshots = new Map<string, Edge>()
 const saveGenerations = new Map<string, number>()
 const saveChains = new Map<string, Promise<void>>()
 const cascadedNodeIds = new Set<string>()
-let reloadPromise: Promise<void> | undefined
+let loadPromise: Promise<void> | undefined
 
 const {
   fitView,
@@ -93,7 +93,7 @@ function copyEdge(edge: Edge): Edge {
   return { ...edge, data: { ...edge.data } }
 }
 
-async function loadCanvas() {
+async function fetchCanvas() {
   loadError.value = false
   nodeSnapshots.clear()
   edgeSnapshots.clear()
@@ -125,13 +125,13 @@ async function loadCanvas() {
   }
 }
 
-function reloadCanvas(): Promise<void> {
-  if (!reloadPromise) {
-    reloadPromise = loadCanvas().finally(() => {
-      reloadPromise = undefined
+function loadCanvas(): Promise<void> {
+  if (!loadPromise) {
+    loadPromise = fetchCanvas().finally(() => {
+      loadPromise = undefined
     })
   }
-  return reloadPromise
+  return loadPromise
 }
 
 async function doSaveNodePosition(
@@ -202,7 +202,7 @@ async function removeNode(change: Extract<NodeChange, { type: 'remove' }>) {
       { params: { path: { kind, node_id: snapshot.id } } },
     )
     if (error && response?.status !== 404) {
-      await reloadCanvas()
+      await loadCanvas()
     } else {
       edgeSnapshots.forEach((edge) => {
         if (edge.source === snapshot.id || edge.target === snapshot.id) {
@@ -211,7 +211,7 @@ async function removeNode(change: Extract<NodeChange, { type: 'remove' }>) {
       })
     }
   } catch {
-    await reloadCanvas()
+    await loadCanvas()
   } finally {
     cascadedNodeIds.delete(snapshot.id)
   }
