@@ -7,8 +7,9 @@
   `api/` (under `/api`), and static file serving in `web/spa.py`. Serves
   `frontend/dist` when it exists (or `STATIC_DIR`). Unknown `/api/*`
   paths must stay 404.
-  Settings (`DATABASE_URL`, `STATIC_DIR`, `DEVIN_API_TOKEN`, and
-  `DEVIN_ORG_ID`, the latter two required) come from `config.py`
+  Settings (`DATABASE_URL`, `STATIC_DIR`, `DEVIN_API_TOKEN`,
+  `DEVIN_ORG_ID`, the latter two required, and `POLL_INTERVAL_SECONDS`,
+  default 60, 0 disables the poller) come from `config.py`
   (pydantic-settings, `.env` aware). `db.py` builds the sync SQLModel
   engine lazily and exposes the `get_session` dependency. Table models
   live in `models/` and must be imported from `models/__init__.py` so
@@ -21,6 +22,9 @@
   `create_all` against Postgres; add a migration instead.
 - `canvas.py` holds connect rules, `models/canvas.py` holds the node and edge
   tables, and `api/canvas.py` holds the Canvas routes.
+- `invocations.py` mirrors Devin sessions into the `invocation` table
+  (`poll_once`, run from the app lifespan and `POST /api/invocations/refresh`).
+  `models/invocation.py` holds `Invocation` and the single-row `PollerState`.
 - `backend/tests/` - pytest tests; test files mirror `src` under
   `tests/devin_flow/` (pytest runs with `--import-mode=importlib`).
   `conftest.py` provides `unit_session`/`unit_client` (in-memory sqlite,

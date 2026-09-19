@@ -1,3 +1,7 @@
+import asyncio
+import contextlib
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from math import isfinite
 from pathlib import Path
 
@@ -8,6 +12,7 @@ from fastapi.responses import JSONResponse
 from devin_flow import api, web
 from devin_flow.config import get_settings
 from devin_flow.devin.client import DevinNotConfiguredError
+from devin_flow.invocations import poll_forever
 
 
 def handle_devin_not_configured(_request: Request, exc: Exception) -> JSONResponse:
@@ -34,10 +39,25 @@ def handle_request_validation(_request: Request, exc: Exception) -> JSONResponse
     return JSONResponse(status_code=422, content={"detail": details})
 
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    interval = get_settings().poll_interval_seconds
+    if interval <= 0:
+        yield
+        return
+    task = asyncio.create_task(poll_forever(interval))
+    try:
+        yield
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+
 def create_app(static_dir: Path | None = None) -> FastAPI:
     if static_dir is None:
         static_dir = get_settings().static_dir
-    app = FastAPI(title="devin-flow")
+    app = FastAPI(title="devin-flow", lifespan=lifespan)
     app.add_exception_handler(DevinNotConfiguredError, handle_devin_not_configured)
     app.add_exception_handler(RequestValidationError, handle_request_validation)
     app.include_router(api.router)

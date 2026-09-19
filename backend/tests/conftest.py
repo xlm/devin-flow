@@ -29,6 +29,7 @@ def devin_env(
     if request.node.get_closest_marker("live") is None:
         monkeypatch.setenv("DEVIN_API_TOKEN", "test-token")
         monkeypatch.setenv("DEVIN_ORG_ID", "org-test")
+    monkeypatch.setenv("POLL_INTERVAL_SECONDS", "0")
     get_settings.cache_clear()
     get_devin_client.cache_clear()
     yield

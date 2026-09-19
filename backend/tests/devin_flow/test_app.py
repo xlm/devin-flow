@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -67,3 +68,35 @@ def test_existing_api_route_keeps_405_for_wrong_method(tmp_path: Path) -> None:
     (tmp_path / "index.html").write_text("<html>spa</html>")
     client = TestClient(create_app(static_dir=tmp_path))
     assert client.post("/api/health").status_code == 405
+
+
+def test_lifespan_starts_poller_when_interval_positive(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from devin_flow import app as app_module
+
+    started: list[float] = []
+
+    async def fake_poll_forever(interval_seconds: float) -> None:
+        started.append(interval_seconds)
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(app_module, "poll_forever", fake_poll_forever)
+    monkeypatch.setenv("POLL_INTERVAL_SECONDS", "5")
+    get_settings.cache_clear()
+    with TestClient(create_app(static_dir=tmp_path)) as client:
+        assert client.get("/api/health").status_code == 200
+    assert started == [5]
+
+
+def test_lifespan_skips_poller_when_disabled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from devin_flow import app as app_module
+
+    def fail(_interval: float) -> None:
+        raise AssertionError("poller must not start")
+
+    monkeypatch.setattr(app_module, "poll_forever", fail)
+    with TestClient(create_app(static_dir=tmp_path)) as client:
+        assert client.get("/api/health").status_code == 200
