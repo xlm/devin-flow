@@ -204,11 +204,24 @@ def actions_to_sync(session: Session) -> Sequence[ActionNode]:
 
 def retry_syncs(session: Session, client: DevinClient) -> int:
     # one attempt per Action per cycle; one failure must not stop the rest
-    actions = actions_to_sync(session)
-    for action in actions:
+    ids = [action.id for action in actions_to_sync(session)]
+    synced = 0
+    for action_id in ids:
         try:
-            sync_action(session, client, action.id)
+            # re-read under the row lock: an overlapping cycle may have
+            # settled it
+            action = session.exec(
+                select(ActionNode)
+                .where(ActionNode.id == action_id)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            ).first()
+            if action is None or action.sync_status not in ("pending", "error"):
+                session.rollback()
+                continue
+            sync_action(session, client, action_id)
+            synced += 1
         except Exception:
-            logger.exception("sync of action %s failed", action.id)
+            logger.exception("sync of action %s failed", action_id)
             session.rollback()
-    return len(actions)
+    return synced
