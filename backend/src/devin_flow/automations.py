@@ -43,7 +43,12 @@ def connected_trigger(session: Session, action_id: UUID) -> TriggerNode | None:
             Edge.source_kind == "trigger",
         )
     ).first()
-    return None if edge is None else session.get(TriggerNode, edge.source_id)
+    return (
+        None
+        if edge is None
+        # may be cached by an earlier query, so refresh like the Action lock
+        else session.get(TriggerNode, edge.source_id, populate_existing=True)
+    )
 
 
 def connected_action(session: Session, trigger_id: UUID) -> ActionNode | None:
@@ -121,7 +126,12 @@ def mark_pending(action: ActionNode) -> None:
 
 def sync_action(session: Session, client: DevinClient, action_id: UUID) -> None:
     action = session.exec(
-        select(ActionNode).where(ActionNode.id == action_id).with_for_update()
+        select(ActionNode)
+        .where(ActionNode.id == action_id)
+        .with_for_update()
+        # the lock must also refresh fields cached by an earlier query,
+        # e.g. actions_to_sync
+        .execution_options(populate_existing=True)
     ).first()
     if action is None:
         return

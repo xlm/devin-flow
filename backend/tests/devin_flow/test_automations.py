@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import httpx
 import pytest
+from sqlalchemy import Engine
 from sqlmodel import Session
 
 from devin_flow.automations import (
@@ -511,3 +512,47 @@ def test_retry_syncs_one_failure_does_not_stop_others(
     assert attempted == ["auto-1", "auto-1"]
     assert caplog.text.count("sync of action") == 2
     assert "client exploded" in caplog.text
+
+
+def test_sync_uses_fresh_fields_after_lock(
+    unit_session: Session, unit_engine: Engine
+) -> None:
+    node = action()
+    node.prompt = "Old"
+    node.automation_id = "auto-1"
+    node.sync_status = "error"
+    source = trigger()
+    unit_session.add_all([node, source])
+    unit_session.commit()
+    connect(unit_session, source, node)
+    # populate the identity map so the lock must refresh stale fields
+    assert actions_to_sync(unit_session)[0].id == node.id
+    with Session(unit_engine) as other:
+        other_node = other.get(ActionNode, node.id)
+        other_trigger = other.get(TriggerNode, source.id)
+        assert other_node is not None and other_trigger is not None
+        other_node.prompt = "New"
+        other_trigger.event_action = "closed"
+        other.add_all([other_node, other_trigger])
+        other.commit()
+
+    bodies: list[dict[str, object]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "PATCH"
+        bodies.append(json.loads(request.read()))
+        return httpx.Response(200, json=automation_response("auto-1"))
+
+    client = make_client(httpx.MockTransport(handler))
+    assert retry_syncs(unit_session, client) == 1
+    assert len(bodies) == 1
+    actions = bodies[0]["actions"]
+    assert isinstance(actions, list)
+    assert str(actions[0]["prompt"]).startswith("New")
+    triggers = bodies[0]["triggers"]
+    assert isinstance(triggers, list)
+    conditions = triggers[0]["conditions"]["any"][0]["all"]
+    assert {c["field"]: c["value"] for c in conditions} == {
+        "action": "closed",
+        "repository.full_name": "octo/repo",
+    }
