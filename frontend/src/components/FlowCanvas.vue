@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button'
 import NodePalette from '@/components/NodePalette.vue'
 import OutcomeInvocationsSheet from '@/components/OutcomeInvocationsSheet.vue'
 import { nodeTypes } from '@/components/nodes/nodeTypes'
+import { refreshApiHealth } from '@/composables/useApiHealth'
 import { useTheme } from '@/composables/useTheme'
 import {
   actionFieldsOf,
@@ -516,6 +517,11 @@ async function saveConnection(connection: Connection) {
   }
 }
 
+async function retryLoad() {
+  await loadCanvas()
+  await refreshApiHealth()
+}
+
 async function refreshInvocations() {
   refreshing.value = true
   try {
@@ -525,7 +531,7 @@ async function refreshInvocations() {
   } finally {
     refreshing.value = false
   }
-  await loadCanvas()
+  await Promise.all([loadCanvas(), refreshApiHealth()])
 }
 
 async function createNode(kind: NodeKind, position: Position) {
@@ -639,7 +645,7 @@ onUnmounted(() => {
           size="sm"
           variant="outline"
           data-testid="load-retry"
-          @click="loadCanvas"
+          @click="retryLoad"
         >
           Retry
         </Button>
