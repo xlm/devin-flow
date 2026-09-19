@@ -61,7 +61,7 @@ const creationBlocked = computed(() => loading.value || loadError.value)
 const nodeSnapshots = new Map<string, Node>()
 const edgeSnapshots = new Map<string, Edge>()
 const saveGenerations = new Map<string, number>()
-const saveChains = new Map<string, Promise<void | boolean>>()
+const saveChains = new Map<string, Promise<unknown>>()
 const pendingFields = new Map<string, Map<string, number>>()
 const cascadedNodeIds = new Set<string>()
 let loadPromise: Promise<void> | undefined
@@ -144,11 +144,11 @@ function copyEdge(edge: Edge): Edge {
 async function fetchCanvas() {
   loadError.value = false
   loading.value = true
+  // Reload after every in-flight save so GET reflects them; saves queued
+  // during the reload wait for it instead (see queueSave).
+  await Promise.all([...saveChains.values()])
   nodeSnapshots.clear()
   edgeSnapshots.clear()
-  saveGenerations.clear()
-  saveChains.clear()
-  pendingFields.clear()
   cascadedNodeIds.clear()
   try {
     const { data, error } = await client.GET('/api/canvas')
@@ -185,6 +185,29 @@ function loadCanvas(): Promise<void> {
     })
   }
   return loadPromise
+}
+
+function queueSave<T>(
+  nodeId: string,
+  save: () => Promise<T>,
+  reapply: (current: Node) => void,
+): Promise<T> {
+  const load = loadPromise
+  const previous = saveChains.get(nodeId) ?? Promise.resolve()
+  const next = Promise.all([previous, load]).then(() => {
+    // A reload replaces the node objects, so an edit made during one is
+    // put back on the reloaded node before it is saved.
+    if (load) {
+      const current = findNode(nodeId)
+      if (current) reapply(current)
+    }
+    return save()
+  })
+  saveChains.set(
+    nodeId,
+    next.catch(() => {}),
+  )
+  return next
 }
 
 async function doSaveNodePosition(
@@ -227,15 +250,13 @@ function saveNodePosition(event: NodeDragEvent): Promise<void> | undefined {
   saveGenerations.set(node.id, generation)
   const savedNode = copyNode(node)
   savedNode.position = { ...position }
-  const previous = saveChains.get(node.id) ?? Promise.resolve()
-  const next = previous.then(() =>
-    doSaveNodePosition(savedNode, kind, position, generation),
-  )
-  saveChains.set(
+  return queueSave(
     node.id,
-    next.catch(() => {}),
+    () => doSaveNodePosition(savedNode, kind, position, generation),
+    (current) => {
+      current.position = { ...position }
+    },
   )
-  return next
 }
 
 async function doSaveNodeFields(
@@ -288,16 +309,16 @@ async function doSaveNodeFields(
   } catch {
     failed = true
   } finally {
-    const pending = pendingFields.get(node.id)
+    const pending = pendingFields.get(node.id)!
     for (const field of Object.keys(fields)) {
-      const count = pending?.get(field) ?? 0
+      const count = pending.get(field)!
       if (count > 1) {
-        pending?.set(field, count - 1)
+        pending.set(field, count - 1)
       } else {
-        pending?.delete(field)
+        pending.delete(field)
       }
     }
-    if (pending && pending.size === 0) pendingFields.delete(node.id)
+    if (pending.size === 0) pendingFields.delete(node.id)
   }
   if (failed) {
     const snapshot = nodeSnapshots.get(node.id)
@@ -331,13 +352,13 @@ const saveNodeFields: SaveNodeFields = async (
   pendingFields.set(nodeId, pending)
   node.data = { ...node.data, ...fields }
   const optimistic = copyNode(node)
-  const previous = saveChains.get(nodeId) ?? Promise.resolve()
-  const next = previous.then(() => doSaveNodeFields(optimistic, kind, fields))
-  saveChains.set(
+  return queueSave(
     nodeId,
-    next.catch(() => {}),
+    () => doSaveNodeFields(optimistic, kind, fields),
+    (current) => {
+      current.data = { ...current.data, ...fields }
+    },
   )
-  return next
 }
 
 provide(SAVE_NODE_FIELDS, saveNodeFields)
