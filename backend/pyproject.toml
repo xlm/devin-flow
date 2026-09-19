@@ -13,6 +13,7 @@ dependencies = [
 
 [project.scripts]
 seed = "devin_flow.seed:main"
+sync-playbooks = "devin_flow.playbooks:main"
 
 [build-system]
 requires = ["hatchling"]
