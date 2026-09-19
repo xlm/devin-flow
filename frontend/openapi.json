@@ -1,19 +1,6 @@
 {
   "components": {
     "schemas": {
-      "ConflictResponse": {
-        "properties": {
-          "detail": {
-            "title": "Detail",
-            "type": "string"
-          }
-        },
-        "required": [
-          "detail"
-        ],
-        "title": "ConflictResponse",
-        "type": "object"
-      },
       "DevinSession": {
         "properties": {
           "session_id": {
@@ -92,40 +79,6 @@
           "status"
         ],
         "title": "HealthResponse",
-        "type": "object"
-      },
-      "ItemCreate": {
-        "properties": {
-          "name": {
-            "maxLength": 255,
-            "minLength": 1,
-            "pattern": "^[^\\x00]*$",
-            "title": "Name",
-            "type": "string"
-          }
-        },
-        "required": [
-          "name"
-        ],
-        "title": "ItemCreate",
-        "type": "object"
-      },
-      "ItemRead": {
-        "properties": {
-          "id": {
-            "title": "Id",
-            "type": "integer"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "name"
-        ],
-        "title": "ItemRead",
         "type": "object"
       },
       "SessionCreate": {
@@ -329,74 +282,6 @@
           }
         },
         "summary": "Health"
-      }
-    },
-    "/api/items": {
-      "get": {
-        "operationId": "list_items_api_items_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/ItemRead"
-                  },
-                  "title": "Response List Items Api Items Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "List Items"
-      },
-      "post": {
-        "operationId": "create_item_api_items_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ItemCreate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ItemRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ConflictResponse"
-                }
-              }
-            },
-            "description": "Name already taken"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Create Item"
       }
     }
   }

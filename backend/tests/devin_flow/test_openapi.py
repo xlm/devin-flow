@@ -11,12 +11,10 @@ def test_dump_openapi_includes_health_endpoint() -> None:
     assert spec["components"]["schemas"]["HealthResponse"]
 
 
-def test_dump_openapi_includes_items_endpoints() -> None:
+def test_dump_openapi_has_no_items_endpoints() -> None:
     spec = json.loads(dump_openapi())
-    assert set(spec["paths"]["/api/items"]) == {"get", "post"}
-    assert "409" in spec["paths"]["/api/items"]["post"]["responses"]
-    assert spec["components"]["schemas"]["ItemCreate"]
-    assert spec["components"]["schemas"]["ItemRead"]
+    assert "/api/items" not in spec["paths"]
+    assert not {"ItemCreate", "ItemRead"} & set(spec["components"]["schemas"])
 
 
 def test_dump_openapi_is_deterministic() -> None:

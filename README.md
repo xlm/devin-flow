@@ -23,7 +23,7 @@ uv run pre-commit install
 # postgres 18 on :5432 (user/password/db: devin/devin/devin_flow)
 docker compose up -d db
 
-# apply migrations, then seed example rows (idempotent, safe to re-run)
+# apply migrations, then seed (idempotent, safe to re-run)
 uv run alembic -c backend/alembic.ini upgrade head
 uv run seed
 
@@ -61,9 +61,10 @@ uv run alembic -c backend/alembic.ini downgrade -1
 ```
 
 Seed data is defined in `backend/src/devin_flow/seed.py`. `seed(session)`
-only inserts rows that are missing, so `uv run seed` (locally) or
-`docker compose run --rm seed` (against the compose database) can run
-any number of times. Test fixtures call the same function.
+is idempotent, so `uv run seed` (locally) or `docker compose run --rm seed`
+(against the compose database) can run any number of times. Today the
+seeded state is an empty Canvas, so it inserts nothing. Test fixtures call
+the same function.
 
 ## Checks
 
