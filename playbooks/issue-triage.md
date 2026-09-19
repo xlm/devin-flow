@@ -4,7 +4,9 @@ Triage a newly opened GitHub issue in the repository it was filed against.
 The triggering issue payload is appended to this prompt. Finish by
 reporting structured output with an `outcome` of `duplicate`,
 `not_a_bug`, `not_reproducible` or `fixed`, plus `duplicate_of` for
-duplicates and `pr_url` for fixes.
+duplicates and `pr_url` for fixes. Always include `issue_url`,
+`issue_number` and `issue_title` of the triggering issue in the
+structured output.
 
 ## Procedure
 

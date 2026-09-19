@@ -3,15 +3,13 @@ import { computed, watch } from 'vue'
 import { client } from '@/api/client'
 import InvocationsSheet from '@/components/InvocationsSheet.vue'
 import { useInvocationList } from '@/composables/useInvocationList'
-import type { OutcomeInvocationRead, OutcomeKind } from '@/lib/connectRules'
+import type { ActionInvocationRead, IssueRef } from '@/lib/connectRules'
 import { formatDate } from '@/lib/formatDate'
-import { outcomeKindLabel } from '@/lib/outcomeKinds'
 
 const props = defineProps<{
   open: boolean
   nodeId: string | null
-  actionNodeId: string | null
-  kind: OutcomeKind | null
+  actionName: string | null
 }>()
 const emit = defineEmits<{ 'update:open': [value: boolean] }>()
 
@@ -20,22 +18,27 @@ const {
   loading,
   loadError,
   load,
-} = useInvocationList<OutcomeInvocationRead>(() =>
-  client.GET('/api/outcome-nodes/{node_id}/invocations', {
-    params: {
-      // `load` only runs while nodeId is set; the watch below guards it.
-      path: { node_id: props.nodeId as string },
-      query: props.actionNodeId ? { action_node_id: props.actionNodeId } : {},
-    },
+} = useInvocationList<ActionInvocationRead>(() =>
+  client.GET('/api/action-nodes/{node_id}/invocations', {
+    // `load` only runs while nodeId is set; the watch below guards it.
+    params: { path: { node_id: props.nodeId as string } },
   }),
 )
 
-const title = computed(() =>
-  props.kind ? `${outcomeKindLabel(props.kind)} outcomes` : 'Outcome',
+const title = computed(
+  () => `${props.actionName?.trim() || 'Action'} invocations`,
 )
 
+function issueLabel(issue: IssueRef): string {
+  const parts = [
+    issue.number === null ? null : `#${issue.number}`,
+    issue.title,
+  ].filter((part): part is string => part !== null && part !== '')
+  return parts.length ? parts.join(' ') : issue.url
+}
+
 watch(
-  () => [props.open, props.nodeId, props.actionNodeId] as const,
+  () => [props.open, props.nodeId] as const,
   ([open, nodeId]) => {
     if (open && nodeId) void load()
   },
@@ -47,8 +50,8 @@ watch(
   <InvocationsSheet
     :open="open"
     :title="title"
-    description="Invocations that produced this outcome"
-    test-id="outcome"
+    description="Sessions started by this Action, newest first"
+    test-id="action"
     :loading="loading"
     :load-error="loadError"
     :empty="invocations.length === 0"
@@ -59,9 +62,18 @@ watch(
       <li
         v-for="invocation in invocations"
         :key="invocation.id"
-        data-testid="outcome-invocation"
+        data-testid="action-invocation"
         class="rounded-md border p-2 text-sm"
       >
+        <a
+          v-if="invocation.issue"
+          :href="invocation.issue.url"
+          target="_blank"
+          rel="noopener"
+          class="text-xs text-primary underline"
+          >{{ issueLabel(invocation.issue) }}</a
+        >
+        <div v-else class="text-xs text-muted-foreground">Issue unknown</div>
         <div class="font-medium">
           {{ invocation.title ?? invocation.session_id }}
         </div>
@@ -96,14 +108,6 @@ watch(
             >
           </li>
         </ul>
-        <a
-          v-if="invocation.duplicate_of"
-          :href="invocation.duplicate_of"
-          target="_blank"
-          rel="noopener"
-          class="mt-1 inline-block text-xs text-primary underline"
-          >Duplicate of</a
-        >
       </li>
     </ul>
   </InvocationsSheet>

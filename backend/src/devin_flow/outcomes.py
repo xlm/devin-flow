@@ -2,9 +2,12 @@
 
 Pure functions over a single Invocation: no database access. An
 invocation counts toward an Outcome node's kind when a matching signal is
-present: a recorded pull request, or a structured output verdict.
+present: a recorded pull request, or a structured output verdict. The
+triggering GitHub issue is likewise derived from structured output, or
+from a `#N` reference in the session title.
 """
 
+import re
 from typing import Literal, cast
 
 from pydantic import BaseModel
@@ -16,6 +19,8 @@ PrState = Literal["open", "merged", "closed", "other"]
 STRUCTURED_OUTCOMES: frozenset[str] = frozenset(
     {"duplicate", "not_reproducible", "not_a_bug"}
 )
+
+ISSUE_TITLE_NUMBER = re.compile(r"#(\d+)\b")
 
 
 class PullRequestLink(BaseModel):
@@ -58,6 +63,40 @@ def duplicate_of(invocation: Invocation) -> str | None:
         return None
     value = output.get("duplicate_of")
     return value if isinstance(value, str) else None
+
+
+class IssueRef(BaseModel):
+    url: str
+    number: int | None
+    title: str | None
+
+
+def issue_ref(
+    invocation: Invocation, repository_full_name: str | None
+) -> IssueRef | None:
+    output = invocation.structured_output
+    if isinstance(output, dict):
+        issue_url = output.get("issue_url")
+        if isinstance(issue_url, str) and issue_url:
+            number = output.get("issue_number")
+            title = output.get("issue_title")
+            return IssueRef(
+                url=issue_url,
+                number=number
+                if isinstance(number, int) and not isinstance(number, bool)
+                else None,
+                title=title if isinstance(title, str) else None,
+            )
+    if repository_full_name and invocation.title:
+        match = ISSUE_TITLE_NUMBER.search(invocation.title)
+        if match:
+            number = int(match.group(1))
+            return IssueRef(
+                url=f"https://github.com/{repository_full_name}/issues/{number}",
+                number=number,
+                title=None,
+            )
+    return None
 
 
 def outcome_kinds(invocation: Invocation) -> frozenset[OutcomeKind]:
