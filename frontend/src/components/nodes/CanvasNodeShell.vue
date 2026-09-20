@@ -12,6 +12,8 @@ import {
 } from '@/lib/nodeKinds'
 import type { NodeKind } from '@/lib/connectRules'
 
+defineOptions({ inheritAttrs: false })
+
 const props = withDefaults(
   defineProps<{
     id: string
