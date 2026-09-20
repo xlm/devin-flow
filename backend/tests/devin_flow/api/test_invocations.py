@@ -173,6 +173,36 @@ def test_archive_invocation_refetches_full_session_after_sparse_response(
     ]
 
 
+def test_archive_invocation_keeps_marker_when_refetch_fails(
+    unit_client: TestClient, unit_session: Session
+) -> None:
+    invocation = add_invocation(unit_session)
+    invocation.title = "Existing title"
+    invocation.pull_requests = [{"pr_url": "https://github.com/acme/widgets/pull/1"}]
+    unit_session.add(invocation)
+    unit_session.commit()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/sessions/session-archive/archive"):
+            return httpx.Response(
+                200,
+                json={"session_id": "session-archive", "status": "exit"},
+            )
+        assert request.url.path.endswith("/sessions/session-archive")
+        return httpx.Response(500, text="refetch failed")
+
+    install_upstream(unit_client, httpx.MockTransport(handler))
+    response = unit_client.post(f"/api/invocations/{invocation.id}/archive")
+    assert response.status_code == 204
+    archived = unit_session.get(Invocation, invocation.id)
+    assert archived is not None
+    assert archived.archived_at is not None
+    assert archived.title == "Existing title"
+    assert archived.pull_requests == [
+        {"pr_url": "https://github.com/acme/widgets/pull/1"}
+    ]
+
+
 def test_archive_invocation_returns_not_found(
     unit_client: TestClient, unit_session: Session
 ) -> None:
