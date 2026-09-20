@@ -6,6 +6,7 @@ import { useInvocationList } from '@/composables/useInvocationList'
 import type { OutcomeInvocationRead, OutcomeKind } from '@/lib/connectRules'
 import { formatDate } from '@/lib/formatDate'
 import { outcomeKindLabel } from '@/lib/outcomeKinds'
+import { sessionStatusBadgeClass } from '@/lib/sessionStatus'
 
 const props = defineProps<{
   open: boolean
@@ -73,9 +74,17 @@ watch(
           class="text-xs text-primary underline"
           >Session</a
         >
-        <div class="text-xs text-muted-foreground">
-          {{ invocation.status }} -
-          {{ formatDate(invocation.session_created_at) }}
+        <div class="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span
+            data-testid="session-status-dot"
+            aria-hidden="true"
+            class="inline-block size-2 shrink-0 rounded-full"
+            :class="sessionStatusBadgeClass(invocation.status)"
+          />
+          <span
+            >{{ invocation.status }} -
+            {{ formatDate(invocation.session_created_at) }}</span
+          >
         </div>
         <ul v-if="invocation.pull_requests.length" class="mt-1">
           <li

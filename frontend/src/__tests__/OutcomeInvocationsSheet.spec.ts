@@ -178,6 +178,28 @@ describe('OutcomeInvocationsSheet', () => {
     wrapper.unmount()
   })
 
+  it('colors the status dot by session status', async () => {
+    mocks.GET.mockResolvedValue({
+      data: [
+        invocation({ id: 'inv-1', status: 'running' }),
+        invocation({ id: 'inv-2', status: 'error' }),
+      ],
+      error: undefined,
+    })
+    const wrapper = mountSheet({})
+    await flushPromises()
+    const items = wrapper.findAll('[data-testid="outcome-invocation"]')
+    expect(items).toHaveLength(2)
+    const dots = items.map((item) =>
+      item.find('[data-testid="session-status-dot"]'),
+    )
+    expect(dots[0].classes()).toContain('bg-blue-500')
+    expect(dots[1].classes()).toContain('bg-destructive')
+    expect(items[0].text()).toContain('running')
+    expect(items[1].text()).toContain('error')
+    wrapper.unmount()
+  })
+
   it('shows the empty state', async () => {
     mocks.GET.mockResolvedValue({ data: [], error: undefined })
     const wrapper = mountSheet({})
