@@ -6,6 +6,7 @@ import {
   actionFieldsFromData,
   actionIncompleteHint,
   actionInvalidReason,
+  hasLinkedTrigger,
   syncStateFromData,
   type SyncStatus,
 } from '@/lib/actionValidity'
@@ -43,6 +44,7 @@ const reason = computed(() =>
     (nodeId) => findNode(nodeId)?.data,
   ),
 )
+const linkedTrigger = computed(() => hasLinkedTrigger(props.id, edges.value))
 const hint = computed(() =>
   reason.value === 'no-trigger'
     ? 'Connect a Trigger to this Action'
@@ -124,11 +126,13 @@ async function toggleEnabled() {
         :aria-label="
           fields.enabled ? 'Disable Automation' : 'Enable Automation'
         "
-        class="rounded-full border px-2 py-0.5 text-xs"
+        class="rounded-full border px-2 py-0.5 text-xs disabled:cursor-not-allowed disabled:border-dashed disabled:opacity-50"
         :class="fields.enabled && 'bg-primary text-primary-foreground'"
         @click="toggleEnabled"
       >
-        {{ fields.enabled ? 'Disable' : 'Enable' }}
+        {{
+          fields.enabled ? 'Disable' : linkedTrigger ? 'Enable' : 'No Trigger'
+        }}
       </button>
     </template>
     <p

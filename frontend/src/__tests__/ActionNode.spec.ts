@@ -190,6 +190,9 @@ describe('ActionNode', () => {
     ).toBe('true')
     expect(wrapper.text()).toContain('No Trigger')
     expect(wrapper.text()).toContain('Connect a Trigger to this Action')
+    const button = wrapper.get('[data-testid="enable-switch"]')
+    expect((button.element as HTMLButtonElement).disabled).toBe(true)
+    expect(button.text()).toBe('No Trigger')
   })
 
   it('disables the switch for an incomplete connected trigger', async () => {
@@ -283,6 +286,7 @@ describe('ActionNode', () => {
     expect(button.attributes('title')).toBe(
       'Enter a name and choose a Playbook',
     )
+    expect(button.text()).toBe('No Trigger')
   })
 
   it('enables a complete action and reports save failures', async () => {
