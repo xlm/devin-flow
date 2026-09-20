@@ -9,7 +9,7 @@
   paths must stay 404.
   Settings (`DATABASE_URL`, `STATIC_DIR`, `DEVIN_API_TOKEN`,
   `DEVIN_ORG_ID`, the latter two required, and `POLL_INTERVAL_SECONDS`,
-  default 60, 0 disables the poller) come from `config.py`
+  default 30, 0 disables the poller) come from `config.py`
   (pydantic-settings, `.env` aware). `db.py` builds the sync SQLModel
   engine lazily and exposes the `get_session` dependency. Table models
   live in `models/` and must be imported from `models/__init__.py` so

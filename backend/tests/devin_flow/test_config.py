@@ -11,6 +11,7 @@ def clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("STATIC_DIR", raising=False)
     monkeypatch.delenv("DEVIN_API_BASE_URL", raising=False)
+    monkeypatch.delenv("POLL_INTERVAL_SECONDS", raising=False)
     monkeypatch.chdir(tmp_path)  # no stray .env
     get_settings.cache_clear()
 
@@ -24,6 +25,7 @@ def test_defaults() -> None:
     assert settings.devin_api_token == "test-token"
     assert settings.devin_api_base_url == "https://api.devin.ai/v3"
     assert settings.devin_org_id == "org-test"
+    assert settings.poll_interval_seconds == 30
     assert DEFAULT_STATIC_DIR.parts[-2:] == ("frontend", "dist")
 
 
