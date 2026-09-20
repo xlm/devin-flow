@@ -55,6 +55,10 @@ def reset(
     playbook_id = settings.seed_playbook_id
     if playbook_id is None:
         raise RuntimeError("SEED_PLAYBOOK_ID is required for reset")
+    patch_paths = [scenario.patch_path(poison) for poison in scenario.poisons]
+    for patch_path in patch_paths:
+        if not patch_path.exists():
+            raise RuntimeError(f"missing poison patch: {patch_path}")
     state_path = work_dir / ".simulate-state.json"
     run_path = work_dir / ".simulate-run.json"
     if work_dir.exists():
@@ -116,8 +120,7 @@ def reset(
     _git(checkout_dir, "fetch", "origin")
     _git(checkout_dir, "checkout", "-B", scenario.default_branch, scenario.baseline)
     _git(checkout_dir, "reset", "--hard", scenario.baseline)
-    for poison in scenario.poisons:
-        patch = Path(__file__).resolve().parent / "patches" / poison.patch
+    for poison, patch in zip(scenario.poisons, patch_paths, strict=True):
         _git(checkout_dir, "apply", str(patch))
         _git(checkout_dir, "add", "-A")
         _git(

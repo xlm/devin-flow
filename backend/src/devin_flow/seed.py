@@ -45,6 +45,8 @@ def seed(
 ) -> None:
     """Bring the database to its seeded state. Safe to run repeatedly or concurrently.
 
+    When playbook_id is None, the Seed Flow is left unmanaged, neither created
+    nor removed. Simulator reset requires a configured playbook.
     When a playbook is configured, the Seed Flow is normalized one row at a
     time. Existing rows are reused, preserving their identity, positions, and
     Action automation, while conflicting Trigger edges are removed.

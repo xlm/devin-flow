@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from devin_flow.simulate.scenario import Scenario, load_scenario
@@ -8,6 +10,7 @@ from .conftest import SCENARIO_PATH
 def test_packaged_scenario_has_expected_issue_phases() -> None:
     scenario = load_scenario(SCENARIO_PATH)
     assert len(scenario.poisons) == 3
+    assert scenario.patch_dir == SCENARIO_PATH.resolve().parent / "patches"
     assert [issue.phase for issue in scenario.issues] == [
         "original",
         "original",
@@ -84,3 +87,17 @@ def test_scenario_rejects_phase_and_duplicate_rules() -> None:
     )
     with pytest.raises(ValueError, match="fixed original"):
         Scenario.model_validate(scenario)
+
+
+def test_scenario_resolves_patches_beside_file(tmp_path: Path) -> None:
+    scenario_path = tmp_path / "scenario.toml"
+    patch_dir = tmp_path / "patches"
+    patch_dir.mkdir()
+    scenario_path.write_text(SCENARIO_PATH.read_text())
+    patch_path = patch_dir / "date-parser-offset.patch"
+    patch_path.write_text("")
+
+    scenario = load_scenario(scenario_path)
+
+    assert scenario.patch_dir == patch_dir
+    assert scenario.patch_path(scenario.poisons[0]) == patch_path
