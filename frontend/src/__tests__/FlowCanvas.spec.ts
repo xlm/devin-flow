@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => {
     PATCH: vi.fn(),
     DELETE: vi.fn(),
     refreshApiHealth: vi.fn(() => Promise.resolve()),
+    polling: ref<{ last_success_at: string | null } | undefined>(),
     screenToFlowCoordinate: vi.fn(),
     removeNodes: vi.fn(),
     applyNodeChanges: vi.fn((_changes: unknown, nodes: Node[]) => nodes),
@@ -59,6 +60,7 @@ vi.mock('@/api/client', () => ({
 
 vi.mock('@/composables/useApiHealth', () => ({
   refreshApiHealth: mocks.refreshApiHealth,
+  useApiHealth: () => ({ polling: mocks.polling }),
 }))
 
 vi.mock('@vue-flow/core', () => ({
@@ -275,6 +277,7 @@ describe('FlowCanvas', () => {
     mocks.DELETE.mockResolvedValue(response(undefined))
     mocks.screenToFlowCoordinate.mockReturnValue({ x: 0, y: 0 })
     mocks.findNode.mockImplementation(() => undefined)
+    mocks.polling.value = undefined
     mocks.getEdges.value.length = 0
     mocks.getNodes.value.length = 0
     mocks.applyNodeChanges.mockClear()
@@ -2638,6 +2641,50 @@ describe('FlowCanvas', () => {
     expect(vueFlow(wrapper).props('edges')).toEqual([
       expect.objectContaining({ id: 'edge', label: '5 invocations' }),
     ])
+    wrapper.unmount()
+  })
+
+  it('does not refresh counts on the first polling status', async () => {
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    mocks.polling.value = { last_success_at: '2025-01-01T00:00:00Z' }
+    await nextTick()
+    expect(mocks.GET).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+
+  it('refreshes counts when polling succeeds again', async () => {
+    mocks.GET.mockResolvedValueOnce(response(canvas)).mockResolvedValueOnce(
+      response({
+        ...canvas,
+        action_nodes: [{ ...canvas.action_nodes[0], invocation_count: 5 }],
+      }),
+    )
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    mocks.polling.value = { last_success_at: '2025-01-01T00:00:00Z' }
+    await nextTick()
+    mocks.polling.value = { last_success_at: '2025-01-01T00:00:30Z' }
+    await flushPromises()
+    expect(mocks.GET).toHaveBeenCalledTimes(2)
+    expect(vueFlow(wrapper).props('edges')).toEqual([
+      expect.objectContaining({ id: 'edge', label: '5 invocations' }),
+    ])
+    wrapper.unmount()
+  })
+
+  it('ignores unchanged and null polling timestamps', async () => {
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    mocks.polling.value = { last_success_at: null }
+    await nextTick()
+    mocks.polling.value = { last_success_at: '2025-01-01T00:00:00Z' }
+    await nextTick()
+    mocks.polling.value = { last_success_at: '2025-01-01T00:00:00Z' }
+    await nextTick()
+    mocks.polling.value = { last_success_at: null }
+    await nextTick()
+    expect(mocks.GET).toHaveBeenCalledTimes(1)
     wrapper.unmount()
   })
 
