@@ -26,7 +26,7 @@ function onDragStart(event: DragEvent, kind: NodeKind) {
     data-testid="node-palette"
     class="bg-sidebar text-sidebar-foreground border-sidebar-border flex w-48 shrink-0 flex-col gap-2 border-r p-3"
   >
-    <h2 class="text-sm font-medium">Nodes</h2>
+    <h2 class="text-sm font-medium">Devin Flow</h2>
     <div
       v-for="kind in NODE_KINDS"
       :key="kind"
