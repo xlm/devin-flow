@@ -1239,3 +1239,135 @@ def test_edit_marks_pending_before_sync(
         == 200
     )
     assert statuses == ["pending", "pending"]
+
+
+def archived_action(
+    session: Session,
+    *,
+    name: str = "Archived",
+    archived_at: datetime | None = None,
+    **kwargs: object,
+) -> ActionNode:
+    node = ActionNode(
+        position_x=1,
+        position_y=2,
+        name=name,
+        archived_at=archived_at or datetime.now(UTC),
+        **kwargs,
+    )
+    session.add(node)
+    session.commit()
+    return node
+
+
+def test_archived_actions_empty(unit_client: TestClient) -> None:
+    assert unit_client.get("/api/canvas/archived-actions").json() == []
+
+
+def test_archived_actions_lists_only_archived_newest_first(
+    unit_client: TestClient, unit_session: Session
+) -> None:
+    live = ActionNode(position_x=0, position_y=0, name="Live")
+    older = ActionNode(
+        position_x=0,
+        position_y=0,
+        name="Older",
+        archived_at=datetime(2024, 1, 1, tzinfo=UTC),
+    )
+    newer = ActionNode(
+        position_x=0,
+        position_y=0,
+        name="Newer",
+        playbook_id="pb-1",
+        archived_at=datetime(2024, 2, 1, tzinfo=UTC),
+    )
+    unit_session.add_all([live, older, newer])
+    unit_session.commit()
+    add_invocation(unit_session, newer.id, "s-1")
+    add_invocation(unit_session, newer.id, "s-2")
+    add_invocation(unit_session, live.id, "s-3")
+    rows = unit_client.get("/api/canvas/archived-actions").json()
+    assert [row["name"] for row in rows] == ["Newer", "Older"]
+    assert rows[0]["id"] == str(newer.id)
+    assert rows[0]["playbook_id"] == "pb-1"
+    assert rows[0]["invocation_count"] == 2
+    assert rows[0]["archived_at"] is not None
+    assert rows[1]["invocation_count"] == 0
+
+
+def test_restore_action_with_position(
+    unit_client: TestClient, unit_session: Session
+) -> None:
+    node = archived_action(unit_session)
+    response = unit_client.post(
+        f"/api/canvas/nodes/action/{node.id}/restore",
+        json={"position": {"x": 9, "y": 8}},
+    )
+    assert response.status_code == 200
+    assert response.json()["position"] == {"x": 9.0, "y": 8.0}
+    stored = unit_session.get(ActionNode, node.id)
+    assert stored is not None
+    assert stored.archived_at is None
+
+
+def test_restore_action_without_position_keeps_old_position(
+    unit_client: TestClient, unit_session: Session
+) -> None:
+    node = archived_action(unit_session)
+    response = unit_client.post(f"/api/canvas/nodes/action/{node.id}/restore")
+    assert response.status_code == 200
+    assert response.json()["position"] == {"x": 1.0, "y": 2.0}
+
+
+def test_restore_action_404s(unit_client: TestClient, unit_session: Session) -> None:
+    assert (
+        unit_client.post(f"/api/canvas/nodes/action/{uuid4()}/restore").status_code
+        == 404
+    )
+    live = ActionNode(position_x=0, position_y=0)
+    unit_session.add(live)
+    unit_session.commit()
+    assert (
+        unit_client.post(f"/api/canvas/nodes/action/{live.id}/restore").status_code
+        == 404
+    )
+
+
+def test_restored_action_reappears_on_canvas_with_count(
+    unit_client: TestClient, unit_session: Session
+) -> None:
+    node = archived_action(
+        unit_session, name="Back", sync_status="disabled", automation_id="auto-1"
+    )
+    add_invocation(unit_session, node.id, "s-1")
+    response = unit_client.post(f"/api/canvas/nodes/action/{node.id}/restore")
+    assert response.status_code == 200
+    assert response.json()["invocation_count"] == 1
+    canvas = unit_client.get("/api/canvas").json()
+    assert [action["id"] for action in canvas["action_nodes"]] == [str(node.id)]
+    assert canvas["action_nodes"][0]["invocation_count"] == 1
+    assert unit_client.get("/api/canvas/archived-actions").json() == []
+
+
+def test_restore_action_keeps_sync_state(
+    unit_client: TestClient, unit_session: Session
+) -> None:
+    node = archived_action(
+        unit_session,
+        enabled=False,
+        sync_status="disabled",
+        sync_error="boom",
+        automation_id="auto-9",
+    )
+    response = unit_client.post(f"/api/canvas/nodes/action/{node.id}/restore")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["enabled"] is False
+    assert body["sync_status"] == "disabled"
+    assert body["sync_error"] == "boom"
+    assert body["automation_id"] == "auto-9"
+    stored = unit_session.get(ActionNode, node.id)
+    assert stored is not None
+    assert stored.enabled is False
+    assert stored.sync_status == "disabled"
+    assert stored.automation_id == "auto-9"

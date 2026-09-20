@@ -114,6 +114,14 @@ class ActionNodeRead(NodeRead):
     invocation_count: int = 0
 
 
+class ArchivedActionRead(ActionNodeRead):
+    archived_at: datetime
+
+
+class RestoreAction(BaseModel):
+    position: Position | None = None
+
+
 class NodeCreate(ActionFieldsBase):
     position: Position
     trigger: TriggerUpdate | None = None
@@ -160,17 +168,7 @@ def node_read(
         "position": Position(x=node.position_x, y=node.position_y),
     }
     if isinstance(node, ActionNode):
-        return ActionNodeRead(
-            **fields,
-            name=node.name,
-            playbook_id=node.playbook_id,
-            prompt=node.prompt,
-            enabled=node.enabled,
-            sync_status=node.sync_status,
-            sync_error=node.sync_error,
-            automation_id=node.automation_id,
-            invocation_count=invocation_count,
-        )
+        return action_node_read(node, invocation_count)
     return NodeRead(
         trigger=(
             TriggerRead(
@@ -184,6 +182,32 @@ def node_read(
             OutcomeRead(kind=node.kind) if isinstance(node, OutcomeNode) else None
         ),
         **fields,
+    )
+
+
+def action_node_read(node: ActionNode, invocation_count: int = 0) -> ActionNodeRead:
+    return ActionNodeRead(
+        id=node.id,
+        kind="action",
+        position=Position(x=node.position_x, y=node.position_y),
+        name=node.name,
+        playbook_id=node.playbook_id,
+        prompt=node.prompt,
+        enabled=node.enabled,
+        sync_status=node.sync_status,
+        sync_error=node.sync_error,
+        automation_id=node.automation_id,
+        invocation_count=invocation_count,
+    )
+
+
+def archived_action_read(
+    node: ActionNode, invocation_count: int = 0
+) -> ArchivedActionRead:
+    assert node.archived_at is not None
+    return ArchivedActionRead(
+        **action_node_read(node, invocation_count).model_dump(),
+        archived_at=node.archived_at,
     )
 
 
@@ -300,6 +324,25 @@ def get_canvas(session: SessionDep) -> CanvasRead:
         outcome_nodes=nodes["outcome"],
         edges=[edge_read(edge, outcome_count(edge)) for edge in edges],
     )
+
+
+@router.get("/archived-actions", response_model=list[ArchivedActionRead])
+def list_archived_actions(session: SessionDep) -> list[ArchivedActionRead]:
+    counts = dict(
+        session.exec(
+            select(col(Invocation.action_node_id), func.count()).group_by(
+                col(Invocation.action_node_id)
+            )
+        ).all()
+    )
+    return [
+        archived_action_read(node, counts.get(node.id, 0))
+        for node in session.exec(
+            select(ActionNode)
+            .where(col(ActionNode.archived_at).is_not(None))
+            .order_by(col(ActionNode.archived_at).desc())
+        ).all()
+    ]
 
 
 @router.post(
@@ -449,6 +492,30 @@ def delete_node(
         session.commit()
         sync_action(session, client, action.id)
     return Response(status_code=204)
+
+
+@router.post(
+    "/nodes/action/{node_id}/restore",
+    response_model=ActionNodeRead,
+    responses=ERROR_RESPONSES,
+)
+def restore_action(
+    node_id: UUID, session: SessionDep, payload: RestoreAction | None = None
+) -> ActionNodeRead:
+    node = session.exec(
+        select(ActionNode).where(ActionNode.id == node_id).with_for_update()
+    ).first()
+    if node is None or node.archived_at is None:
+        raise HTTPException(404, "archived action not found")
+    node.archived_at = None
+    if payload is not None and payload.position is not None:
+        node.position_x = payload.position.x
+        node.position_y = payload.position.y
+    node.updated_at = datetime.now(UTC)
+    session.add(node)
+    session.commit()
+    session.refresh(node)
+    return action_node_read(node, invocation_count(session, node.id))
 
 
 @router.post(
