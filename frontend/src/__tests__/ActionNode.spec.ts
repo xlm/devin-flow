@@ -109,6 +109,38 @@ describe('ActionNode', () => {
     expect(save).toHaveBeenCalledWith('n1', { prompt: 'More' })
   })
 
+  it('keeps typed text across a re-render', async () => {
+    GET.mockResolvedValue({ data: [], error: undefined })
+    const save = vi.fn().mockResolvedValue(true)
+    const data = { name: '', playbookId: null, prompt: '' }
+    const wrapper = mountAction(data, save)
+    await flushPromises()
+    const name = wrapper.get('[data-testid="action-name"]')
+    const prompt = wrapper.get('[data-testid="action-prompt"]')
+    ;(name.element as HTMLInputElement).value = 'Triage issue'
+    await name.trigger('input')
+    ;(prompt.element as HTMLTextAreaElement).value = 'Handle the issue'
+    await prompt.trigger('input')
+    await wrapper.setProps({ data: { ...data, syncStatus: 'pending' } })
+    expect((name.element as HTMLInputElement).value).toBe('Triage issue')
+    expect((prompt.element as HTMLTextAreaElement).value).toBe(
+      'Handle the issue',
+    )
+    await name.trigger('change')
+    await prompt.trigger('change')
+    expect(save).toHaveBeenCalledWith('n1', { name: 'Triage issue' })
+    expect(save).toHaveBeenCalledWith('n1', { prompt: 'Handle the issue' })
+    await wrapper.setProps({
+      data: {
+        ...data,
+        name: 'Saved name',
+        prompt: 'Saved prompt',
+      },
+    })
+    expect((name.element as HTMLInputElement).value).toBe('Saved name')
+    expect((prompt.element as HTMLTextAreaElement).value).toBe('Saved prompt')
+  })
+
   it('saves null when the playbook placeholder is selected', async () => {
     GET.mockResolvedValue({ data: [], error: undefined })
     const save = vi.fn().mockResolvedValue(true)
@@ -341,6 +373,7 @@ describe('ActionNode', () => {
     await flushPromises()
     const input = wrapper.get('[data-testid="action-name"]')
     ;(input.element as HTMLInputElement).value = 'First'
+    await input.trigger('input')
     await input.trigger('change')
     await flushPromises()
     expect(save).toHaveBeenCalledWith('n1', { name: 'First' })
@@ -348,6 +381,7 @@ describe('ActionNode', () => {
       'Could not save',
     )
     ;(input.element as HTMLInputElement).value = 'Second'
+    await input.trigger('input')
     await input.trigger('change')
     await flushPromises()
     expect(wrapper.find('[data-testid="save-error"]').exists()).toBe(false)

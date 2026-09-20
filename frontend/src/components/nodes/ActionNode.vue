@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, inject, ref } from 'vue'
+import { computed, inject, ref, watch } from 'vue'
 import type { NodeProps } from '@vue-flow/core'
 import { useVueFlow } from '@vue-flow/core'
 import {
@@ -20,6 +20,20 @@ const { playbooks, loading, error, reload } = usePlaybooks()
 const saveError = ref(false)
 
 const fields = computed(() => actionFieldsFromData(props.data))
+const name = ref(fields.value.name)
+const prompt = ref(fields.value.prompt)
+watch(
+  () => fields.value.name,
+  (value) => {
+    name.value = value
+  },
+)
+watch(
+  () => fields.value.prompt,
+  (value) => {
+    prompt.value = value
+  },
+)
 const sync = computed(() => syncStateFromData(props.data))
 const reason = computed(() =>
   actionInvalidReason(
@@ -53,9 +67,9 @@ const unknownPlaybook = computed(() => {
   return fields.value.playbookId
 })
 
-async function saveName(event: Event) {
+async function saveName() {
   saveError.value = !(await saveNodeFields(props.id, {
-    name: (event.target as HTMLInputElement).value,
+    name: name.value,
   }))
 }
 
@@ -66,9 +80,9 @@ async function savePlaybook(event: Event) {
   }))
 }
 
-async function saveInstructions(event: Event) {
+async function saveInstructions() {
   saveError.value = !(await saveNodeFields(props.id, {
-    prompt: (event.target as HTMLTextAreaElement).value,
+    prompt: prompt.value,
   }))
 }
 
@@ -142,7 +156,7 @@ async function toggleEnabled() {
           class="nodrag w-full rounded-md border bg-background px-2 py-1"
           maxlength="200"
           placeholder="Name"
-          :value="fields.name"
+          v-model="name"
           @change="saveName"
         />
       </label>
@@ -189,7 +203,7 @@ async function toggleEnabled() {
           rows="3"
           maxlength="20000"
           placeholder="Enter prompt here"
-          :value="fields.prompt"
+          v-model="prompt"
           @change="saveInstructions"
         />
       </label>
