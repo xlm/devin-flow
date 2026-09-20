@@ -75,8 +75,10 @@ class Scenario(BaseModel):
         return self
 
 
-def load_scenario(path: Path) -> Scenario:
+def load_scenario(path: Path, *, default_repository: str) -> Scenario:
     with path.open("rb") as file:
-        scenario = Scenario.model_validate(tomllib.load(file))
+        data = tomllib.load(file)
+    data.setdefault("repository", default_repository)
+    scenario = Scenario.model_validate(data)
     scenario.patch_dir = path.resolve().parent / "patches"
     return scenario

@@ -22,8 +22,8 @@ def test_cli_parser_and_dispatch(
     assert (
         parser.parse_args(["report", "--work-dir", str(tmp_path)]).work_dir == tmp_path
     )
-    scenario = load_scenario(SCENARIO_PATH)
-    monkeypatch.setattr(cli, "load_scenario", lambda path: scenario)
+    scenario = load_scenario(SCENARIO_PATH, default_repository="xlm/superset")
+    monkeypatch.setattr(cli, "load_scenario", lambda path, **kw: scenario)
     monkeypatch.setattr(cli, "report", SimpleNamespace(report=lambda **kwargs: 0))
     monkeypatch.setattr(
         sys, "argv", ["simulate-issues", "--work-dir", str(tmp_path), "report"]
@@ -36,8 +36,8 @@ def test_cli_parser_and_dispatch(
 def test_cli_dispatches_run_and_reset(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    scenario = load_scenario(SCENARIO_PATH)
-    monkeypatch.setattr(cli, "load_scenario", lambda path: scenario)
+    scenario = load_scenario(SCENARIO_PATH, default_repository="xlm/superset")
+    monkeypatch.setattr(cli, "load_scenario", lambda path, **kw: scenario)
     (tmp_path / ".simulate-state.json").write_text(json.dumps({"reset_sha": "sha"}))
     run_calls: list[Any] = []
     monkeypatch.setattr(
