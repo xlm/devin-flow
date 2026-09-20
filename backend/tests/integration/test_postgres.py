@@ -40,14 +40,14 @@ def test_canvas_tables_exist(postgres_engine: Engine) -> None:
         "automation_id",
         "sync_status",
         "sync_error",
-        "deleted_at",
+        "archived_at",
     } <= action_columns
     assert (
         not {
             "automation_id",
             "sync_status",
             "sync_error",
-            "deleted_at",
+            "archived_at",
         }
         & edge_columns
     )

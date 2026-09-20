@@ -35,7 +35,7 @@ def is_action_complete(action: ActionNode) -> bool:
 
 def connected_trigger(session: Session, action_id: UUID) -> TriggerNode | None:
     action = session.get(ActionNode, action_id)
-    if action is None or action.deleted_at is not None:
+    if action is None or action.archived_at is not None:
         return None
     edge = session.exec(
         select(Edge).where(
@@ -59,7 +59,7 @@ def connected_action(session: Session, trigger_id: UUID) -> ActionNode | None:
         )
     ).first()
     action = None if edge is None else session.get(ActionNode, edge.target_id)
-    return None if action is None or action.deleted_at is not None else action
+    return None if action is None or action.archived_at is not None else action
 
 
 def flow_invalid_reason(action: ActionNode, trigger: TriggerNode | None) -> str | None:
@@ -189,13 +189,13 @@ def sync_action(session: Session, client: DevinClient, action_id: UUID) -> None:
 
 
 def actions_to_sync(session: Session) -> Sequence[ActionNode]:
-    # tombstoned Actions are retried only while an Automation still needs
+    # archived Actions are retried only while an Automation still needs
     # disabling
     return session.exec(
         select(ActionNode)
         .where(
             col(ActionNode.sync_status).in_(["pending", "error"]),
-            (col(ActionNode.deleted_at).is_(None))
+            (col(ActionNode.archived_at).is_(None))
             | (col(ActionNode.automation_id).is_not(None)),
         )
         .order_by(col(ActionNode.updated_at))
