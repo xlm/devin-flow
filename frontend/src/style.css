@@ -156,6 +156,10 @@
   stroke: var(--muted-foreground);
 }
 
+.vue-flow__edge-text {
+  font-size: 0.75rem;
+}
+
 .vue-flow__edge.selected .vue-flow__edge-path,
 .vue-flow__edge:focus .vue-flow__edge-path,
 .vue-flow__edge:focus-visible .vue-flow__edge-path {
