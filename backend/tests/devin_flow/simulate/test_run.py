@@ -71,6 +71,64 @@ def test_run_refuses_changed_target(
         )
 
 
+def test_run_refuses_existing_run_file(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    scenario = load_scenario(SCENARIO_PATH)
+    (tmp_path / ".simulate-run.json").write_text("{}")
+    monkeypatch.setattr(
+        github,
+        "get_branch_sha",
+        lambda repo, branch: pytest.fail("existing run must be checked first"),
+    )
+    with pytest.raises(
+        RuntimeError, match="issues already filed for this reset, run reset again"
+    ):
+        run.run(
+            scenario,
+            state={
+                "repository": scenario.repository,
+                "default_branch": scenario.default_branch,
+                "baseline": scenario.baseline,
+                "reset_sha": "reset",
+            },
+            work_dir=tmp_path,
+        )
+
+
+def test_run_persists_partial_progress(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    scenario = load_scenario(SCENARIO_PATH)
+    calls = 0
+
+    monkeypatch.setattr(github, "get_branch_sha", lambda repo, branch: "reset")
+
+    def create_issue(repo: str, title: str, body: str) -> tuple[int, str]:
+        nonlocal calls
+        calls += 1
+        if calls == 3:
+            raise RuntimeError("create failed")
+        return calls, f"https://example/{calls}"
+
+    monkeypatch.setattr(github, "create_issue", create_issue)
+    with pytest.raises(RuntimeError, match="create failed"):
+        run.run(
+            scenario,
+            state={
+                "repository": scenario.repository,
+                "default_branch": scenario.default_branch,
+                "baseline": scenario.baseline,
+                "reset_sha": "reset",
+            },
+            work_dir=tmp_path,
+            sleep=lambda seconds: None,
+            now=lambda: 0,
+        )
+    partial = json.loads((tmp_path / ".simulate-run.json").read_text())
+    assert len(partial["issues"]) == 2
+
+
 def test_run_rejects_different_or_legacy_state(tmp_path: Path) -> None:
     scenario = load_scenario(SCENARIO_PATH)
     state = {

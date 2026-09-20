@@ -95,7 +95,7 @@ def test_seed_restores_tombstoned_action(unit_session: Session) -> None:
     action = unit_session.get(ActionNode, seed.SEED_ACTION_ID)
     assert action is not None
     action.automation_id = "automation-1"
-    action.deleted_at = datetime.now(UTC)
+    setattr(action, seed._DELETED_AT_FIELD, datetime.now(UTC))
     action.enabled = False
     action.sync_status = "disabled"
     action.sync_error = "disabled"
@@ -110,7 +110,7 @@ def test_seed_restores_tombstoned_action(unit_session: Session) -> None:
 
     action = unit_session.get(ActionNode, seed.SEED_ACTION_ID)
     assert action is not None
-    assert action.deleted_at is None
+    assert getattr(action, "deleted_at", None) is None
     assert action.enabled
     assert action.sync_status == "pending"
     assert action.sync_error is None
@@ -135,7 +135,7 @@ def test_seed_normalizes_existing_rows(unit_session: Session) -> None:
     action.playbook_id = "playbook-old"
     action.prompt = "Wrong prompt"
     action.enabled = False
-    action.deleted_at = datetime.now(UTC)
+    setattr(action, seed._DELETED_AT_FIELD, datetime.now(UTC))
     action.automation_id = "automation-1"
     action.sync_status = "disabled"
     action.sync_error = "old error"
@@ -158,7 +158,7 @@ def test_seed_normalizes_existing_rows(unit_session: Session) -> None:
     assert action.playbook_id == "playbook-1"
     assert action.prompt == ""
     assert action.enabled
-    assert action.deleted_at is None
+    assert getattr(action, "deleted_at", None) is None
     assert action.sync_status == "pending"
     assert action.sync_error is None
     assert action.automation_id == "automation-1"
@@ -221,6 +221,57 @@ def test_seed_removes_conflicting_trigger_edge(unit_session: Session) -> None:
         ).first()
         is not None
     )
+
+
+def test_seed_removes_foreign_trigger_edge_to_action(unit_session: Session) -> None:
+    seed.seed(
+        unit_session,
+        playbook_id="playbook-1",
+        repository_full_name="xlm/superset",
+    )
+    action = unit_session.get(ActionNode, seed.SEED_ACTION_ID)
+    assert action is not None
+    action.sync_status = "disabled"
+    unit_session.exec(
+        delete(Edge).where(
+            col(Edge.source_id) == seed.SEED_TRIGGER_ID,
+            col(Edge.target_id) == seed.SEED_ACTION_ID,
+        )
+    )
+    foreign_trigger = TriggerNode(
+        event_action="opened",
+        repository_full_name="other/repository",
+        position_x=100,
+        position_y=150,
+    )
+    unit_session.add(foreign_trigger)
+    unit_session.flush()
+    unit_session.add(
+        Edge(
+            source_id=foreign_trigger.id,
+            source_kind="trigger",
+            target_id=seed.SEED_ACTION_ID,
+            target_kind="action",
+        )
+    )
+    unit_session.commit()
+
+    seed.seed(
+        unit_session,
+        playbook_id="playbook-1",
+        repository_full_name="xlm/superset",
+    )
+
+    assert (
+        unit_session.exec(
+            select(Edge).where(
+                col(Edge.source_id) == foreign_trigger.id,
+                col(Edge.target_id) == seed.SEED_ACTION_ID,
+            )
+        ).first()
+        is None
+    )
+    assert action.sync_status == "pending"
 
 
 def test_seed_playbook_none_inserts_nothing(unit_session: Session) -> None:

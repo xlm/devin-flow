@@ -5,12 +5,12 @@ from pathlib import Path
 
 from sqlmodel import Session, delete, select
 
-from devin_flow import invocations
+from devin_flow import automations, invocations
 from devin_flow.config import get_settings
 from devin_flow.devin import DevinClient
 from devin_flow.devin.client import TERMINAL_SESSION_STATUSES
-from devin_flow.models import Invocation
-from devin_flow.seed import seed
+from devin_flow.models import ActionNode, Invocation
+from devin_flow.seed import SEED_ACTION_ID, seed
 from devin_flow.simulate import github
 from devin_flow.simulate.scenario import Scenario
 
@@ -146,6 +146,11 @@ def reset(
         playbook_id=playbook_id,
         repository_full_name=scenario.repository,
     )
+    automations.sync_action(session, devin_client, SEED_ACTION_ID)
+    action = session.get(ActionNode, SEED_ACTION_ID)
+    sync_error = action.sync_error if action is not None else None
+    if action is None or action.sync_status != "enabled":
+        raise RuntimeError(f"seed action sync failed: {sync_error}")
     state_path.write_text(
         json.dumps(
             {
