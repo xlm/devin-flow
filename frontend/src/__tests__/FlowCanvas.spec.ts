@@ -2368,6 +2368,45 @@ describe('FlowCanvas', () => {
     wrapper.unmount()
   })
 
+  it('animates new edges from live actions when refresh fails', async () => {
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    const nodes = vueFlow(wrapper).props('nodes') as Node[]
+    const action = nodes.find((node) => node.id === 'action')!
+    mocks.findNode.mockImplementation((id: string) =>
+      nodes.find((node) => node.id === id),
+    )
+    action.data.syncStatus = 'enabled'
+    mocks.POST.mockResolvedValueOnce(
+      response({
+        id: 'live-edge',
+        source: { id: 'action', kind: 'action' },
+        target: { id: 'outcome', kind: 'outcome' },
+      }),
+    )
+    mocks.GET.mockRejectedValueOnce(new Error('refresh failed'))
+    await mocks.handlers.connect?.({ source: 'action', target: 'outcome' })
+    expect(mocks.addEdges).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'live-edge', animated: true }),
+    ])
+
+    mocks.getEdges.value.length = 0
+    action.data.syncStatus = 'disabled'
+    mocks.POST.mockResolvedValueOnce(
+      response({
+        id: 'stale-edge',
+        source: { id: 'trigger', kind: 'trigger' },
+        target: { id: 'action', kind: 'action' },
+      }),
+    )
+    mocks.GET.mockRejectedValueOnce(new Error('refresh failed'))
+    await mocks.handlers.connect?.({ source: 'trigger', target: 'action' })
+    expect(mocks.addEdges).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'stale-edge', animated: false }),
+    ])
+    wrapper.unmount()
+  })
+
   it('validates visual connections and ignores missing endpoints', async () => {
     const wrapper = mount(FlowCanvas)
     await flushPromises()
