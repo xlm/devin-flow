@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import {
   NODE_HANDLES,
   nodeAccentClass,
+  nodeHandleClass,
   nodeHint,
   nodeLabel,
 } from '@/lib/nodeKinds'
@@ -64,11 +65,13 @@ const statusLabel = computed(
   <Handle
     v-if="NODE_HANDLES[props.kind].target"
     type="target"
-    :position="Position.Left"
+    :position="Position.Top"
+    :class="nodeHandleClass(props.kind, 'target')"
   />
   <Handle
     v-if="NODE_HANDLES[props.kind].source"
     type="source"
-    :position="Position.Right"
+    :position="Position.Bottom"
+    :class="nodeHandleClass(props.kind, 'source')"
   />
 </template>
