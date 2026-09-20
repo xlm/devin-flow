@@ -85,6 +85,7 @@ def _add_connected_action(
 @pytest.fixture(autouse=True)
 def no_poll(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(invocations, "poll_once", lambda *args: None)
+    monkeypatch.setattr(github, "default_branch", lambda repo: "master")
 
 
 def test_reset_cleans_state_and_wipes_connected_flow(
@@ -697,6 +698,44 @@ def test_reset_rejects_scenario_for_different_seed_repository(
             devin_client=cast(Any, _valid_client()),
         )
     assert calls == []
+
+
+def test_reset_rejects_scenario_for_different_default_branch(
+    tmp_path: Path,
+    unit_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scenario = load_scenario(SCENARIO_PATH)
+    _add_connected_action(unit_session, scenario.repository, "auto")
+    state_path = tmp_path / ".simulate-state.json"
+    state_path.write_text("existing state\n")
+    calls: list[str] = []
+    monkeypatch.setattr(
+        github,
+        "require_admin",
+        lambda repo: calls.append("require_admin"),
+    )
+    monkeypatch.setattr(github, "default_branch", lambda repo: "main")
+    monkeypatch.setattr(
+        github,
+        "enable_issues",
+        lambda repo: pytest.fail("default branch must be checked first"),
+    )
+    with pytest.raises(
+        RuntimeError,
+        match=(
+            "scenario default branch master does not match "
+            "xlm/superset's default branch main"
+        ),
+    ):
+        reset.reset(
+            scenario,
+            work_dir=tmp_path,
+            session=unit_session,
+            devin_client=cast(Any, _valid_client()),
+        )
+    assert calls == ["require_admin"]
+    assert state_path.read_text() == "existing state\n"
 
 
 def test_reset_rejects_checkout_without_origin(
