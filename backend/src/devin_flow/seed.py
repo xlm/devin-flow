@@ -22,13 +22,13 @@ SEED_OUTCOME_IDS: dict[OutcomeKind, UUID] = {
 }
 
 
-def _add_edge(session: Session, source: NodeRef, target: NodeRef) -> None:
+def _add_edge(session: Session, source: NodeRef, target: NodeRef) -> bool:
     check_edge_kinds(source.kind, target.kind)
     existing = session.exec(select(Edge)).all()
     if any(
         edge.source_id == source.id and edge.target_id == target.id for edge in existing
     ):
-        return
+        return False
     check_edge_uniqueness(existing, source, target)
     session.add(
         Edge(
@@ -38,6 +38,7 @@ def _add_edge(session: Session, source: NodeRef, target: NodeRef) -> None:
             target_kind=target.kind,
         )
     )
+    return True
 
 
 def seed(
@@ -147,11 +148,15 @@ def seed(
             mark_pending(seed_action)
             session.add(seed_action)
         session.flush()
-        _add_edge(
+        trigger_edge_added = _add_edge(
             session,
             NodeRef(id=SEED_TRIGGER_ID, kind="trigger"),
             NodeRef(id=SEED_ACTION_ID, kind="action"),
         )
+        if trigger_edge_added:
+            mark_pending(seed_action)
+            seed_action.sync_error = None
+            session.add(seed_action)
         for outcome_id in SEED_OUTCOME_IDS.values():
             _add_edge(
                 session,
