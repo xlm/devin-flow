@@ -6,6 +6,7 @@ import {
   type Connection,
   type Edge,
   type EdgeChange,
+  type EdgeMouseEvent,
   type Node,
   type NodeChange,
   type NodeDragEvent,
@@ -717,7 +718,16 @@ const actionSheetOpen = ref(false)
 const selectedActionSheetId = ref<string | null>(null)
 const selectedActionName = ref<string | null>(null)
 
+function isEdgeLabelClick(event: EdgeMouseEvent): boolean {
+  const target = event.event.target
+  return (
+    target instanceof Element &&
+    target.closest('.vue-flow__edge-textwrapper') !== null
+  )
+}
+
 onEdgeClick((event) => {
+  if (!isEdgeLabelClick(event)) return
   if (event.edge.data?.targetKind === 'action') {
     selectedActionSheetId.value = event.edge.target
     const actionData = findNode(event.edge.target)?.data

@@ -9,6 +9,7 @@ type DragHandler = (event: { node: Node }) => void | Promise<void>
 type ChangeHandler = (changes: { type: string; id: string }[]) => void
 type ConnectHandler = (connection: { source: string; target: string }) => void
 type EdgeClickHandler = (event: {
+  event: { target: Element }
   edge: {
     source: string
     target: string
@@ -233,6 +234,18 @@ function saveProbe(provided: { value: SaveNodeFields | undefined }) {
       return () => h('div')
     },
   })
+}
+
+function labelClickEvent(): { target: Element } {
+  const wrapper = document.createElement('g')
+  wrapper.className = 'vue-flow__edge-textwrapper'
+  const label = document.createElement('text')
+  wrapper.appendChild(label)
+  return { target: label }
+}
+
+function pathClickEvent(): { target: Element } {
+  return { target: document.createElement('path') }
 }
 
 describe('FlowCanvas', () => {
@@ -2641,6 +2654,7 @@ describe('FlowCanvas', () => {
       data: { kind: 'outcome', outcome: { kind: 'duplicate' } },
     } as Node)
     mocks.handlers.edgeClick?.({
+      event: labelClickEvent(),
       edge: {
         source: 'action',
         target: 'outcome',
@@ -2660,6 +2674,22 @@ describe('FlowCanvas', () => {
     wrapper.unmount()
   })
 
+  it('does not open the outcome sheet when an outcome edge path is clicked', async () => {
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    mocks.handlers.edgeClick?.({
+      event: pathClickEvent(),
+      edge: {
+        source: 'action',
+        target: 'outcome',
+        data: { sourceKind: 'action', targetKind: 'outcome' },
+      },
+    })
+    await flushPromises()
+    expect(mocks.sheetProps?.open).not.toBe(true)
+    wrapper.unmount()
+  })
+
   it('closes the outcome sheet when it is dismissed', async () => {
     const wrapper = mount(FlowCanvas)
     await flushPromises()
@@ -2668,6 +2698,7 @@ describe('FlowCanvas', () => {
       data: { kind: 'outcome', outcome: { kind: 'duplicate' } },
     } as Node)
     mocks.handlers.edgeClick?.({
+      event: labelClickEvent(),
       edge: {
         source: 'action',
         target: 'outcome',
@@ -2692,6 +2723,7 @@ describe('FlowCanvas', () => {
       data: { kind: 'outcome' },
     } as Node)
     mocks.handlers.edgeClick?.({
+      event: labelClickEvent(),
       edge: {
         source: 'action',
         target: 'outcome',
@@ -2715,6 +2747,7 @@ describe('FlowCanvas', () => {
       data: { kind: 'action', name: 'Triage' },
     } as Node)
     mocks.handlers.edgeClick?.({
+      event: labelClickEvent(),
       edge: {
         source: 'trigger',
         target: 'action',
@@ -2734,10 +2767,27 @@ describe('FlowCanvas', () => {
     wrapper.unmount()
   })
 
+  it('does not open the action sheet when an action edge path is clicked', async () => {
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    mocks.handlers.edgeClick?.({
+      event: pathClickEvent(),
+      edge: {
+        source: 'trigger',
+        target: 'action',
+        data: { sourceKind: 'trigger', targetKind: 'action' },
+      },
+    })
+    await flushPromises()
+    expect(mocks.actionSheetProps?.open).not.toBe(true)
+    wrapper.unmount()
+  })
+
   it('closes the action sheet when it is dismissed', async () => {
     const wrapper = mount(FlowCanvas)
     await flushPromises()
     mocks.handlers.edgeClick?.({
+      event: labelClickEvent(),
       edge: {
         source: 'trigger',
         target: 'action',
@@ -2762,6 +2812,7 @@ describe('FlowCanvas', () => {
       data: { kind: 'action' },
     } as Node)
     mocks.handlers.edgeClick?.({
+      event: labelClickEvent(),
       edge: {
         source: 'trigger',
         target: 'action',
@@ -2781,6 +2832,7 @@ describe('FlowCanvas', () => {
     const wrapper = mount(FlowCanvas)
     await flushPromises()
     mocks.handlers.edgeClick?.({
+      event: labelClickEvent(),
       edge: { source: 'trigger', target: 'outcome' },
     })
     await flushPromises()
