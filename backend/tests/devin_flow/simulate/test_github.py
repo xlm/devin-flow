@@ -30,6 +30,7 @@ def test_github_wrappers_use_expected_commands(
     monkeypatch.setattr(subprocess, "run", fake_run)
     github.require_admin("xlm/superset")
     github.enable_issues("xlm/superset")
+    assert github.default_branch("xlm/superset") == "abc123"
     github.ensure_labels("xlm/superset")
     assert github.list_issue_node_ids("xlm/superset") == ["node-1", "node-2"]
     github.delete_issue("xlm/superset", "node-1")
@@ -40,6 +41,13 @@ def test_github_wrappers_use_expected_commands(
     assert github.create_issue("xlm/superset", "title", "body")[0] == 7
     assert calls[0] == ["gh", "auth", "status"]
     assert calls[1][:4] == ["gh", "api", "repos/xlm/superset", "--jq"]
+    assert [
+        "gh",
+        "api",
+        "repos/xlm/superset",
+        "--jq",
+        ".default_branch",
+    ] in calls
     assert [
         "gh",
         "api",

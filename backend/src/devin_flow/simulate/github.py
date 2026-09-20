@@ -45,6 +45,10 @@ def enable_issues(repo: str) -> None:
     _run("api", "--method", "PATCH", f"repos/{repo}", "-f", "has_issues=true")
 
 
+def default_branch(repo: str) -> str:
+    return _run("api", f"repos/{repo}", "--jq", ".default_branch").stdout.strip()
+
+
 def ensure_labels(repo: str) -> None:
     for name, (color, description) in TRIAGE_LABELS.items():
         _run(

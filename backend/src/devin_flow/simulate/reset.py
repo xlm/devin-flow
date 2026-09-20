@@ -148,9 +148,15 @@ def reset(
                 "simulator checkout repository mismatch: "
                 f"expected {scenario.repository}, got {actual_repository}"
             )
+    github.require_admin(scenario.repository)
+    actual_default_branch = github.default_branch(scenario.repository)
+    if actual_default_branch != scenario.default_branch:
+        raise RuntimeError(
+            f"scenario default branch {scenario.default_branch} does not match "
+            f"{scenario.repository}'s default branch {actual_default_branch}"
+        )
     state_path.unlink(missing_ok=True)
     run_path.unlink(missing_ok=True)
-    github.require_admin(scenario.repository)
     terminated: set[str] = set()
     for invocation in session.exec(
         select(Invocation).where(
