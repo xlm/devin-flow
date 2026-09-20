@@ -35,7 +35,7 @@ const statusLabel = computed(
     <Button
       variant="destructive"
       size="icon-xs"
-      aria-label="Delete node"
+      :aria-label="props.kind === 'action' ? 'Archive node' : 'Delete node'"
       data-testid="delete-node"
       @click="removeNodes([props.id])"
     >
