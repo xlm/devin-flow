@@ -4,9 +4,9 @@ import { sessionStatusBadgeClass } from '@/lib/sessionStatus'
 
 describe('sessionStatusBadgeClass', () => {
   it.each([
-    ['running', 'bg-blue-500'],
-    ['claimed', 'bg-blue-500'],
-    ['resuming', 'bg-blue-500'],
+    ['running', 'bg-amber-500'],
+    ['claimed', 'bg-amber-500'],
+    ['resuming', 'bg-amber-500'],
     ['exit', 'bg-green-500'],
     ['error', 'bg-destructive'],
     ['new', 'bg-muted-foreground'],
