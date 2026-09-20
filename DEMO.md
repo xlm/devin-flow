@@ -61,7 +61,12 @@ Reset puts the fork in a known state: it deletes its issues, closes pull
 requests, deletes non-`master` branches, and force-pushes `master` to the
 pinned baseline plus three poisoned backend bugs.
 
+Reset also checks for sessions created via the Flow, and terminates them in
+case they are still running. This requires completing step 3 and ensuring
+Action is `enabled`.
+
 ```sh
+# Ensure you have enabled the Action per step 3 before running reset
 uv run simulate-issues reset
 uv run simulate-issues run --report
 ```
