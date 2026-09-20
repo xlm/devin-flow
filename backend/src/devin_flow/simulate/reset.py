@@ -219,6 +219,7 @@ def reset(
         f"HEAD:{scenario.default_branch}",
     )
     if wipe_invocations:
+        boundary = datetime.now(UTC)
         invocations.poll_once(session, devin_client)
         for invocation in session.exec(
             select(Invocation).where(
@@ -235,7 +236,7 @@ def reset(
                 col(Invocation.automation_id).in_(automation_ids),
             )
         )
-        poller_state.last_success_at = datetime.now(UTC) + invocations.SAFETY_MARGIN
+        poller_state.last_success_at = boundary + invocations.SAFETY_MARGIN
         session.add(poller_state)
         session.commit()
     state_path.write_text(

@@ -64,12 +64,11 @@ class Scenario(BaseModel):
             if issue.phase == "original" and issue.expected_outcome == "fixed"
         }
         for issue in self.issues:
-            if (
-                issue.phase == "original"
-                and issue.expected_outcome == "fixed"
-                and issue.id not in poison_by_id
-            ):
-                raise ValueError("fixed originals require a poison with the same id")
+            if issue.expected_outcome == "fixed":
+                if issue.phase != "original":
+                    raise ValueError("fixed issues must be originals")
+                if issue.id not in poison_by_id:
+                    raise ValueError("fixed issues require a poison with the same id")
         if poison_by_id - fixed_original_ids:
             raise ValueError("poisons require fixed original issues")
         return self
