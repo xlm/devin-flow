@@ -86,7 +86,7 @@ def test_seed_is_idempotent_and_preserves_action_automation(
     assert trigger.repository_full_name == "other/repository"
 
 
-def test_seed_restores_tombstoned_action(unit_session: Session) -> None:
+def test_seed_restores_archived_action(unit_session: Session) -> None:
     seed.seed(
         unit_session,
         playbook_id="playbook-1",
@@ -95,7 +95,7 @@ def test_seed_restores_tombstoned_action(unit_session: Session) -> None:
     action = unit_session.get(ActionNode, seed.SEED_ACTION_ID)
     assert action is not None
     action.automation_id = "automation-1"
-    setattr(action, seed._DELETED_AT_FIELD, datetime.now(UTC))
+    action.archived_at = datetime.now(UTC)
     action.enabled = False
     action.sync_status = "disabled"
     action.sync_error = "disabled"
@@ -110,7 +110,7 @@ def test_seed_restores_tombstoned_action(unit_session: Session) -> None:
 
     action = unit_session.get(ActionNode, seed.SEED_ACTION_ID)
     assert action is not None
-    assert getattr(action, "deleted_at", None) is None
+    assert action.archived_at is None
     assert action.enabled
     assert action.sync_status == "pending"
     assert action.sync_error is None
@@ -135,7 +135,7 @@ def test_seed_normalizes_existing_rows(unit_session: Session) -> None:
     action.playbook_id = "playbook-old"
     action.prompt = "Wrong prompt"
     action.enabled = False
-    setattr(action, seed._DELETED_AT_FIELD, datetime.now(UTC))
+    action.archived_at = datetime.now(UTC)
     action.automation_id = "automation-1"
     action.sync_status = "disabled"
     action.sync_error = "old error"
@@ -158,7 +158,7 @@ def test_seed_normalizes_existing_rows(unit_session: Session) -> None:
     assert action.playbook_id == "playbook-1"
     assert action.prompt == ""
     assert action.enabled
-    assert getattr(action, "deleted_at", None) is None
+    assert action.archived_at is None
     assert action.sync_status == "pending"
     assert action.sync_error is None
     assert action.automation_id == "automation-1"

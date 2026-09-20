@@ -20,7 +20,6 @@ SEED_OUTCOME_IDS: dict[OutcomeKind, UUID] = {
     "not_reproducible": UUID("00000000-0000-0000-0000-000000000005"),
     "not_a_bug": UUID("00000000-0000-0000-0000-000000000006"),
 }
-_DELETED_AT_FIELD = "deleted_at"
 
 
 def _add_edge(session: Session, source: NodeRef, target: NodeRef) -> None:
@@ -92,14 +91,14 @@ def seed(
                     action.playbook_id != playbook_id,
                     action.prompt != "",
                     not action.enabled,
-                    getattr(action, _DELETED_AT_FIELD, None) is not None,
+                    action.archived_at is not None,
                 )
             )
             action.name = "Seed: Issue triage"
             action.playbook_id = playbook_id
             action.prompt = ""
             action.enabled = True
-            setattr(action, _DELETED_AT_FIELD, None)
+            action.archived_at = None
             session.add(action)
         for index, (kind, outcome_id) in enumerate(SEED_OUTCOME_IDS.items()):
             outcome = session.get(OutcomeNode, outcome_id)
