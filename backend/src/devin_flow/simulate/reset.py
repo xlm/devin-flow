@@ -159,6 +159,7 @@ def reset(
     _git(checkout_dir, "fetch", "origin")
     _git(checkout_dir, "checkout", "-B", scenario.default_branch, scenario.baseline)
     _git(checkout_dir, "reset", "--hard", scenario.baseline)
+    _git(checkout_dir, "clean", "-fdx")
     for poison, patch in zip(scenario.poisons, patch_paths, strict=True):
         _git(checkout_dir, "apply", str(patch))
         _git(checkout_dir, "add", "-A")
@@ -178,6 +179,7 @@ def reset(
         f"HEAD:{scenario.default_branch}",
     )
     if wipe_invocations:
+        invocations.poll_once(session, devin_client)
         poller_state = invocations.get_poller_state(session)
         session.exec(
             delete(Invocation).where(
