@@ -27,6 +27,7 @@ def test_reset_cleans_state_and_seeds(
     calls: list[tuple[str, Any]] = []
     tmp_path.mkdir(exist_ok=True)
     reset.repo_dir(tmp_path).mkdir()
+    (tmp_path / ".simulate-run.json").write_text("{}")
 
     monkeypatch.setattr(
         github, "require_admin", lambda repo: calls.append(("admin", repo))
@@ -63,6 +64,7 @@ def test_reset_cleans_state_and_seeds(
     settings = Settings(
         DEVIN_API_TOKEN="token",
         DEVIN_ORG_ID="org",
+        seed_playbook_id="playbook-1",
         seed_repository_full_name="wrong/repository",
     )
     monkeypatch.setattr(reset, "get_settings", lambda: settings)
@@ -87,7 +89,7 @@ def test_reset_cleans_state_and_seeds(
     assert poller_state.last_success_at > datetime.now()
     assert (
         "seed",
-        {"playbook_id": None, "repository_full_name": scenario.repository},
+        {"playbook_id": "playbook-1", "repository_full_name": scenario.repository},
     ) in calls
     assert git_dirs
     assert set(git_dirs) == {tmp_path / "repo"}
@@ -97,6 +99,7 @@ def test_reset_cleans_state_and_seeds(
         "baseline": scenario.baseline,
         "reset_sha": "result-sha",
     }
+    assert not (tmp_path / ".simulate-run.json").exists()
 
 
 def test_reset_terminates_upstream_sessions(
@@ -144,7 +147,11 @@ def test_reset_terminates_upstream_sessions(
     monkeypatch.setattr(
         reset,
         "get_settings",
-        lambda: Settings(devin_api_token="token", devin_org_id="org"),
+        lambda: Settings(
+            devin_api_token="token",
+            devin_org_id="org",
+            seed_playbook_id="playbook-1",
+        ),
     )
     monkeypatch.setattr(reset, "seed", lambda session, **kwargs: None)
     terminated: list[str] = []
@@ -193,6 +200,15 @@ def test_reset_rejects_checkout_for_different_repository(
         "_git",
         lambda work_dir, *args: "https://github.com/other/repository.git",
     )
+    monkeypatch.setattr(
+        reset,
+        "get_settings",
+        lambda: Settings(
+            devin_api_token="token",
+            devin_org_id="org",
+            seed_playbook_id="playbook-1",
+        ),
+    )
     with pytest.raises(RuntimeError, match="xlm/superset.*other/repository"):
         reset.reset(
             scenario,
@@ -211,6 +227,15 @@ def test_reset_rejects_checkout_without_origin(
     scenario = load_scenario(SCENARIO_PATH)
     reset.repo_dir(tmp_path).mkdir(parents=True)
     monkeypatch.setattr(github, "require_admin", lambda repo: None)
+    monkeypatch.setattr(
+        reset,
+        "get_settings",
+        lambda: Settings(
+            devin_api_token="token",
+            devin_org_id="org",
+            seed_playbook_id="playbook-1",
+        ),
+    )
     monkeypatch.setattr(
         reset,
         "_git",
@@ -236,6 +261,7 @@ def test_reset_deletes_state_before_failing_seed(
     reset.repo_dir(tmp_path).mkdir(parents=True)
     state_path = tmp_path / ".simulate-state.json"
     state_path.write_text("{}")
+    (tmp_path / ".simulate-run.json").write_text("{}")
     monkeypatch.setattr(github, "require_admin", lambda repo: None)
     monkeypatch.setattr(github, "enable_issues", lambda repo: None)
     monkeypatch.setattr(github, "list_issue_node_ids", lambda repo: [])
@@ -253,7 +279,11 @@ def test_reset_deletes_state_before_failing_seed(
     monkeypatch.setattr(
         reset,
         "get_settings",
-        lambda: Settings(devin_api_token="token", devin_org_id="org"),
+        lambda: Settings(
+            devin_api_token="token",
+            devin_org_id="org",
+            seed_playbook_id="playbook-1",
+        ),
     )
 
     def fail_seed(session: Session, **kwargs: Any) -> None:
@@ -268,6 +298,34 @@ def test_reset_deletes_state_before_failing_seed(
             devin_client=cast(Any, SimpleNamespace()),
         )
     assert not state_path.exists()
+    assert not (tmp_path / ".simulate-run.json").exists()
+
+
+def test_reset_requires_playbook_before_destructive_work(
+    tmp_path: Path,
+    unit_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr(
+        reset,
+        "get_settings",
+        lambda: Settings(devin_api_token="token", devin_org_id="org"),
+    )
+    monkeypatch.setattr(
+        github,
+        "require_admin",
+        lambda repo: calls.append("require_admin"),
+    )
+    with pytest.raises(RuntimeError, match="SEED_PLAYBOOK_ID is required"):
+        reset.reset(
+            load_scenario(SCENARIO_PATH),
+            work_dir=tmp_path,
+            session=unit_session,
+            devin_client=cast(Any, SimpleNamespace()),
+        )
+    assert calls == []
+    assert not (tmp_path / ".simulate-run.json").exists()
 
 
 def test_git_and_branch_helpers(
@@ -346,7 +404,11 @@ def test_reset_clones_missing_worktree(
     monkeypatch.setattr(
         reset,
         "get_settings",
-        lambda: Settings(devin_api_token="token", devin_org_id="org"),
+        lambda: Settings(
+            devin_api_token="token",
+            devin_org_id="org",
+            seed_playbook_id="playbook-1",
+        ),
     )
     monkeypatch.setattr(reset, "seed", lambda session, **kwargs: None)
     reset.reset(
@@ -401,7 +463,11 @@ def test_reset_handles_session_termination_without_wiping(
     monkeypatch.setattr(
         reset,
         "get_settings",
-        lambda: Settings(devin_api_token="token", devin_org_id="org"),
+        lambda: Settings(
+            devin_api_token="token",
+            devin_org_id="org",
+            seed_playbook_id="playbook-1",
+        ),
     )
     monkeypatch.setattr(reset, "seed", lambda session, **kwargs: None)
     client = SimpleNamespace(

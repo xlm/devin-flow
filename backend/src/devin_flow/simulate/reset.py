@@ -51,9 +51,15 @@ def reset(
     devin_client: DevinClient,
     wipe_invocations: bool = True,
 ) -> str:
+    settings = get_settings()
+    playbook_id = settings.seed_playbook_id
+    if playbook_id is None:
+        raise RuntimeError("SEED_PLAYBOOK_ID is required for reset")
     state_path = work_dir / ".simulate-state.json"
+    run_path = work_dir / ".simulate-run.json"
     if work_dir.exists():
         state_path.unlink(missing_ok=True)
+        run_path.unlink(missing_ok=True)
     github.require_admin(scenario.repository)
     work_dir.mkdir(parents=True, exist_ok=True)
     checkout_dir = repo_dir(work_dir)
@@ -135,10 +141,9 @@ def reset(
         poller_state.last_success_at = datetime.now(UTC) + invocations.SAFETY_MARGIN
         session.add(poller_state)
         session.commit()
-    settings = get_settings()
     seed(
         session,
-        playbook_id=settings.seed_playbook_id,
+        playbook_id=playbook_id,
         repository_full_name=scenario.repository,
     )
     state_path.write_text(

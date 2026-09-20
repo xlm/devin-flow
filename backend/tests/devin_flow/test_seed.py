@@ -51,7 +51,7 @@ def test_seed_inserts_seed_flow_when_playbook_is_configured(
     assert action.sync_status == "pending"
     trigger = unit_session.get(TriggerNode, seed.SEED_TRIGGER_ID)
     assert trigger is not None
-    assert trigger.event_action == "opened"
+    assert str(trigger.event_action) == "opened"
     assert len(unit_session.exec(select(Edge)).all()) == 5
 
 
@@ -115,6 +115,62 @@ def test_seed_restores_tombstoned_action(unit_session: Session) -> None:
     assert action.sync_status == "pending"
     assert action.sync_error is None
     assert action.automation_id == "automation-1"
+
+
+def test_seed_normalizes_existing_rows(unit_session: Session) -> None:
+    seed.seed(
+        unit_session,
+        playbook_id="playbook-1",
+        repository_full_name="xlm/superset",
+    )
+    trigger = unit_session.get(TriggerNode, seed.SEED_TRIGGER_ID)
+    action = unit_session.get(ActionNode, seed.SEED_ACTION_ID)
+    outcome = unit_session.get(OutcomeNode, seed.SEED_OUTCOME_IDS["pull_request"])
+    assert trigger is not None
+    assert action is not None
+    assert outcome is not None
+    trigger.event_action = "closed"
+    trigger.repository_full_name = "other/repository"
+    action.name = "Wrong name"
+    action.playbook_id = "playbook-old"
+    action.prompt = "Wrong prompt"
+    action.enabled = False
+    action.deleted_at = datetime.now(UTC)
+    action.automation_id = "automation-1"
+    action.sync_status = "disabled"
+    action.sync_error = "old error"
+    outcome.kind = "not_a_bug"
+    unit_session.add_all([trigger, action, outcome])
+    unit_session.commit()
+
+    seed.seed(
+        unit_session,
+        playbook_id="playbook-1",
+        repository_full_name="xlm/superset",
+    )
+
+    unit_session.refresh(trigger)
+    unit_session.refresh(action)
+    unit_session.refresh(outcome)
+    assert str(trigger.event_action) == "opened"
+    assert trigger.repository_full_name == "xlm/superset"
+    assert action.name == "Seed: Issue triage"
+    assert action.playbook_id == "playbook-1"
+    assert action.prompt == ""
+    assert action.enabled
+    assert action.deleted_at is None
+    assert action.sync_status == "pending"
+    assert action.sync_error is None
+    assert action.automation_id == "automation-1"
+    assert outcome.kind == "pull_request"
+
+    seed.seed(
+        unit_session,
+        playbook_id="playbook-1",
+        repository_full_name="xlm/superset",
+    )
+    unit_session.refresh(action)
+    assert action.sync_status == "pending"
 
 
 def test_seed_removes_conflicting_trigger_edge(unit_session: Session) -> None:
