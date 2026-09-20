@@ -133,8 +133,8 @@ onMounted(() => void loadRepositories())
         @change="save({ event_action: eventAction || null })"
       >
         <option value="">Select event</option>
-        <option value="opened">opened</option>
-        <option value="closed">closed</option>
+        <option value="opened">Issue opened</option>
+        <option value="closed">Issue closed</option>
       </select>
       <select
         v-if="loadingRepositories"
