@@ -27,8 +27,18 @@ _Avoid_: Source, event node, input
 **Action node**:
 A node describing the Devin session to start: a Playbook plus optional
 extra instructions, and a user friendly name. Owns exactly one Automation
-and carries its enabled switch.
+and carries its enabled switch. An Action node is never deleted, only
+archived.
 _Avoid_: Task, step, output
+
+**Archived Action**:
+An Action node removed from the Canvas by the user. It keeps its
+identity, settings, Automation and every Invocation forever, and can be
+restored to the Canvas with no Edges. Its Invocations keep being
+mirrored while archived, so restoring surfaces every metric. Archiving
+disables the Automation; restoring does not re-enable it until the Action
+is a Flow again.
+_Avoid_: Deleted action, tombstone, soft deleted
 
 **Outcome node**:
 A node that collects the Invocations of an Action node that ended with one
@@ -38,7 +48,9 @@ _Avoid_: PR node, result, sink
 **Edge**:
 A link between nodes. A Trigger to Action edge carries the count of
 Invocations; an Action to Outcome edge carries the count of Invocations
-with that Outcome.
+with that Outcome. Both counts are derived from the Action node's
+Invocations, an Edge stores nothing of its own, so deleting and redrawing
+an Edge is always lossless.
 _Avoid_: Connection, link, wire
 
 ### Devin side
