@@ -25,7 +25,13 @@ class Settings(BaseSettings):
         if value is None:
             return None
         normalized = value.strip()
-        return normalized or None
+        if not normalized:
+            return None
+        return (
+            normalized
+            if normalized.startswith("playbook-")
+            else f"playbook-{normalized}"
+        )
 
 
 @lru_cache

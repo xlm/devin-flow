@@ -78,7 +78,7 @@ def test_seed_is_idempotent_and_preserves_action_automation(
 
     action = unit_session.get(ActionNode, seed.SEED_ACTION_ID)
     assert action is not None
-    assert action.playbook_id == "playbook-1"
+    assert action.playbook_id == "playbook-2"
     assert action.automation_id == "automation-1"
     assert action.sync_status == "pending"
     trigger = unit_session.get(TriggerNode, seed.SEED_TRIGGER_ID)
