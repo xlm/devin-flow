@@ -45,10 +45,14 @@ test('spec 4: configuring and enabling an Action provisions automation', async (
   await action.click()
   const enableSwitch = page.locator('[data-testid=enable-switch]')
   await expect(enableSwitch).toBeEnabled()
+  const edge = page.locator('.vue-flow__edge')
+  await expect(edge).toHaveCount(1)
+  await expect(edge).not.toHaveClass(/animated/)
   await enableSwitch.click()
   await expect(
     action.locator('[data-testid=sync-badge][data-sync-status=enabled]'),
   ).toBeVisible()
+  await expect(edge).toHaveClass(/animated/)
 
   const automationCalls = (await calls(request)).filter(
     (call) => call.method === 'POST' && call.path.endsWith('/automations'),
@@ -67,4 +71,13 @@ test('spec 4: configuring and enabling an Action provisions automation', async (
   const saved = await canvas()
   expect(saved.action_nodes[0].automation_id).toBe('auto-1')
   expect(saved.action_nodes[0].sync_status).toBe('enabled')
+  await page.reload()
+  await expect(edge).toHaveClass(/animated/)
+  await action.click()
+  await expect(enableSwitch).toHaveText('Disable')
+  await enableSwitch.click()
+  await expect(
+    action.locator('[data-testid=sync-badge][data-sync-status=disabled]'),
+  ).toBeVisible()
+  await expect(edge).not.toHaveClass(/animated/)
 })
