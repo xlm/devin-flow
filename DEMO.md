@@ -1,8 +1,8 @@
 # Demo
 
 Run devin-flow against your own fork of `xlm/superset`: draw a triage Flow on
-the Canvas, let the simulator reset the fork and file eight issues over three
-minutes, and watch Devin triage them.
+the Canvas, let the simulator reset the fork and file eight issues, and watch
+Devin triage them.
 
 ## Prerequisites
 
