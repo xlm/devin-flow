@@ -6,7 +6,7 @@ supersedes: 0001
 # The Action node owns the Automation
 
 ADR 0001 put `automation_id` and sync state on the Trigger to Action edge,
-so removing the edge had to archive it to keep the Automation's
+so removing the edge had to soft delete it to keep the Automation's
 identity and history. Because an Action node accepts at most one incoming
 Trigger edge, the edge and the Action are one to one, and we moved the
 Automation identity to the Action node instead: it is the durable thing on
@@ -14,7 +14,7 @@ the Canvas, while the edge only decides whether the Automation is enabled.
 
 ## Considered options
 
-- Automation on the edge, edge archived on disconnect (ADR 0001):
+- Automation on the edge, edge soft deleted on disconnect (ADR 0001):
   exact counts, but the Automation's identity lives on a link that users
   delete and redraw freely, and reconnecting the same nodes creates a new
   Automation.
