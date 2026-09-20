@@ -36,7 +36,11 @@ const statusLabel = computed(
 </script>
 
 <template>
-  <NodeToolbar :node-id="props.id" :position="Position.Top">
+  <NodeToolbar
+    :node-id="props.id"
+    :position="Position.Right"
+    class="flex flex-col items-start gap-1"
+  >
     <slot name="toolbar" />
     <Button
       variant="destructive"
