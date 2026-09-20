@@ -226,6 +226,7 @@ def test_reset_cleans_state_and_seeds(
     scenario = load_scenario(SCENARIO_PATH)
     calls: list[tuple[str, Any]] = []
     tmp_path.mkdir(exist_ok=True)
+    reset.repo_dir(tmp_path).mkdir()
 
     monkeypatch.setattr(
         github, "require_admin", lambda repo: calls.append(("admin", repo))
@@ -248,8 +249,10 @@ def test_reset_cleans_state_and_seeds(
     )
     monkeypatch.setattr(reset, "_git_branches", lambda scenario, work_dir: ["fix"])
     git_outputs = {"rev-parse": "result-sha"}
+    git_dirs: list[Path] = []
 
     def fake_git(work_dir: Path, *args: str) -> str:
+        git_dirs.append(work_dir)
         calls.append(("git", args))
         return git_outputs.get(args[0], "")
 
@@ -283,6 +286,8 @@ def test_reset_cleans_state_and_seeds(
         "seed",
         {"playbook_id": None, "repository_full_name": scenario.repository},
     ) in calls
+    assert git_dirs
+    assert set(git_dirs) == {tmp_path / "repo"}
 
 
 def test_reset_terminates_upstream_sessions(
@@ -293,6 +298,7 @@ def test_reset_terminates_upstream_sessions(
     scenario = load_scenario(SCENARIO_PATH)
     from devin_flow.models import ActionNode, Invocation
 
+    reset.repo_dir(tmp_path).mkdir(parents=True)
     unit_session.add(
         ActionNode(
             name="action",
@@ -494,7 +500,7 @@ def test_reset_clones_missing_worktree(
     monkeypatch.setattr(reset, "_git", lambda work_dir, *args: "sha")
 
     def record_clone(args: Any, **kwargs: Any) -> subprocess.CompletedProcess[str]:
-        work_dir.mkdir()
+        Path(args[-1]).mkdir()
         clone_calls.append((args, kwargs))
         return subprocess.CompletedProcess(args, 0, "", "")
 
@@ -516,6 +522,7 @@ def test_reset_clones_missing_worktree(
         reset.GIT_CREDENTIAL_ARGS
     )
     assert clone_calls[0][0][1 + len(reset.GIT_CREDENTIAL_ARGS)] == "clone"
+    assert Path(clone_calls[0][0][-1]) == work_dir / "repo"
 
 
 def test_reset_handles_session_termination_without_wiping(
@@ -526,6 +533,7 @@ def test_reset_handles_session_termination_without_wiping(
     scenario = load_scenario(SCENARIO_PATH)
     from devin_flow.models import Invocation
 
+    reset.repo_dir(tmp_path).mkdir(parents=True)
     unit_session.add(
         Invocation(
             session_id="running",

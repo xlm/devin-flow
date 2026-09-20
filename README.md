@@ -104,8 +104,9 @@ uv run simulate-issues report  # wait for terminal Invocations and compare Outco
 Reset is destructive: it wipes issues, pull requests, and non-default branches,
 terminates non-terminal sessions, clears simulator state, and force-pushes
 `master`. The default work directory is
-`~/.cache/devin-flow/superset`; it contains the checkout,
-`.simulate-state.json`, and `.simulate-run.json`.
+`~/.cache/devin-flow/superset`; the Git checkout is in its `repo/` child,
+while `.simulate-state.json` and `.simulate-run.json` stay directly in the
+work directory.
 
 ## Checks
 

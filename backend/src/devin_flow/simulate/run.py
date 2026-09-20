@@ -18,6 +18,7 @@ def run(
     now: Callable[[], float] = time.monotonic,
     rng: Random | None = None,
 ) -> dict[str, Any]:
+    work_dir.mkdir(parents=True, exist_ok=True)
     expected_sha = state["reset_sha"]
     actual_sha = github.get_branch_sha(scenario.repository, scenario.default_branch)
     if actual_sha != expected_sha:
