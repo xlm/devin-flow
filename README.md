@@ -94,6 +94,8 @@ Before running it, ensure that:
 - `SEED_PLAYBOOK_ID` is set to the issue triage Playbook id. Devin's UI shows
   the bare id, which is accepted and normalized to the required `playbook-`
   prefixed value.
+- `SEED_REPOSITORY_FULL_NAME` is set to the Target repository. Reset rejects
+  scenarios for any other repository.
 - The Devin GitHub connection's Automation scope is set to **All installed
   repos**, because the Target repository is public.
 
