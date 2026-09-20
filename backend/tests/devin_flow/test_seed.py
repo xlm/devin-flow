@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 import pytest
 from sqlalchemy import Engine
 from sqlmodel import Session, select, text
@@ -64,6 +66,7 @@ def test_seed_is_idempotent_and_preserves_action_automation(
     action = unit_session.get(ActionNode, seed.SEED_ACTION_ID)
     assert action is not None
     action.automation_id = "automation-1"
+    action.sync_status = "disabled"
     unit_session.add(action)
     unit_session.commit()
 
@@ -77,9 +80,41 @@ def test_seed_is_idempotent_and_preserves_action_automation(
     assert action is not None
     assert action.playbook_id == "playbook-1"
     assert action.automation_id == "automation-1"
+    assert action.sync_status == "pending"
     trigger = unit_session.get(TriggerNode, seed.SEED_TRIGGER_ID)
     assert trigger is not None
-    assert trigger.repository_full_name == "xlm/superset"
+    assert trigger.repository_full_name == "other/repository"
+
+
+def test_seed_restores_tombstoned_action(unit_session: Session) -> None:
+    seed.seed(
+        unit_session,
+        playbook_id="playbook-1",
+        repository_full_name="xlm/superset",
+    )
+    action = unit_session.get(ActionNode, seed.SEED_ACTION_ID)
+    assert action is not None
+    action.automation_id = "automation-1"
+    action.deleted_at = datetime.now(UTC)
+    action.enabled = False
+    action.sync_status = "disabled"
+    action.sync_error = "disabled"
+    unit_session.add(action)
+    unit_session.commit()
+
+    seed.seed(
+        unit_session,
+        playbook_id="playbook-2",
+        repository_full_name="xlm/superset",
+    )
+
+    action = unit_session.get(ActionNode, seed.SEED_ACTION_ID)
+    assert action is not None
+    assert action.deleted_at is None
+    assert action.enabled
+    assert action.sync_status == "pending"
+    assert action.sync_error is None
+    assert action.automation_id == "automation-1"
 
 
 def test_seed_playbook_none_inserts_nothing(unit_session: Session) -> None:

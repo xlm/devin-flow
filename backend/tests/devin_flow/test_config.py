@@ -29,6 +29,15 @@ def test_defaults() -> None:
     assert DEFAULT_STATIC_DIR.parts[-2:] == ("frontend", "dist")
 
 
+def test_blank_seed_playbook_id_is_normalized() -> None:
+    settings = Settings(
+        devin_api_token="t",
+        devin_org_id="o",
+        seed_playbook_id="  ",
+    )
+    assert settings.seed_playbook_id is None
+
+
 def test_env_overrides(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://u:p@db:5432/x")
     monkeypatch.setenv("STATIC_DIR", str(tmp_path))

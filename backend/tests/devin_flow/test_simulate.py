@@ -1,7 +1,7 @@
 import json
 import subprocess
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
@@ -11,7 +11,9 @@ import httpx
 import pytest
 from sqlmodel import Session
 
+from devin_flow import invocations
 from devin_flow.config import Settings
+from devin_flow.devin.client import DevinSession
 from devin_flow.simulate import cli, github, report, reset, run
 from devin_flow.simulate.scenario import Scenario, load_scenario
 
@@ -82,6 +84,11 @@ def test_scenario_rejects_phase_and_duplicate_rules() -> None:
     with pytest.raises(ValueError, match="fixed originals"):
         Scenario.model_validate(scenario)
 
+    scenario = load_scenario(SCENARIO_PATH).model_dump()
+    scenario["poisons"][0]["patch"] = "../escape.patch"
+    with pytest.raises(ValueError):
+        Scenario.model_validate(scenario)
+
 
 def test_github_wrappers_use_expected_commands(
     monkeypatch: pytest.MonkeyPatch,
@@ -98,10 +105,8 @@ def test_github_wrappers_use_expected_commands(
             return subprocess.CompletedProcess(
                 args, 0, "https://github.com/x/y/issues/7\n", ""
             )
-        if args[1:3] == ["pr", "list"]:
-            return subprocess.CompletedProcess(
-                args, 0, '[{"number": 3, "headRefName": "fix/3"}]', ""
-            )
+        if args[1:3] == ["api", "--paginate"]:
+            return subprocess.CompletedProcess(args, 0, "3\tfix/3\n", "")
         if args[1:3] == ["api", "graphql"] and "deleteIssue" not in " ".join(args):
             return subprocess.CompletedProcess(args, 0, "node-1\nnode-2\n", "")
         return subprocess.CompletedProcess(args, 0, "abc123\n", "")
@@ -118,6 +123,14 @@ def test_github_wrappers_use_expected_commands(
     assert github.create_issue("xlm/superset", "title", "body")[0] == 7
     assert calls[0] == ["gh", "auth", "status"]
     assert calls[1][:4] == ["gh", "api", "repos/xlm/superset", "--jq"]
+    assert [
+        "gh",
+        "api",
+        "--paginate",
+        "repos/xlm/superset/pulls?state=open",
+        "--jq",
+        ".[] | [.number, .head.ref] | @tsv",
+    ] in calls
 
 
 def test_github_admin_failure_is_clear(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -241,7 +254,11 @@ def test_reset_cleans_state_and_seeds(
         return git_outputs.get(args[0], "")
 
     monkeypatch.setattr(reset, "_git", fake_git)
-    settings = Settings(DEVIN_API_TOKEN="token", DEVIN_ORG_ID="org")
+    settings = Settings(
+        DEVIN_API_TOKEN="token",
+        DEVIN_ORG_ID="org",
+        seed_repository_full_name="wrong/repository",
+    )
     monkeypatch.setattr(reset, "get_settings", lambda: settings)
     monkeypatch.setattr(
         reset, "seed", lambda session, **kwargs: calls.append(("seed", kwargs))
@@ -259,6 +276,79 @@ def test_reset_cleans_state_and_seeds(
     )
     assert ("delete", "issue-1") in calls
     assert ("close", 2) in calls
+    poller_state = invocations.get_poller_state(unit_session)
+    assert poller_state.last_success_at is not None
+    assert poller_state.last_success_at > datetime.now()
+    assert (
+        "seed",
+        {"playbook_id": None, "repository_full_name": scenario.repository},
+    ) in calls
+
+
+def test_reset_terminates_upstream_sessions(
+    tmp_path: Path,
+    unit_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scenario = load_scenario(SCENARIO_PATH)
+    from devin_flow.models import ActionNode, Invocation
+
+    unit_session.add(
+        ActionNode(
+            name="action",
+            position_x=0,
+            position_y=0,
+            automation_id="automation-1",
+        )
+    )
+    unit_session.add(
+        Invocation(
+            session_id="mirrored",
+            automation_id="automation-1",
+            action_node_id=uuid4(),
+            status="running",
+            session_created_at=datetime.now(UTC),
+            session_updated_at=datetime.now(UTC),
+        )
+    )
+    unit_session.commit()
+    monkeypatch.setattr(github, "require_admin", lambda repo: None)
+    monkeypatch.setattr(github, "enable_issues", lambda repo: None)
+    monkeypatch.setattr(github, "list_issue_node_ids", lambda repo: [])
+    monkeypatch.setattr(github, "list_open_prs", lambda repo: [])
+    monkeypatch.setattr(reset, "_git_branches", lambda scenario, work_dir: [])
+    monkeypatch.setattr(reset, "_git", lambda work_dir, *args: "sha")
+    monkeypatch.setattr(
+        reset,
+        "get_settings",
+        lambda: Settings(devin_api_token="token", devin_org_id="org"),
+    )
+    monkeypatch.setattr(reset, "seed", lambda session, **kwargs: None)
+    terminated: list[str] = []
+
+    class FakeClient:
+        def list_sessions(self, **kwargs: Any) -> list[DevinSession]:
+            assert kwargs == {
+                "automation_ids": ["automation-1"],
+                "created_after": None,
+                "paginate": True,
+            }
+            return [
+                DevinSession(session_id="mirrored", status="running"),
+                DevinSession(session_id="upstream", status="running"),
+                DevinSession(session_id="done", status="exit"),
+            ]
+
+        def terminate_session(self, session_id: str) -> None:
+            terminated.append(session_id)
+
+    reset.reset(
+        scenario,
+        work_dir=tmp_path,
+        session=unit_session,
+        devin_client=cast(Any, FakeClient()),
+    )
+    assert terminated == ["mirrored", "upstream"]
 
 
 def test_report_maps_structured_and_title_outcomes(tmp_path: Path) -> None:

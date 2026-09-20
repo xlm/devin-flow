@@ -1,4 +1,3 @@
-import json
 import subprocess
 from dataclasses import dataclass
 
@@ -82,20 +81,17 @@ class PullRequest:
 
 def list_open_prs(repo: str) -> list[PullRequest]:
     result = _run(
-        "pr",
-        "list",
-        "--repo",
-        repo,
-        "--state",
-        "open",
-        "--limit",
-        "100",
-        "--json",
-        "number,headRefName",
+        "api",
+        "--paginate",
+        f"repos/{repo}/pulls?state=open",
+        "--jq",
+        ".[] | [.number, .head.ref] | @tsv",
     )
     return [
-        PullRequest(number=item["number"], branch=item["headRefName"])
-        for item in json.loads(result.stdout)
+        PullRequest(number=int(number), branch=branch)
+        for number, branch in (
+            line.split("\t", 1) for line in result.stdout.splitlines() if line
+        )
     ]
 
 

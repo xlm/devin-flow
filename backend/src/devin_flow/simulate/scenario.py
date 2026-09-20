@@ -10,7 +10,7 @@ ExpectedOutcome = Literal["fixed", "duplicate", "not_a_bug", "not_reproducible"]
 
 class Poison(BaseModel):
     id: str = Field(min_length=1)
-    patch: str = Field(min_length=1)
+    patch: str = Field(min_length=1, pattern=r"^[^/\\]+\.patch$")
     failing_test: str = Field(min_length=1)
 
 
