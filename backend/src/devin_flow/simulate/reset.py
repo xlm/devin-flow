@@ -71,7 +71,7 @@ def reset(
             "run uv run sync-playbooks"
         )
     playbook_id = playbook.playbook_id
-    schema = playbook.structured_output_schema if playbook is not None else None
+    schema = playbook.structured_output_schema
     properties = schema.get("properties") if isinstance(schema, dict) else None
     if not isinstance(properties, dict) or "issue_number" not in properties:
         raise RuntimeError(
