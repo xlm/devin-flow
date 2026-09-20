@@ -83,6 +83,7 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  --edge-selected: oklch(0.55 0.22 264);
 }
 
 .dark {
@@ -117,6 +118,7 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  --edge-selected: oklch(0.72 0.18 264);
 }
 
 .vue-flow {
@@ -157,7 +159,8 @@
 .vue-flow__edge.selected .vue-flow__edge-path,
 .vue-flow__edge:focus .vue-flow__edge-path,
 .vue-flow__edge:focus-visible .vue-flow__edge-path {
-  stroke: var(--foreground);
+  stroke: var(--edge-selected);
+  stroke-width: 2;
 }
 
 .vue-flow__background pattern circle,
