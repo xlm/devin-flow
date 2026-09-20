@@ -128,9 +128,9 @@ to `FlowCanvas.vue` as unverified until it has run in the real browser.
 ## Archived Actions
 
 Deleting an Action node archives it (DELETE `/api/canvas/nodes/action/{id}`
-sets `archived_at` only when the Action has an `automation_id`, so seed a
-configured Action or insert the column directly for fixtures). Archived
-Actions keep their Invocations and keep being polled.
+always sets `archived_at`; the Automation is disabled upstream only when
+the Action has an `automation_id`). Archived Actions keep their
+Invocations, their enabled switch and keep being polled.
 
 1. Open the sheet with the `archived-actions-button` in the top-right
    toolbar. It is non-modal so rows can be dragged onto the Canvas behind
