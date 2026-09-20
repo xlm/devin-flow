@@ -19,6 +19,9 @@ def run(
     rng: Random | None = None,
 ) -> dict[str, Any]:
     work_dir.mkdir(parents=True, exist_ok=True)
+    run_path = work_dir / ".simulate-run.json"
+    if run_path.exists():
+        raise RuntimeError("issues already filed for this reset, run reset again")
     for key in ("repository", "default_branch", "baseline"):
         if state.get(key) != getattr(scenario, key):
             raise RuntimeError(
@@ -58,7 +61,11 @@ def run(
                     "url": url,
                 }
             )
+            run_path.write_text(
+                json.dumps({"reset_sha": expected_sha, "issues": filed}, indent=2)
+                + "\n"
+            )
             print(f"{now() - started:7.1f}s issue #{number} {issue.id}: {url}")
     result = {"reset_sha": expected_sha, "issues": filed}
-    (work_dir / ".simulate-run.json").write_text(json.dumps(result, indent=2) + "\n")
+    run_path.write_text(json.dumps(result, indent=2) + "\n")
     return result

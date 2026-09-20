@@ -63,7 +63,7 @@ body = """### Bug description
 An exported attachment with an extension that Superset does not recognize is labelled as `application/plain` instead of a generic binary attachment.
 
 ### How to reproduce the bug
-1. Export content using an unrecognized extension such as `.csv`.
+1. Export content using an unrecognized extension such as `.unknown`.
 2. Inspect the MIME type in the generated email.
 3. Observe that it is reported as `application/plain`.
 

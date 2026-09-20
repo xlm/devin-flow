@@ -20,6 +20,7 @@ SEED_OUTCOME_IDS: dict[OutcomeKind, UUID] = {
     "not_reproducible": UUID("00000000-0000-0000-0000-000000000005"),
     "not_a_bug": UUID("00000000-0000-0000-0000-000000000006"),
 }
+_DELETED_AT_FIELD = "deleted_at"
 
 
 def _add_edge(session: Session, source: NodeRef, target: NodeRef) -> None:
@@ -91,14 +92,14 @@ def seed(
                     action.playbook_id != playbook_id,
                     action.prompt != "",
                     not action.enabled,
-                    action.deleted_at is not None,
+                    getattr(action, _DELETED_AT_FIELD, None) is not None,
                 )
             )
             action.name = "Seed: Issue triage"
             action.playbook_id = playbook_id
             action.prompt = ""
             action.enabled = True
-            action.deleted_at = None
+            setattr(action, _DELETED_AT_FIELD, None)
             session.add(action)
         for index, (kind, outcome_id) in enumerate(SEED_OUTCOME_IDS.items()):
             outcome = session.get(OutcomeNode, outcome_id)
@@ -119,17 +120,31 @@ def seed(
             action.sync_error = None
             session.add(action)
         session.flush()
+        seed_action = action
+        edge_removed = False
         for edge in session.exec(
             select(Edge).where(
                 Edge.source_id == SEED_TRIGGER_ID,
                 Edge.target_id != SEED_ACTION_ID,
             )
         ).all():
-            action = session.get(ActionNode, edge.target_id)
-            if action is not None:
-                mark_pending(action)
-                session.add(action)
+            displaced_action = session.get(ActionNode, edge.target_id)
+            if displaced_action is not None:
+                mark_pending(displaced_action)
+                session.add(displaced_action)
             session.delete(edge)
+            edge_removed = True
+        for edge in session.exec(
+            select(Edge).where(
+                Edge.source_id != SEED_TRIGGER_ID,
+                Edge.target_id == SEED_ACTION_ID,
+            )
+        ).all():
+            session.delete(edge)
+            edge_removed = True
+        if edge_removed:
+            mark_pending(seed_action)
+            session.add(seed_action)
         session.flush()
         _add_edge(
             session,
