@@ -80,10 +80,10 @@ Test fixtures pass no playbook and call the same function.
 
 ## Issue simulator
 
-`uv run simulate-issues` resets the fork `xlm/superset` to a known buggy state
-and files eight issues over three minutes for a Flow to triage, see
-`SIMULATOR.md`. For a hands-on walkthrough from the Docker image with
-copy-paste issues, see `DEMO.md`.
+`uv run simulate-issues` resets the fork named by `SEED_REPOSITORY_FULL_NAME`
+to a known buggy state and files eight issues over three minutes for a Flow to
+triage, see `SIMULATOR.md`. For a first-time walkthrough against your own fork,
+see `DEMO.md`.
 
 ## Checks
 
