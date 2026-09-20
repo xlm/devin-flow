@@ -33,7 +33,11 @@ def report(
                 number: item
                 for item in invocations
                 if (number := _issue_number(item)) is not None
-                and item["status"] in TERMINAL_SESSION_STATUSES
+                and (
+                    item["status"] in TERMINAL_SESSION_STATUSES
+                    or item.get("pull_requests")
+                    or (item.get("structured_output") or {}).get("outcome")
+                )
             }
             if all(item["number"] in by_issue for item in run["issues"]):
                 break

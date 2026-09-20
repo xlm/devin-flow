@@ -24,7 +24,7 @@ def test_report_maps_structured_and_title_outcomes(tmp_path: Path) -> None:
             200,
             json=[
                 {
-                    "status": "exit",
+                    "status": "running",
                     "title": "Triage issue #2",
                     "structured_output": {"issue_number": 2, "outcome": "duplicate"},
                     "pull_requests": [],
@@ -42,6 +42,48 @@ def test_report_maps_structured_and_title_outcomes(tmp_path: Path) -> None:
     )
     with httpx.Client(transport=transport, base_url="http://flow") as client:
         assert report.report(work_dir=tmp_path, http=client) == 0
+
+
+def test_report_terminal_without_outcome_is_a_mismatch(tmp_path: Path) -> None:
+    (tmp_path / ".simulate-run.json").write_text(
+        json.dumps({"issues": [{"number": 1, "expected_outcome": "fixed"}]})
+    )
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200,
+            json=[
+                {
+                    "status": "exit",
+                    "title": "Triage issue #1",
+                    "structured_output": None,
+                    "pull_requests": [],
+                }
+            ],
+        )
+    )
+    with httpx.Client(transport=transport, base_url="http://flow") as client:
+        assert report.report(work_dir=tmp_path, http=client) == 1
+
+
+def test_report_waits_for_running_invocation_without_outcome(tmp_path: Path) -> None:
+    (tmp_path / ".simulate-run.json").write_text(
+        json.dumps({"issues": [{"number": 1, "expected_outcome": "fixed"}]})
+    )
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200,
+            json=[
+                {
+                    "status": "running",
+                    "title": "Triage issue #1",
+                    "structured_output": None,
+                    "pull_requests": [],
+                }
+            ],
+        )
+    )
+    with httpx.Client(transport=transport, base_url="http://flow") as client:
+        assert report.report(work_dir=tmp_path, timeout=0, http=client) == 1
 
 
 def test_report_times_out(tmp_path: Path, capsys: Any) -> None:
