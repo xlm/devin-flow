@@ -31,7 +31,7 @@ vi.mock('@vue-flow/core', () => ({
         })
     },
   }),
-  Position: { Left: 'left', Right: 'right', Top: 'top' },
+  Position: { Left: 'left', Right: 'right', Top: 'top', Bottom: 'bottom' },
   useVueFlow: () => ({
     removeNodes: mocks.removeNodes,
     findNode: mocks.findNode,
@@ -63,26 +63,29 @@ import ActionNode from '@/components/nodes/ActionNode.vue'
 import OutcomeNode from '@/components/nodes/OutcomeNode.vue'
 import TriggerNode from '@/components/nodes/TriggerNode.vue'
 import { nodeTypes } from '@/components/nodes/nodeTypes'
-import { isNodeKind, nodeAccentClass } from '@/lib/nodeKinds'
+import { isNodeKind, nodeAccentClass, nodeHandleClass } from '@/lib/nodeKinds'
 
 const components = [
   {
     component: TriggerNode,
     kind: 'trigger',
     hint: 'No eligible repositories',
-    handles: ['source'],
+    handles: [['source', 'bottom', 'bg-sky-500!']],
   },
   {
     component: ActionNode,
     kind: 'action',
     hint: 'Choose a Playbook',
-    handles: ['target', 'source'],
+    handles: [
+      ['target', 'top', 'bg-sky-500!'],
+      ['source', 'bottom', 'bg-violet-500!'],
+    ],
   },
   {
     component: OutcomeNode,
     kind: 'outcome',
     hint: 'Choose an Outcome kind',
-    handles: ['target'],
+    handles: [['target', 'top', 'bg-violet-500!']],
   },
 ] as const
 
@@ -153,7 +156,11 @@ describe('canvas nodes', () => {
       expect(
         wrapper
           .findAll('.handle')
-          .map((handle) => handle.attributes('data-type')),
+          .map((handle) => [
+            handle.attributes('data-type'),
+            handle.attributes('data-position'),
+            handle.classes().find((c) => c.startsWith('bg-')),
+          ]),
       ).toEqual(handles)
       await wrapper.find('[data-testid="delete-node"]').trigger('click')
       expect(mocks.removeNodes).toHaveBeenCalledWith(['n1'])
@@ -187,5 +194,12 @@ describe('canvas nodes', () => {
     expect(nodeAccentClass('trigger')).toBe('border-l-sky-500')
     expect(nodeAccentClass('action')).toBe('border-l-violet-500')
     expect(nodeAccentClass('outcome')).toBe('border-l-emerald-500')
+  })
+
+  it('colours handles after the kind a connection flows out of', () => {
+    expect(nodeHandleClass('trigger', 'source')).toBe('bg-sky-500!')
+    expect(nodeHandleClass('action', 'target')).toBe('bg-sky-500!')
+    expect(nodeHandleClass('action', 'source')).toBe('bg-violet-500!')
+    expect(nodeHandleClass('outcome', 'target')).toBe('bg-violet-500!')
   })
 })

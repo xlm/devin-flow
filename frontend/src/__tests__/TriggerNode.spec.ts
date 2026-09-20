@@ -20,7 +20,7 @@ vi.mock('@vue-flow/core', () => ({
       return () => h('span', { class: 'handle', 'data-type': props.type })
     },
   }),
-  Position: { Left: 'left', Right: 'right', Top: 'top' },
+  Position: { Left: 'left', Right: 'right', Top: 'top', Bottom: 'bottom' },
   useVueFlow: () => ({
     removeNodes: mocks.removeNodes,
     updateNodeData: mocks.updateNodeData,

@@ -152,10 +152,10 @@ export async function connect(
   targetNodeId: string,
 ): Promise<void> {
   const source = page.locator(
-    `.vue-flow__node[data-id="${sourceNodeId}"] .vue-flow__handle-right`,
+    `.vue-flow__node[data-id="${sourceNodeId}"] .vue-flow__handle-bottom`,
   )
   const target = page.locator(
-    `.vue-flow__node[data-id="${targetNodeId}"] .vue-flow__handle-left`,
+    `.vue-flow__node[data-id="${targetNodeId}"] .vue-flow__handle-top`,
   )
   const sourceBox = await source.boundingBox()
   const targetBox = await target.boundingBox()
