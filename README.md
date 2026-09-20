@@ -80,49 +80,10 @@ Test fixtures pass no playbook and call the same function.
 
 ## Issue simulator
 
-The Issue simulator requires a Flow built manually on the Canvas. Its Trigger
-must target the Scenario repository, and every non-archived Action wired to
-that Trigger is reset. It then resets the Target repository to the Scenario's
-pinned Baseline plus its Poisoned bugs and files the ordered Simulated issues
-across the configured run window. `uv run seed` is an optional shortcut for
-building the Flow. `DEMO.md` walks through a full demonstration against
-`xlm/superset`.
-
-Before running it, ensure that:
-
-- `gh auth status` uses an admin login on `xlm/superset`, for example
-  `GH_TOKEN` set to a fine-grained PAT with Administration, Contents, Issues,
-  and Pull requests read/write permissions on the Target repository.
-- Git can push with the same credentials. Run `gh auth setup-git`, or configure
-  an equivalent Git credential helper. The simulator also uses `gh`'s Git
-  credential helper automatically when `GH_TOKEN` is set.
-- The `Issue triage` Playbook is available by title. Run
-  `uv run sync-playbooks` before resetting so its structured output schema is
-  available.
-- `SEED_REPOSITORY_FULL_NAME` is set to the Target repository. Reset rejects
-  scenarios for any other repository.
-- A Canvas Flow is connected to a Trigger targeting the Target repository.
-  Reset requires at least one non-archived, enabled Action using the
-  `Issue triage` Playbook with an Automation connected to an opened Trigger.
-  Every other non-archived Action connected to a Target repository Trigger is
-  also reset. `uv run seed` is an optional shortcut for creating one.
-- The Devin GitHub connection's Automation scope is set to **All installed
-  repos**, because the Target repository is public.
-
-```sh
-uv run simulate-issues reset   # destructively recreate the Target start state
-uv run simulate-issues run     # file the Scenario's Simulated issues
-uv run simulate-issues report  # wait for terminal Invocations and compare Outcomes
-```
-
-Reset is destructive: it wipes issues, pull requests, and non-default branches,
-terminates non-terminal sessions, clears simulator state, and force-pushes
-`master`. The default work directory is
-`~/.cache/devin-flow/superset`; the Git checkout is in its `repo/` child,
-while `.simulate-state.json` and `.simulate-run.json` stay directly in the
-work directory. `DATABASE_URL` used by reset and `--flow-url` used by report
-must point to the same devin-flow deployment. Reset also ensures the triage
-labels used by the Playbook exist.
+`uv run simulate-issues` resets the fork `xlm/superset` to a known buggy state
+and files eight issues over three minutes for a Flow to triage, see
+`SIMULATOR.md`. For a hands-on walkthrough from the Docker image with
+copy-paste issues, see `DEMO.md`.
 
 ## Checks
 
