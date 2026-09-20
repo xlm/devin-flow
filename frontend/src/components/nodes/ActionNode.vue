@@ -6,7 +6,6 @@ import {
   actionFieldsFromData,
   actionIncompleteHint,
   actionInvalidReason,
-  hasLinkedTrigger,
   syncStateFromData,
   type SyncStatus,
 } from '@/lib/actionValidity'
@@ -44,7 +43,6 @@ const reason = computed(() =>
     (nodeId) => findNode(nodeId)?.data,
   ),
 )
-const linkedTrigger = computed(() => hasLinkedTrigger(props.id, edges.value))
 const provisioned = computed(() => typeof props.data.automationId === 'string')
 const hint = computed(() =>
   reason.value === 'no-trigger'
@@ -113,28 +111,20 @@ async function toggleEnabled() {
   >
     <template #toolbar>
       <button
+        v-if="fields.enabled || reason === null"
         type="button"
         role="switch"
         :aria-checked="fields.enabled ? 'true' : 'false'"
-        :disabled="!fields.enabled && reason !== null"
         data-testid="enable-switch"
-        :title="
-          !fields.enabled && reason !== null
-            ? hint
-            : fields.enabled
-              ? 'Disable Automation'
-              : 'Enable Automation'
-        "
+        :title="fields.enabled ? 'Disable Automation' : 'Enable Automation'"
         :aria-label="
           fields.enabled ? 'Disable Automation' : 'Enable Automation'
         "
-        class="rounded-full border px-2 py-0.5 text-xs disabled:cursor-not-allowed disabled:border-dashed disabled:opacity-50"
+        class="rounded-full border px-2 py-0.5 text-xs"
         :class="fields.enabled && 'bg-primary text-primary-foreground'"
         @click="toggleEnabled"
       >
-        {{
-          fields.enabled ? 'Disable' : linkedTrigger ? 'Enable' : 'No Trigger'
-        }}
+        {{ fields.enabled ? 'Disable' : 'Enable' }}
       </button>
     </template>
     <p
