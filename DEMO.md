@@ -128,10 +128,26 @@ More bugs and duplicates are in `backend/src/devin_flow/simulate/scenario.toml`.
 
 ## 4. Watch
 
-Within a poll interval (60s) each issue shows up as an Invocation on the
+Within a poll interval (15s) each issue shows up as an Invocation on the
 Action. As sessions finish, the Outcome counts move, and clicking an Outcome
 opens its Invocations with links to the Devin session and, for issue 1, the
 pull request on the fork. Devin also labels each issue and comments with its
 reasoning. Sessions take 15-25 minutes to settle.
 
 Stop with `docker compose down -v`.
+
+## 5. Use your own fork
+
+To run the simulator (poisoned bugs, timed issues, expected-vs-actual report)
+against a fork you control instead of filing issues by hand:
+
+1. Fork `xlm/superset` on GitHub (it carries the pinned baseline commit) and
+   make sure your Devin org's GitHub connection covers public repos with
+   Automation scope **All installed repos**.
+2. Log in with `gh auth login` as an account with admin on your fork.
+3. Copy `backend/src/devin_flow/simulate/scenario.toml` together with its
+   `patches/` directory, set `repository = "<you>/superset"` in the copy, and
+   set `SEED_REPOSITORY_FULL_NAME` to the same value in `.env`. Point the
+   Canvas Trigger at your fork.
+4. Follow `SIMULATOR.md`, passing `--scenario path/to/scenario.toml` to
+   `simulate-issues reset` and `run`.
