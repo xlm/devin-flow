@@ -38,6 +38,21 @@ def test_blank_seed_playbook_id_is_normalized() -> None:
     assert settings.seed_playbook_id is None
 
 
+def test_seed_playbook_id_is_prefixed() -> None:
+    bare = Settings(
+        devin_api_token="t",
+        devin_org_id="o",
+        seed_playbook_id="a555d",
+    )
+    prefixed = Settings(
+        devin_api_token="t",
+        devin_org_id="o",
+        seed_playbook_id="playbook-a555d",
+    )
+    assert bare.seed_playbook_id == "playbook-a555d"
+    assert prefixed.seed_playbook_id == "playbook-a555d"
+
+
 def test_env_overrides(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://u:p@db:5432/x")
     monkeypatch.setenv("STATIC_DIR", str(tmp_path))

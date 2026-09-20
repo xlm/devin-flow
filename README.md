@@ -91,7 +91,9 @@ Before running it, ensure that:
 - Git can push with the same credentials. Run `gh auth setup-git`, or configure
   an equivalent Git credential helper. The simulator also uses `gh`'s Git
   credential helper automatically when `GH_TOKEN` is set.
-- `SEED_PLAYBOOK_ID` is set to the issue triage Playbook id.
+- `SEED_PLAYBOOK_ID` is set to the issue triage Playbook id. Devin's UI shows
+  the bare id, which is accepted and normalized to the required `playbook-`
+  prefixed value.
 - The Devin GitHub connection's Automation scope is set to **All installed
   repos**, because the Target repository is public.
 

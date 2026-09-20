@@ -84,7 +84,8 @@ def seed(
                 action.enabled = True
                 action.sync_status = "pending"
                 action.sync_error = None
-            if trigger_changed:
+            if trigger_changed or action.playbook_id != playbook_id:
+                action.playbook_id = playbook_id
                 action.sync_status = "pending"
             session.add(action)
         for index, (kind, outcome_id) in enumerate(SEED_OUTCOME_IDS.items()):
