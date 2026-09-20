@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     devin_api_token: str = Field(min_length=1)
     devin_api_base_url: str = "https://api.devin.ai/v3"
     devin_org_id: str = Field(min_length=1)
-    poll_interval_seconds: float = Field(default=60, ge=0)
+    poll_interval_seconds: float = Field(default=30, ge=0)
 
 
 @lru_cache
