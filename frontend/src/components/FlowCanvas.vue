@@ -99,7 +99,7 @@ const {
   screenToFlowCoordinate,
 } = useVueFlow()
 const { mode, icon, cycleMode } = useTheme()
-const { polling } = useApiHealth()
+const { checkedAt } = useApiHealth()
 
 let resizeTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -471,14 +471,10 @@ async function refreshSyncState() {
   }
 }
 
-watch(
-  () => polling.value?.last_success_at,
-  (current, previous) => {
-    if (previous === undefined || current === previous || current == null)
-      return
-    void refreshSyncState()
-  },
-)
+watch(checkedAt, (_current, previous) => {
+  if (previous === 0) return
+  void refreshSyncState()
+})
 
 provide<RefreshSyncState>(REFRESH_SYNC_STATE, refreshSyncState)
 
