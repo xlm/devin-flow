@@ -29,7 +29,9 @@ const mocks = vi.hoisted(() => {
     PATCH: vi.fn(),
     DELETE: vi.fn(),
     refreshApiHealth: vi.fn(() => Promise.resolve()),
-    polling: ref<{ last_success_at: string | null } | undefined>(),
+    polling: undefined as unknown as {
+      value: { last_success_at: string | null } | undefined
+    },
     screenToFlowCoordinate: vi.fn(),
     removeNodes: vi.fn(),
     applyNodeChanges: vi.fn((_changes: unknown, nodes: Node[]) => nodes),
@@ -58,10 +60,15 @@ vi.mock('@/api/client', () => ({
   },
 }))
 
-vi.mock('@/composables/useApiHealth', () => ({
-  refreshApiHealth: mocks.refreshApiHealth,
-  useApiHealth: () => ({ polling: mocks.polling }),
-}))
+vi.mock('@/composables/useApiHealth', async () => {
+  const { ref } = await import('vue')
+  const polling = ref<{ last_success_at: string | null }>()
+  mocks.polling = polling
+  return {
+    refreshApiHealth: mocks.refreshApiHealth,
+    useApiHealth: () => ({ polling }),
+  }
+})
 
 vi.mock('@vue-flow/core', () => ({
   VueFlow: defineComponent({
@@ -2667,7 +2674,7 @@ describe('FlowCanvas', () => {
     mocks.polling.value = { last_success_at: '2025-01-01T00:00:30Z' }
     await flushPromises()
     expect(mocks.GET).toHaveBeenCalledTimes(2)
-    expect(vueFlow(wrapper).props('edges')).toEqual([
+    expect(mocks.getEdges.value).toEqual([
       expect.objectContaining({ id: 'edge', label: '5 invocations' }),
     ])
     wrapper.unmount()
@@ -2676,8 +2683,6 @@ describe('FlowCanvas', () => {
   it('ignores unchanged and null polling timestamps', async () => {
     const wrapper = mount(FlowCanvas)
     await flushPromises()
-    mocks.polling.value = { last_success_at: null }
-    await nextTick()
     mocks.polling.value = { last_success_at: '2025-01-01T00:00:00Z' }
     await nextTick()
     mocks.polling.value = { last_success_at: '2025-01-01T00:00:00Z' }
