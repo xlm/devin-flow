@@ -3,7 +3,7 @@ import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 
-from sqlmodel import Session, delete, select
+from sqlmodel import Session, col, delete, select
 
 from devin_flow import automations, invocations
 from devin_flow.config import get_settings
@@ -43,6 +43,18 @@ def _git(work_dir: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
+def _require_synced_seed_action(session: Session) -> ActionNode:
+    action = session.get(ActionNode, SEED_ACTION_ID)
+    sync_error = action.sync_error if action is not None else None
+    if (
+        action is None
+        or action.sync_status != "enabled"
+        or action.automation_id is None
+    ):
+        raise RuntimeError(f"seed action sync failed: {sync_error}")
+    return action
+
+
 def reset(
     scenario: Scenario,
     *,
@@ -78,10 +90,6 @@ def reset(
             raise RuntimeError(f"missing poison patch: {patch_path}")
     state_path = work_dir / ".simulate-state.json"
     run_path = work_dir / ".simulate-run.json"
-    if work_dir.exists():
-        state_path.unlink(missing_ok=True)
-        run_path.unlink(missing_ok=True)
-    github.require_admin(scenario.repository)
     work_dir.mkdir(parents=True, exist_ok=True)
     checkout_dir = repo_dir(work_dir)
     if checkout_dir.exists():
@@ -98,8 +106,17 @@ def reset(
                 "simulator checkout repository mismatch: "
                 f"expected {scenario.repository}, got {actual_repository}"
             )
-    seed_action = session.get(ActionNode, SEED_ACTION_ID)
-    seed_automation = seed_action.automation_id if seed_action is not None else None
+    seed(
+        session,
+        playbook_id=playbook_id,
+        repository_full_name=scenario.repository,
+    )
+    automations.retry_syncs(session, devin_client)
+    action = _require_synced_seed_action(session)
+    state_path.unlink(missing_ok=True)
+    run_path.unlink(missing_ok=True)
+    github.require_admin(scenario.repository)
+    seed_automation = action.automation_id
     terminated: set[str] = set()
     if seed_automation is not None:
         for invocation in session.exec(
@@ -162,20 +179,15 @@ def reset(
     )
     if wipe_invocations:
         poller_state = invocations.get_poller_state(session)
-        session.exec(delete(Invocation))
+        session.exec(
+            delete(Invocation).where(
+                col(Invocation.action_node_id) == SEED_ACTION_ID,
+            )
+        )
         poller_state.last_success_at = datetime.now(UTC) + invocations.SAFETY_MARGIN
         session.add(poller_state)
         session.commit()
-    seed(
-        session,
-        playbook_id=playbook_id,
-        repository_full_name=scenario.repository,
-    )
-    automations.retry_syncs(session, devin_client)
-    action = session.get(ActionNode, SEED_ACTION_ID)
-    sync_error = action.sync_error if action is not None else None
-    if action is None or action.sync_status != "enabled":
-        raise RuntimeError(f"seed action sync failed: {sync_error}")
+    _require_synced_seed_action(session)
     state_path.write_text(
         json.dumps(
             {

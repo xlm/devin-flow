@@ -72,6 +72,17 @@ def test_reset_cleans_state_and_seeds(
     tmp_path.mkdir(exist_ok=True)
     reset.repo_dir(tmp_path).mkdir()
     (tmp_path / ".simulate-run.json").write_text("{}")
+    unit_session.add(
+        Invocation(
+            session_id="seed-session",
+            automation_id="seed-automation",
+            action_node_id=SEED_ACTION_ID,
+            status="running",
+            session_created_at=datetime.now(UTC),
+            session_updated_at=datetime.now(UTC),
+        )
+    )
+    unit_session.commit()
 
     monkeypatch.setattr(
         github, "require_admin", lambda repo: calls.append(("admin", repo))
@@ -174,7 +185,14 @@ def test_reset_cleans_state_and_seeds(
         scenario,
         work_dir=tmp_path,
         session=unit_session,
-        devin_client=cast(Any, _valid_client()),
+        devin_client=cast(
+            Any,
+            _valid_client(
+                terminate_session=lambda session_id: calls.append(
+                    ("terminate", session_id)
+                )
+            ),
+        ),
     )
     assert result == "result-sha"
     assert (
@@ -190,6 +208,12 @@ def test_reset_cleans_state_and_seeds(
         "seed",
         {"playbook_id": "playbook-1", "repository_full_name": scenario.repository},
     ) in calls
+    seed_index = next(index for index, call in enumerate(calls) if call[0] == "seed")
+    assert (
+        seed_index
+        < calls.index(("admin", scenario.repository))
+        < calls.index(("terminate", "seed-session"))
+    )
     assert git_dirs
     assert set(git_dirs) == {tmp_path / "repo"}
     assert json.loads((tmp_path / ".simulate-state.json").read_text()) == {
@@ -296,6 +320,12 @@ def test_reset_terminates_upstream_sessions(
         devin_client=cast(Any, FakeClient()),
     )
     assert terminated == ["mirrored", "upstream"]
+    assert (
+        unit_session.exec(
+            select(Invocation).where(Invocation.session_id == "unrelated")
+        ).first()
+        is not None
+    )
 
 
 def test_reset_syncs_displaced_action(

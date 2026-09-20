@@ -274,6 +274,34 @@ def test_seed_removes_foreign_trigger_edge_to_action(unit_session: Session) -> N
     assert action.sync_status == "pending"
 
 
+def test_seed_restores_missing_trigger_edge_pending_action(
+    unit_session: Session,
+) -> None:
+    seed.seed(
+        unit_session,
+        playbook_id="playbook-1",
+        repository_full_name="xlm/superset",
+    )
+    action = unit_session.get(ActionNode, seed.SEED_ACTION_ID)
+    assert action is not None
+    action.sync_status = "disabled"
+    unit_session.exec(
+        delete(Edge).where(
+            col(Edge.source_id) == seed.SEED_TRIGGER_ID,
+            col(Edge.target_id) == seed.SEED_ACTION_ID,
+        )
+    )
+    unit_session.commit()
+
+    seed.seed(
+        unit_session,
+        playbook_id="playbook-1",
+        repository_full_name="xlm/superset",
+    )
+
+    assert action.sync_status == "pending"
+
+
 def test_seed_playbook_none_inserts_nothing(unit_session: Session) -> None:
     seed.seed(
         unit_session,
