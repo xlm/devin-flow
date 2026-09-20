@@ -91,6 +91,9 @@ def test_reset_cleans_state_and_seeds(
     monkeypatch.setattr(
         github, "enable_issues", lambda repo: calls.append(("enable", repo))
     )
+    monkeypatch.setattr(
+        github, "ensure_labels", lambda repo: calls.append(("labels", repo))
+    )
     monkeypatch.setattr(github, "list_issue_node_ids", lambda repo: ["issue-1"])
     monkeypatch.setattr(
         github, "delete_issue", lambda repo, node: calls.append(("delete", node))
@@ -120,7 +123,6 @@ def test_reset_cleans_state_and_seeds(
     settings = Settings(
         DEVIN_API_TOKEN="token",
         DEVIN_ORG_ID="org",
-        seed_playbook_id="playbook-1",
         seed_repository_full_name="xlm/superset",
     )
     monkeypatch.setattr(reset, "get_settings", lambda: settings)
@@ -207,6 +209,9 @@ def test_reset_cleans_state_and_seeds(
     )
     assert ("delete", "issue-1") in calls
     assert ("close", 2) in calls
+    assert calls.index(("enable", scenario.repository)) < calls.index(
+        ("labels", scenario.repository)
+    )
     poller_state = invocations.get_poller_state(unit_session)
     assert poller_state.last_success_at is not None
     assert poller_state.last_success_at > datetime.now()
@@ -300,7 +305,6 @@ def test_reset_terminates_upstream_sessions(
         lambda: Settings(
             devin_api_token="token",
             devin_org_id="org",
-            seed_playbook_id="playbook-1",
         ),
     )
     monkeypatch.setattr(reset, "seed", lambda session, **kwargs: None)
@@ -396,7 +400,6 @@ def test_reset_syncs_displaced_action(
         lambda: Settings(
             devin_api_token="token",
             devin_org_id="org",
-            seed_playbook_id="playbook-1",
         ),
     )
     monkeypatch.setattr(github, "require_admin", lambda repo: None)
@@ -465,7 +468,6 @@ def test_reset_rejects_checkout_for_different_repository(
         lambda: Settings(
             devin_api_token="token",
             devin_org_id="org",
-            seed_playbook_id="playbook-1",
         ),
     )
     with pytest.raises(RuntimeError, match="xlm/superset.*other/repository"):
@@ -491,7 +493,6 @@ def test_reset_rejects_scenario_for_different_seed_repository(
         lambda: Settings(
             devin_api_token="token",
             devin_org_id="org",
-            seed_playbook_id="playbook-1",
             seed_repository_full_name="other/repository",
         ),
     )
@@ -530,7 +531,6 @@ def test_reset_rejects_checkout_without_origin(
         lambda: Settings(
             devin_api_token="token",
             devin_org_id="org",
-            seed_playbook_id="playbook-1",
         ),
     )
     monkeypatch.setattr(
@@ -579,7 +579,6 @@ def test_reset_deletes_state_before_failing_seed(
         lambda: Settings(
             devin_api_token="token",
             devin_org_id="org",
-            seed_playbook_id="playbook-1",
         ),
     )
 
@@ -611,7 +610,6 @@ def test_reset_fails_when_seed_action_sync_is_not_enabled(
         lambda: Settings(
             devin_api_token="token",
             devin_org_id="org",
-            seed_playbook_id="playbook-1",
         ),
     )
     monkeypatch.setattr(github, "require_admin", lambda repo: None)
@@ -663,7 +661,7 @@ def test_reset_fails_when_seed_action_sync_is_not_enabled(
     assert not (tmp_path / ".simulate-state.json").exists()
 
 
-def test_reset_requires_playbook_before_destructive_work(
+def test_reset_rejects_missing_playbook_before_destructive_work(
     tmp_path: Path,
     unit_session: Session,
     monkeypatch: pytest.MonkeyPatch,
@@ -679,12 +677,15 @@ def test_reset_requires_playbook_before_destructive_work(
         "require_admin",
         lambda repo: calls.append("require_admin"),
     )
-    with pytest.raises(RuntimeError, match="SEED_PLAYBOOK_ID is required"):
+    with pytest.raises(RuntimeError, match="playbook 'Issue triage' not found"):
         reset.reset(
             load_scenario(SCENARIO_PATH),
             work_dir=tmp_path,
             session=unit_session,
-            devin_client=cast(Any, _valid_client()),
+            devin_client=cast(
+                Any,
+                SimpleNamespace(list_playbooks=lambda: []),
+            ),
         )
     assert calls == []
     assert not (tmp_path / ".simulate-run.json").exists()
@@ -702,7 +703,6 @@ def test_reset_rejects_playbook_without_issue_number(
         lambda: Settings(
             devin_api_token="token",
             devin_org_id="org",
-            seed_playbook_id="playbook-1",
         ),
     )
     monkeypatch.setattr(
@@ -753,7 +753,6 @@ def test_reset_rejects_missing_poison_patch_before_destructive_work(
         lambda: Settings(
             devin_api_token="token",
             devin_org_id="org",
-            seed_playbook_id="playbook-1",
         ),
     )
     monkeypatch.setattr(
@@ -853,7 +852,6 @@ def test_reset_clones_missing_worktree(
         lambda: Settings(
             devin_api_token="token",
             devin_org_id="org",
-            seed_playbook_id="playbook-1",
         ),
     )
     monkeypatch.setattr(reset, "seed", _seed_enabled_action)
@@ -912,7 +910,6 @@ def test_reset_handles_session_termination_without_wiping(
         lambda: Settings(
             devin_api_token="token",
             devin_org_id="org",
-            seed_playbook_id="playbook-1",
         ),
     )
     unit_session.add(

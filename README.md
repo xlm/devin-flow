@@ -71,11 +71,12 @@ uv run alembic -c backend/alembic.ini downgrade -1
 Seed data is defined in `backend/src/devin_flow/seed.py`. `seed(session, *,
 playbook_id, repository_full_name)` is idempotent, so `uv run seed` (locally) or `docker compose run --rm seed`
 (against the compose database) can run any number of times. When
-`SEED_PLAYBOOK_ID` is set, it creates the Seed Flow: an issue-opened Trigger
-for `SEED_REPOSITORY_FULL_NAME`, the `Seed: Issue triage` Action, and one
-Outcome node for each Outcome kind. Existing Seed Flow rows are reused
-without changing their Automation. Leave `SEED_PLAYBOOK_ID` empty to keep the
-Canvas empty. Test fixtures pass no playbook and call the same function.
+the `Issue triage` Playbook is found by title, it creates the Seed Flow: an
+issue-opened Trigger for `SEED_REPOSITORY_FULL_NAME`, the `Seed: Issue triage`
+Action, and one Outcome node for each Outcome kind. Existing Seed Flow rows are
+reused without changing their Automation. Run `uv run sync-playbooks` first to
+sync the Playbook. If it is absent, `uv run seed` leaves the Canvas unmanaged.
+Test fixtures pass no playbook and call the same function.
 
 ## Issue simulator
 
@@ -91,10 +92,9 @@ Before running it, ensure that:
 - Git can push with the same credentials. Run `gh auth setup-git`, or configure
   an equivalent Git credential helper. The simulator also uses `gh`'s Git
   credential helper automatically when `GH_TOKEN` is set.
-- `SEED_PLAYBOOK_ID` is set to the issue triage Playbook id. Devin's UI shows
-  the bare id, which is accepted and normalized to the required `playbook-`
-  prefixed value. Sync the Playbook with `uv run sync-playbooks` after changing
-  its structured output schema.
+- The `Issue triage` Playbook is available by title. Run
+  `uv run sync-playbooks` before resetting so its structured output schema is
+  available.
 - `SEED_REPOSITORY_FULL_NAME` is set to the Target repository. Reset rejects
   scenarios for any other repository.
 - The Devin GitHub connection's Automation scope is set to **All installed
@@ -112,7 +112,8 @@ terminates non-terminal sessions, clears simulator state, and force-pushes
 `~/.cache/devin-flow/superset`; the Git checkout is in its `repo/` child,
 while `.simulate-state.json` and `.simulate-run.json` stay directly in the
 work directory. `DATABASE_URL` used by reset and `--flow-url` used by report
-must point to the same devin-flow deployment.
+must point to the same devin-flow deployment. Reset also creates the triage
+labels used by the Playbook.
 
 ## Checks
 
