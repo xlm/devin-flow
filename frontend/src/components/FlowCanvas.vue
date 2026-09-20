@@ -122,7 +122,11 @@ function invocationLabel(count: number): string {
   return `${count} ${count === 1 ? 'invocation' : 'invocations'}`
 }
 
-function mapEdge(edge: EdgeRead, counts: Map<string, number>): Edge {
+function mapEdge(
+  edge: EdgeRead,
+  counts: Map<string, number>,
+  enabledActionIds: Set<string>,
+): Edge {
   const mapped: Edge = {
     id: edge.id,
     source: edge.source.id,
@@ -137,11 +141,41 @@ function mapEdge(edge: EdgeRead, counts: Map<string, number>): Edge {
     mapped.label = outcomeCountLabel(edge.outcome_count ?? 0)
     mapped.class = 'cursor-pointer'
   }
+  const actionId =
+    edge.target.kind === 'action'
+      ? edge.target.id
+      : edge.source.kind === 'action'
+        ? edge.source.id
+        : undefined
+  if (actionId !== undefined) {
+    mapped.animated = enabledActionIds.has(actionId)
+  }
   return mapped
 }
 
 function invocationCounts(actions: ActionNodeRead[]): Map<string, number> {
   return new Map(actions.map((action) => [action.id, action.invocation_count]))
+}
+
+function enabledActionIds(actions: ActionNodeRead[]): Set<string> {
+  return new Set(
+    actions
+      .filter((action) => action.enabled === true)
+      .map((action) => action.id),
+  )
+}
+
+function animateActionEdges(actionId: string, enabled: boolean) {
+  getEdges.value
+    .filter((edge) => edge.source === actionId || edge.target === actionId)
+    .forEach((edge) => {
+      edge.animated = enabled
+    })
+  edgeSnapshots.forEach((edge) => {
+    if (edge.source === actionId || edge.target === actionId) {
+      edge.animated = enabled
+    }
+  })
 }
 
 function copyNode(node: Node): Node {
@@ -175,7 +209,10 @@ async function fetchCanvas() {
       ...data.outcome_nodes,
     ].map(mapNode)
     const counts = invocationCounts(data.action_nodes)
-    const loadedEdges = data.edges.map((edge) => mapEdge(edge, counts))
+    const enabledIds = enabledActionIds(data.action_nodes)
+    const loadedEdges = data.edges.map((edge) =>
+      mapEdge(edge, counts, enabledIds),
+    )
     nodes.value = loadedNodes
     edges.value = loadedEdges
     loadedNodes.forEach((node) => nodeSnapshots.set(node.id, copyNode(node)))
@@ -313,6 +350,7 @@ async function doSaveNodeFields(
         }
         const current = findNode(node.id)
         if (current) current.data = { ...current.data, ...base.data }
+        animateActionEdges(node.id, data.enabled)
       }
       nodeSnapshots.set(node.id, base)
     } else {
@@ -344,6 +382,9 @@ async function doSaveNodeFields(
         }
       }
       current.data = data
+      if ('enabled' in fields && typeof data.enabled === 'boolean') {
+        animateActionEdges(node.id, data.enabled)
+      }
     }
   }
   return !failed
@@ -363,12 +404,16 @@ const saveNodeFields: SaveNodeFields = async (
   }
   pendingFields.set(nodeId, pending)
   node.data = { ...node.data, ...fields }
+  if (fields.enabled !== undefined) animateActionEdges(nodeId, fields.enabled)
   const optimistic = copyNode(node)
   return queueSave(
     nodeId,
     () => doSaveNodeFields(optimistic, kind, fields),
     (current) => {
       current.data = { ...current.data, ...fields }
+      if (fields.enabled !== undefined) {
+        animateActionEdges(nodeId, fields.enabled)
+      }
     },
   )
 }
@@ -405,6 +450,7 @@ async function refreshSyncState() {
           invocationCount: count,
         }
       }
+      animateActionEdges(action.id, action.enabled)
       getEdges.value
         .filter((edge) => edge.target === action.id)
         .forEach((edge) => {
@@ -543,7 +589,7 @@ async function saveConnection(connection: Connection) {
     })
     if (data) {
       // refreshSyncState below fills in the real invocation count
-      const edge = mapEdge(data, new Map())
+      const edge = mapEdge(data, new Map(), new Set())
       edgeSnapshots.set(edge.id, copyEdge(edge))
       addEdges([edge])
       await refreshSyncState()

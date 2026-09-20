@@ -316,9 +316,71 @@ describe('FlowCanvas', () => {
         data: { sourceKind: 'trigger', targetKind: 'action' },
         label: '2 invocations',
         class: 'cursor-pointer',
+        animated: false,
       },
     ])
     expect(wrapper.find('[data-testid="load-error"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('animates edges connected to enabled actions on load', async () => {
+    const enabledAction = {
+      ...canvas.action_nodes[0],
+      id: 'enabled-action',
+      enabled: true,
+    }
+    const disabledAction = {
+      ...canvas.action_nodes[0],
+      id: 'disabled-action',
+      enabled: false,
+    }
+    mocks.GET.mockResolvedValueOnce(
+      response({
+        ...canvas,
+        action_nodes: [enabledAction, disabledAction],
+        edges: [
+          {
+            id: 'trigger-enabled',
+            source: { id: 'trigger', kind: 'trigger' },
+            target: { id: 'enabled-action', kind: 'action' },
+          },
+          {
+            id: 'enabled-outcome',
+            source: { id: 'enabled-action', kind: 'action' },
+            target: { id: 'outcome', kind: 'outcome' },
+          },
+          {
+            id: 'trigger-disabled',
+            source: { id: 'trigger', kind: 'trigger' },
+            target: { id: 'disabled-action', kind: 'action' },
+          },
+          {
+            id: 'disabled-outcome',
+            source: { id: 'disabled-action', kind: 'action' },
+            target: { id: 'outcome', kind: 'outcome' },
+          },
+          {
+            id: 'trigger-outcome',
+            source: { id: 'trigger', kind: 'trigger' },
+            target: { id: 'outcome', kind: 'outcome' },
+          },
+        ],
+      }),
+    )
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    expect(
+      (vueFlow(wrapper).props('edges') as Edge[]).map((edge) => [
+        edge.id,
+        edge.animated,
+      ]),
+    ).toEqual([
+      ['trigger-enabled', true],
+      ['enabled-outcome', true],
+      ['trigger-disabled', false],
+      ['disabled-outcome', false],
+      ['trigger-outcome', undefined],
+    ])
     wrapper.unmount()
   })
 
@@ -1051,7 +1113,6 @@ describe('FlowCanvas', () => {
         name: 'Triage',
         playbookId: 'pb-1',
         prompt: '',
-        enabled: false,
       },
     } as Node
     const provided = { value: undefined as SaveNodeFields | undefined }
@@ -1111,6 +1172,91 @@ describe('FlowCanvas', () => {
     wrapper.unmount()
   })
 
+  it('toggles edge animation when an action is enabled and disabled', async () => {
+    const provided = { value: undefined as SaveNodeFields | undefined }
+    const wrapper = mount(FlowCanvas, {
+      global: { stubs: { NodePalette: saveProbe(provided) } },
+    })
+    await flushPromises()
+    const action = (vueFlow(wrapper).props('nodes') as Node[]).find(
+      (node) => node.id === 'action',
+    )!
+    mocks.findNode.mockReturnValue(action)
+    mocks.getEdges.value.push({
+      id: 'action-outcome',
+      source: 'action',
+      target: 'outcome',
+      data: { sourceKind: 'action', targetKind: 'outcome' },
+    })
+    let resolvePatch: ((value: ReturnType<typeof response>) => void) | undefined
+    mocks.PATCH.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolvePatch = resolve
+        }),
+    )
+    const enabling = provided.value?.('action', { enabled: true })
+    expect(mocks.getEdges.value.map((edge) => edge.animated)).toEqual([
+      true,
+      true,
+    ])
+    await flushPromises()
+    resolvePatch?.(
+      response({
+        ...canvas.action_nodes[0],
+        enabled: true,
+        sync_status: 'enabled',
+        sync_error: null,
+      }),
+    )
+    await expect(enabling).resolves.toBe(true)
+    expect(mocks.getEdges.value.map((edge) => edge.animated)).toEqual([
+      true,
+      true,
+    ])
+    mocks.PATCH.mockResolvedValueOnce(
+      response({
+        ...canvas.action_nodes[0],
+        enabled: false,
+        sync_status: 'disabled',
+        sync_error: null,
+      }),
+    )
+    expect(await provided.value?.('action', { enabled: false })).toBe(true)
+    expect(mocks.getEdges.value.map((edge) => edge.animated)).toEqual([
+      false,
+      false,
+    ])
+    wrapper.unmount()
+  })
+
+  it('restores edge animation when an enabled toggle fails', async () => {
+    const provided = { value: undefined as SaveNodeFields | undefined }
+    const wrapper = mount(FlowCanvas, {
+      global: { stubs: { NodePalette: saveProbe(provided) } },
+    })
+    await flushPromises()
+    const action = (vueFlow(wrapper).props('nodes') as Node[]).find(
+      (node) => node.id === 'action',
+    )!
+    mocks.findNode.mockReturnValue(action)
+    mocks.getEdges.value.push({
+      id: 'action-outcome',
+      source: 'action',
+      target: 'outcome',
+      data: { sourceKind: 'action', targetKind: 'outcome' },
+    })
+    mocks.PATCH.mockResolvedValueOnce(
+      response(undefined, { detail: 'failed' }, 500),
+    )
+    expect(await provided.value?.('action', { enabled: true })).toBe(false)
+    expect(mocks.getEdges.value.map((edge) => edge.animated)).toEqual([
+      false,
+      false,
+    ])
+    wrapper.unmount()
+  })
+
   it('rolls back action fields when saving throws', async () => {
     const node = {
       id: 'action',
@@ -1120,6 +1266,7 @@ describe('FlowCanvas', () => {
         name: '',
         playbookId: null,
         prompt: '',
+        enabled: false,
       },
     } as Node
     const provided = { value: undefined as SaveNodeFields | undefined }
@@ -1326,20 +1473,21 @@ describe('FlowCanvas', () => {
       wrapper.vm as unknown as { loadCanvas: () => Promise<void> }
     ).loadCanvas()
     await flushPromises()
-    const save = provided.value?.('action', { name: 'Edited' })
+    const save = provided.value?.('action', { enabled: true })
     await flushPromises()
     expect(mocks.PATCH).not.toHaveBeenCalled()
     mocks.findNode.mockReturnValue(reloadedNode)
     resolveReload?.(response(canvas))
     await load
     await save
-    expect(reloadedNode.data.name).toBe('Edited')
+    expect(reloadedNode.data.enabled).toBe(true)
+    expect(mocks.getEdges.value[0].animated).toBe(true)
     expect(mocks.PATCH).toHaveBeenCalledTimes(1)
     expect(mocks.PATCH).toHaveBeenLastCalledWith(
       '/api/canvas/nodes/{kind}/{node_id}',
       {
         params: { path: { kind: 'action', node_id: 'action' } },
-        body: { name: 'Edited' },
+        body: { enabled: true },
       },
     )
     expect(await save).toBe(true)
@@ -1673,6 +1821,7 @@ describe('FlowCanvas', () => {
       action_nodes: [
         {
           ...canvas.action_nodes[0],
+          enabled: true,
           sync_status: 'disabled',
         },
       ],
@@ -1690,6 +1839,9 @@ describe('FlowCanvas', () => {
     mocks.handlers.nodesChange?.([{ type: 'remove', id: 'trigger' }])
     await flushPromises()
     expect(mocks.GET).toHaveBeenCalledTimes(2)
+    expect(mocks.getEdges.value).toEqual([
+      expect.objectContaining({ id: 'edge', animated: true }),
+    ])
     expect(vueFlow(wrapper).props('nodes')).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
