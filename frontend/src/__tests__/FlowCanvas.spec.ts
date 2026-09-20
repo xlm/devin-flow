@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
-import { defineComponent, h, inject, ref } from 'vue'
-import type { Edge, Node } from '@vue-flow/core'
+import { defineComponent, h, inject, nextTick, ref } from 'vue'
+import type { Edge, Node, NodeChange } from '@vue-flow/core'
 import { ARCHIVED_ACTION_MIME, NODE_KIND_MIME } from '@/lib/nodeKinds'
 import { SAVE_NODE_FIELDS, type SaveNodeFields } from '@/lib/canvasInjection'
 
 type DragHandler = (event: { node: Node }) => void | Promise<void>
-type ChangeHandler = (changes: { type: string; id: string }[]) => void
+type ChangeHandler = (changes: NodeChange[]) => void
 type ConnectHandler = (connection: { source: string; target: string }) => void
 type EdgeClickHandler = (event: {
   event: { target: Element }
@@ -31,6 +31,9 @@ const mocks = vi.hoisted(() => {
     refreshApiHealth: vi.fn(() => Promise.resolve()),
     screenToFlowCoordinate: vi.fn(),
     removeNodes: vi.fn(),
+    applyNodeChanges: vi.fn((_changes: unknown, nodes: Node[]) => nodes),
+    applyEdgeChanges: vi.fn((_changes: unknown, edges: Edge[]) => edges),
+    getNodes: { value: [] as Node[] },
     handlers: {} as {
       dragStop?: DragHandler
       nodesChange?: ChangeHandler
@@ -66,6 +69,8 @@ vi.mock('@vue-flow/core', () => ({
       edges: { type: Array, default: () => [] },
       nodeTypes: { type: Object, default: () => ({}) },
       isValidConnection: { type: Function, default: undefined },
+      defaultEdgeOptions: { type: Object, default: undefined },
+      applyDefault: { type: Boolean, default: true },
     },
     setup:
       (_, { slots }) =>
@@ -80,6 +85,9 @@ vi.mock('@vue-flow/core', () => ({
     getEdges: mocks.getEdges,
     screenToFlowCoordinate: mocks.screenToFlowCoordinate,
     removeNodes: mocks.removeNodes,
+    applyNodeChanges: mocks.applyNodeChanges,
+    applyEdgeChanges: mocks.applyEdgeChanges,
+    getNodes: mocks.getNodes,
     onNodeDragStop: (handler: (event: { node: Node }) => void) => {
       mocks.handlers.dragStop = handler
     },
@@ -97,6 +105,16 @@ vi.mock('@vue-flow/core', () => ({
     },
   }),
 }))
+vi.mock('@/components/HelperLines.vue', () => ({
+  default: defineComponent({
+    name: 'HelperLines',
+    props: {
+      horizontal: { type: Number, default: undefined },
+      vertical: { type: Number, default: undefined },
+    },
+    setup: () => () => h('div', { 'data-testid': 'helper-lines-stub' }),
+  }),
+}))
 
 vi.mock('@/components/ActionInvocationsSheet.vue', () => ({
   default: defineComponent({
@@ -106,7 +124,7 @@ vi.mock('@/components/ActionInvocationsSheet.vue', () => ({
       nodeId: { type: String, default: null },
       actionName: { type: String, default: null },
     },
-    emits: ['update:open'],
+    emits: ['update:open', 'archived'],
     setup(props) {
       mocks.actionSheetProps = props
       return () => h('div', { 'data-testid': 'action-sheet-stub' })
@@ -122,7 +140,7 @@ vi.mock('@/components/OutcomeInvocationsSheet.vue', () => ({
       actionNodeId: { type: String, default: null },
       kind: { type: String, default: null },
     },
-    emits: ['update:open'],
+    emits: ['update:open', 'archived'],
     setup(props) {
       mocks.sheetProps = props
       return () => h('div', { 'data-testid': 'outcome-sheet-stub' })
@@ -258,6 +276,9 @@ describe('FlowCanvas', () => {
     mocks.screenToFlowCoordinate.mockReturnValue({ x: 0, y: 0 })
     mocks.findNode.mockImplementation(() => undefined)
     mocks.getEdges.value.length = 0
+    mocks.getNodes.value.length = 0
+    mocks.applyNodeChanges.mockClear()
+    mocks.applyEdgeChanges.mockClear()
     mocks.getEdges.value.push({
       id: 'edge',
       source: 'trigger',
@@ -334,6 +355,92 @@ describe('FlowCanvas', () => {
       },
     ])
     expect(wrapper.find('[data-testid="load-error"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('configures smoothstep edges and manual change application', async () => {
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    expect(vueFlow(wrapper).props('defaultEdgeOptions')).toEqual({
+      type: 'smoothstep',
+    })
+    expect(vueFlow(wrapper).props('applyDefault')).toBe(false)
+    const node = {
+      id: 'action',
+      position: { x: 101, y: 51 },
+      dimensions: { width: 20, height: 10 },
+    } as Node
+    mocks.getNodes.value.push(node, {
+      id: 'candidate',
+      position: { x: 100, y: 50 },
+      dimensions: { width: 20, height: 10 },
+    } as Node)
+    mocks.handlers.nodesChange?.([
+      {
+        id: 'action',
+        type: 'position',
+        position: { x: 101, y: 51 },
+        from: { x: 101, y: 51 },
+        dragging: true,
+      },
+    ])
+    await nextTick()
+    expect(mocks.applyNodeChanges).toHaveBeenCalled()
+    expect(
+      wrapper.findComponent({ name: 'HelperLines' }).props('vertical'),
+    ).toBe(100)
+    expect(
+      wrapper.findComponent({ name: 'HelperLines' }).props('horizontal'),
+    ).toBe(50)
+    const applied = mocks.applyNodeChanges.mock.calls[0]?.[0] as NodeChange[]
+    expect(applied[0]).toMatchObject({
+      position: {
+        x: 100,
+        y: 50,
+      },
+    })
+    mocks.handlers.nodesChange?.([
+      {
+        id: 'action',
+        type: 'select',
+        selected: true,
+      },
+    ])
+    await nextTick()
+    expect(
+      wrapper.findComponent({ name: 'HelperLines' }).props('horizontal'),
+    ).toBeUndefined()
+    mocks.getNodes.value.splice(1)
+    mocks.handlers.nodesChange?.([
+      {
+        id: 'action',
+        type: 'position',
+        position: { x: 101, y: 51 },
+        from: { x: 101, y: 51 },
+        dragging: true,
+      },
+    ])
+    await nextTick()
+    const unsnapped = mocks.applyNodeChanges.mock.calls.at(
+      -1,
+    )?.[0] as NodeChange[]
+    expect(unsnapped[0]).toMatchObject({
+      position: { x: 101, y: 51 },
+    })
+    mocks.handlers.edgesChange?.([{ type: 'remove', id: 'edge' }])
+    expect(mocks.applyEdgeChanges).toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('reloads the canvas after an invocation is archived', async () => {
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    const calls = mocks.GET.mock.calls.length
+    wrapper
+      .findComponent({ name: 'ActionInvocationsSheet' })
+      .vm.$emit('archived')
+    await flushPromises()
+    expect(mocks.GET).toHaveBeenCalledTimes(calls + 1)
     wrapper.unmount()
   })
 

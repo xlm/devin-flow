@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button'
 import NodePalette from '@/components/NodePalette.vue'
 import ActionInvocationsSheet from '@/components/ActionInvocationsSheet.vue'
 import ArchivedActionsSheet from '@/components/ArchivedActionsSheet.vue'
+import HelperLines from '@/components/HelperLines.vue'
 import OutcomeInvocationsSheet from '@/components/OutcomeInvocationsSheet.vue'
 import { nodeTypes } from '@/components/nodes/nodeTypes'
 import { refreshApiHealth } from '@/composables/useApiHealth'
@@ -56,6 +57,7 @@ import {
   nodeLabel,
 } from '@/lib/nodeKinds'
 import { outcomeCountLabel } from '@/lib/outcomeKinds'
+import { getHelperLines } from '@/lib/helperLines'
 
 const props = withDefaults(defineProps<{ archivedOpen?: boolean }>(), {
   archivedOpen: false,
@@ -69,6 +71,8 @@ const edges = ref<Edge[]>([])
 const loadError = ref(false)
 const loading = ref(false)
 const refreshing = ref(false)
+const helperLineHorizontal = ref<number | undefined>()
+const helperLineVertical = ref<number | undefined>()
 const creationBlocked = computed(() => loading.value || loadError.value)
 const nodeSnapshots = new Map<string, Node>()
 const edgeSnapshots = new Map<string, Edge>()
@@ -89,6 +93,9 @@ const {
   onEdgesChange,
   onConnect,
   onEdgeClick,
+  applyNodeChanges,
+  applyEdgeChanges,
+  getNodes,
   screenToFlowCoordinate,
 } = useVueFlow()
 const { mode, icon, cycleMode } = useTheme()
@@ -692,6 +699,21 @@ function onDrop(event: DragEvent) {
 
 onNodeDragStop(saveNodePosition)
 onNodesChange((changes) => {
+  helperLineHorizontal.value = undefined
+  helperLineVertical.value = undefined
+  if (
+    changes.length === 1 &&
+    changes[0].type === 'position' &&
+    changes[0].dragging &&
+    changes[0].position
+  ) {
+    const helperLines = getHelperLines(changes[0], getNodes.value)
+    changes[0].position.x = helperLines.snapPosition.x ?? changes[0].position.x
+    changes[0].position.y = helperLines.snapPosition.y ?? changes[0].position.y
+    helperLineHorizontal.value = helperLines.horizontal
+    helperLineVertical.value = helperLines.vertical
+  }
+  applyNodeChanges(changes)
   changes
     .filter((change): change is Extract<NodeChange, { type: 'remove' }> => {
       return change.type === 'remove'
@@ -702,6 +724,7 @@ onNodesChange((changes) => {
     })
 })
 onEdgesChange((changes) => {
+  applyEdgeChanges(changes)
   changes
     .filter((change): change is Extract<EdgeChange, { type: 'remove' }> => {
       return change.type === 'remove'
@@ -798,6 +821,10 @@ onUnmounted(() => {
         fit-view-on-init
         :is-valid-connection="validConnection"
       >
+        <HelperLines
+          :horizontal="helperLineHorizontal"
+          :vertical="helperLineVertical"
+        />
         <Background />
         <Controls position="top-left">
           <ControlButton
@@ -833,11 +860,13 @@ onUnmounted(() => {
         :node-id="selectedOutcomeId"
         :action-node-id="selectedActionId"
         :kind="selectedOutcomeKind"
+        @archived="loadCanvas"
       />
       <ActionInvocationsSheet
         v-model:open="actionSheetOpen"
         :node-id="selectedActionSheetId"
         :action-name="selectedActionName"
+        @archived="loadCanvas"
       />
       <ArchivedActionsSheet
         ref="archivedSheet"
