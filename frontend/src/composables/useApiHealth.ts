@@ -10,6 +10,7 @@ export const HEALTH_POLL_INTERVAL_MS = 15_000
 
 const state = ref<ApiHealthState>('loading')
 const polling = ref<PollingStatus | undefined>()
+const checkedAt = ref(0)
 let request: Promise<void> | undefined
 let timer: ReturnType<typeof setInterval> | undefined
 let subscribers = 0
@@ -24,6 +25,7 @@ export function refreshApiHealth(): Promise<void> {
         return
       }
       state.value = 'ok'
+      checkedAt.value = Date.now()
       polling.value = data.polling
     })
     .catch(() => {
@@ -69,6 +71,7 @@ function describe(): Indicator {
 export function useApiHealth(intervalMs = HEALTH_POLL_INTERVAL_MS): {
   state: Readonly<Ref<ApiHealthState>>
   polling: Readonly<Ref<PollingStatus | undefined>>
+  checkedAt: Readonly<Ref<number>>
   indicator: ComputedRef<Indicator>
   refresh: () => Promise<void>
 } {
@@ -87,6 +90,7 @@ export function useApiHealth(intervalMs = HEALTH_POLL_INTERVAL_MS): {
   return {
     state,
     polling,
+    checkedAt,
     indicator: computed(describe),
     refresh: refreshApiHealth,
   }
@@ -99,4 +103,5 @@ export function resetApiHealth(): void {
   request = undefined
   state.value = 'loading'
   polling.value = undefined
+  checkedAt.value = 0
 }

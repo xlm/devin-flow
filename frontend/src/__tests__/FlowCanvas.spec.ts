@@ -29,9 +29,7 @@ const mocks = vi.hoisted(() => {
     PATCH: vi.fn(),
     DELETE: vi.fn(),
     refreshApiHealth: vi.fn(() => Promise.resolve()),
-    polling: undefined as unknown as {
-      value: { last_success_at: string | null } | undefined
-    },
+    checkedAt: undefined as unknown as { value: number },
     screenToFlowCoordinate: vi.fn(),
     removeNodes: vi.fn(),
     applyNodeChanges: vi.fn((_changes: unknown, nodes: Node[]) => nodes),
@@ -62,11 +60,11 @@ vi.mock('@/api/client', () => ({
 
 vi.mock('@/composables/useApiHealth', async () => {
   const { ref } = await import('vue')
-  const polling = ref<{ last_success_at: string | null }>()
-  mocks.polling = polling
+  const checkedAt = ref(0)
+  mocks.checkedAt = checkedAt
   return {
     refreshApiHealth: mocks.refreshApiHealth,
-    useApiHealth: () => ({ polling }),
+    useApiHealth: () => ({ checkedAt }),
   }
 })
 
@@ -284,7 +282,7 @@ describe('FlowCanvas', () => {
     mocks.DELETE.mockResolvedValue(response(undefined))
     mocks.screenToFlowCoordinate.mockReturnValue({ x: 0, y: 0 })
     mocks.findNode.mockImplementation(() => undefined)
-    mocks.polling.value = undefined
+    mocks.checkedAt.value = 0
     mocks.getEdges.value.length = 0
     mocks.getNodes.value.length = 0
     mocks.applyNodeChanges.mockClear()
@@ -2651,16 +2649,16 @@ describe('FlowCanvas', () => {
     wrapper.unmount()
   })
 
-  it('does not refresh counts on the first polling status', async () => {
+  it('does not refresh counts on the first health tick', async () => {
     const wrapper = mount(FlowCanvas)
     await flushPromises()
-    mocks.polling.value = { last_success_at: '2025-01-01T00:00:00Z' }
+    mocks.checkedAt.value = 1
     await nextTick()
     expect(mocks.GET).toHaveBeenCalledTimes(1)
     wrapper.unmount()
   })
 
-  it('refreshes counts when polling succeeds again', async () => {
+  it('refreshes counts on every subsequent health tick', async () => {
     mocks.GET.mockResolvedValueOnce(response(canvas)).mockResolvedValueOnce(
       response({
         ...canvas,
@@ -2669,9 +2667,9 @@ describe('FlowCanvas', () => {
     )
     const wrapper = mount(FlowCanvas)
     await flushPromises()
-    mocks.polling.value = { last_success_at: '2025-01-01T00:00:00Z' }
+    mocks.checkedAt.value = 1
     await nextTick()
-    mocks.polling.value = { last_success_at: '2025-01-01T00:00:30Z' }
+    mocks.checkedAt.value = 2
     await flushPromises()
     expect(mocks.GET).toHaveBeenCalledTimes(2)
     expect(mocks.getEdges.value).toEqual([
@@ -2680,14 +2678,10 @@ describe('FlowCanvas', () => {
     wrapper.unmount()
   })
 
-  it('ignores unchanged and null polling timestamps', async () => {
+  it('does not refresh when a health request fails', async () => {
     const wrapper = mount(FlowCanvas)
     await flushPromises()
-    mocks.polling.value = { last_success_at: '2025-01-01T00:00:00Z' }
-    await nextTick()
-    mocks.polling.value = { last_success_at: '2025-01-01T00:00:00Z' }
-    await nextTick()
-    mocks.polling.value = { last_success_at: null }
+    mocks.checkedAt.value = 1
     await nextTick()
     expect(mocks.GET).toHaveBeenCalledTimes(1)
     wrapper.unmount()

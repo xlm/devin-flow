@@ -52,11 +52,12 @@ describe('useApiHealth', () => {
 
   it('starts as loading and turns green when the poller is live', async () => {
     GET.mockResolvedValue(health())
-    const { indicator, state } = mountHealth()
+    const { checkedAt, indicator, state } = mountHealth()
     expect(state.value).toBe('loading')
     expect(indicator.value.tone).toBe('loading')
     await flushPromises()
     expect(state.value).toBe('ok')
+    expect(checkedAt.value).not.toBe(0)
     expect(indicator.value).toMatchObject({ tone: 'green', label: 'Live' })
     expect(indicator.value.title).toContain('every 60s')
     expect(indicator.value.title).not.toContain('never')
@@ -87,9 +88,10 @@ describe('useApiHealth', () => {
 
   it('shows red API error on a rejected request, an error response and a bad status', async () => {
     GET.mockRejectedValue(new Error('down'))
-    const { indicator, state } = mountHealth()
+    const { checkedAt, indicator, state } = mountHealth()
     await flushPromises()
     expect(state.value).toBe('error')
+    expect(checkedAt.value).toBe(0)
     expect(indicator.value).toMatchObject({ tone: 'red', label: 'API error' })
 
     GET.mockResolvedValue({ data: undefined, error: { detail: 'nope' } })
@@ -99,6 +101,26 @@ describe('useApiHealth', () => {
     GET.mockResolvedValue({ data: { status: 'down' }, error: undefined })
     await refreshApiHealth()
     expect(state.value).toBe('error')
+  })
+
+  it('does not update checkedAt for unhealthy responses', async () => {
+    GET.mockResolvedValue(health())
+    const { checkedAt } = mountHealth()
+    await flushPromises()
+    const firstCheckedAt = checkedAt.value
+    expect(firstCheckedAt).not.toBe(0)
+
+    GET.mockResolvedValue({ data: undefined, error: { detail: 'nope' } })
+    await refreshApiHealth()
+    expect(checkedAt.value).toBe(firstCheckedAt)
+
+    GET.mockResolvedValue({ data: { status: 'down' }, error: undefined })
+    await refreshApiHealth()
+    expect(checkedAt.value).toBe(firstCheckedAt)
+
+    GET.mockRejectedValue(new Error('down'))
+    await refreshApiHealth()
+    expect(checkedAt.value).toBe(firstCheckedAt)
   })
 
   it('recovers from error to green on the next poll without a reload', async () => {

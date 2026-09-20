@@ -9,7 +9,7 @@
   paths must stay 404.
   Settings (`DATABASE_URL`, `STATIC_DIR`, `DEVIN_API_TOKEN`,
   `DEVIN_ORG_ID`, the latter two required, and `POLL_INTERVAL_SECONDS`,
-  default 30, 0 disables the poller) come from `config.py`
+  default 15, 0 disables the poller) come from `config.py`
   (pydantic-settings, `.env` aware). `db.py` builds the sync SQLModel
   engine lazily and exposes the `get_session` dependency. Table models
   live in `models/` and must be imported from `models/__init__.py` so
@@ -42,8 +42,8 @@
 - `frontend/` - Vite + Vue 3 + TypeScript + Tailwind 4 + shadcn-vue.
   `@/*` maps to `src/*`. Generated shadcn code in `src/components/ui` is
   excluded from lint and formatting. Its API health indicator polls
-  `/api/health` every 15 seconds, and FlowCanvas refreshes counts when
-  `last_success_at` advances. `src/api/schema.d.ts` is generated from the
+  `/api/health` every 15 seconds, and FlowCanvas refreshes counts on every
+  health tick. `src/api/schema.d.ts` is generated from the
   backend OpenAPI schema and also excluded from lint/format.
 - `pyproject.toml` - uv workspace root plus shared ruff, mypy (strict,
   pydantic plugin) and pytest config.
