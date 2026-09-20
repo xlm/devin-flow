@@ -529,6 +529,34 @@ def test_reset_ignores_archived_action(
         )
 
 
+def test_reset_rejects_action_without_automation_id(
+    tmp_path: Path,
+    unit_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scenario = load_scenario(SCENARIO_PATH, default_repository="xlm/superset")
+    action = _add_connected_action(
+        unit_session,
+        scenario.repository,
+        "missing-automation",
+    )
+    action.automation_id = None
+    unit_session.add(action)
+    unit_session.commit()
+    monkeypatch.setattr(
+        github,
+        "require_admin",
+        lambda repo: pytest.fail("ineligible Flow must be rejected first"),
+    )
+    with pytest.raises(RuntimeError, match="no automation id"):
+        reset.reset(
+            scenario,
+            work_dir=tmp_path,
+            session=unit_session,
+            devin_client=cast(Any, _valid_client()),
+        )
+
+
 @pytest.mark.parametrize(
     ("overrides", "expected_fragment"),
     [
