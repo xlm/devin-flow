@@ -3,6 +3,7 @@ from uuid import UUID
 from sqlmodel import Session, select
 
 from devin_flow import db
+from devin_flow.automations import mark_pending
 from devin_flow.canvas import (
     NodeRef,
     check_edge_kinds,
@@ -46,7 +47,8 @@ def seed(
 
     When a playbook is configured, the Seed Flow is inserted one missing row at
     a time. Existing rows are reused, with a changed Trigger repository or a
-    tombstoned Action restored without changing the Action automation.
+    tombstoned Action restored, and conflicting Trigger edges removed, without
+    changing the Action automation.
     Caller work already pending on the session is committed so the seeded
     database is always in a consistent, committed state.
     """
@@ -98,6 +100,18 @@ def seed(
                         kind=kind,
                     )
                 )
+        session.flush()
+        for edge in session.exec(
+            select(Edge).where(
+                Edge.source_id == SEED_TRIGGER_ID,
+                Edge.target_id != SEED_ACTION_ID,
+            )
+        ).all():
+            action = session.get(ActionNode, edge.target_id)
+            if action is not None:
+                mark_pending(action)
+                session.add(action)
+            session.delete(edge)
         session.flush()
         _add_edge(
             session,
