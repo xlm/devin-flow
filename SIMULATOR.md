@@ -20,9 +20,9 @@ against your own fork, see `DEMO.md`.
 - `SEED_REPOSITORY_FULL_NAME=<owner>/superset` in `.env`, the fork the
   simulator targets (default `xlm/superset`).
 - A Flow on the Canvas: Trigger (the configured fork, `opened`) -> enabled
-  Action
-  using the `Issue triage` Playbook -> Outcomes `pull_request`, `duplicate`,
-  `not_reproducible`, `not_a_bug`. `uv run seed` builds it for you.
+  Action using the `Issue triage` Playbook -> Outcomes `pull_request`,
+  `duplicate`, `not_reproducible`, `not_a_bug`. `uv run seed` builds it for
+  you.
 
 ## Commands
 
@@ -33,11 +33,11 @@ uv run simulate-issues report         # rerun the comparison later
 ```
 
 `reset` refuses unless the Flow above exists. It then terminates running
-sessions of every Action wired to a Trigger for the configured fork,
-deletes all issues, closes pull requests, deletes non-`master` branches,
-force-pushes `master` to
-baseline + `chore: <poison>` commits, ensures the triage labels, and clears
-those Actions' Invocation rows. Safe to rerun at any time, including mid-run.
+sessions of every Action wired to a Trigger for the configured fork, deletes
+all issues, closes pull requests, deletes non-`master` branches, force-pushes
+`master` to baseline + `chore: <poison>` commits, ensures the triage labels,
+and clears those Actions' Invocation rows. Safe to rerun at any time,
+including mid-run.
 
 `run` files, in order: three poisoned bugs (0-60s), a feature request and two
 fake reports (60-120s), two duplicates (120-180s). It refuses if `master` is
@@ -50,5 +50,5 @@ State lives in `~/.cache/devin-flow/superset` (`repo/` checkout,
 `.simulate-state.json`, `.simulate-run.json`). To change the mix, copy
 `backend/src/devin_flow/simulate/scenario.toml`, edit it, and pass
 `--scenario <path>` to `reset` and `run`. The repository defaults to
-`SEED_REPOSITORY_FULL_NAME`; a custom scenario may pin `repository`, and
+`SEED_REPOSITORY_FULL_NAME`. A custom scenario may pin `repository`, and
 `reset` refuses if it differs from that setting.
