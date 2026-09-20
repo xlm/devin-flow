@@ -163,6 +163,27 @@ selection is wanted.
    original matching rows and no load-error alert. A subsequent successful
    picker change must clear the save alert and refresh the count.
 
+## Archiving invocation sessions
+
+For isolated archive testing, point `DEVIN_API_BASE_URL` at a local stub.
+Unlike dropdown-only testing, an unreachable upstream cannot exercise success.
+Check the harness stub's routes before reusing it. Archive needs both
+`POST /v3/organizations/{org}/sessions/{id}/archive` and the subsequent
+`GET /v3/organizations/{org}/sessions/{id}`. Successful responses must match
+`DevinSession`, including `session_id` and `status`.
+
+Seed multiple Invocations plus their InvocationOutcome links using the fixture
+shapes above. Open Action and Outcome sheets through their edge labels.
+Archive one row from each sheet and verify the row disappears, both Canvas
+counts decrease, and both invocation-list APIs exclude the archived IDs after
+reload. Separately return 500 from archive POST and from post-archive GET:
+POST failure must retain the row with `Could not archive session`, while GET
+failure after successful POST must still persist `archived_at` and hide the row.
+
+When checking the default poll interval, unset `POLL_INTERVAL_SECONDS` and
+check `.env` too. Terminal fixture sessions avoid stale-session refetches, and
+an empty stub session list keeps their data stable while the poller runs.
+
 ## Archived Actions
 
 Deleting an Action node archives it when it has an `automation_id`
