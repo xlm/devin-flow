@@ -162,6 +162,7 @@ describe('canvas nodes', () => {
             handle.classes().find((c) => c.startsWith('bg-')),
           ]),
       ).toEqual(handles)
+      expect(wrapper.find('[data-testid="delete-node"]').text()).toBe('Delete')
       await wrapper.find('[data-testid="delete-node"]').trigger('click')
       expect(mocks.removeNodes).toHaveBeenCalledWith(['n1'])
       wrapper.unmount()

@@ -296,6 +296,7 @@ describe('FlowCanvas', () => {
           playbookId: null,
           prompt: '',
           enabled: false,
+          automationId: null,
           syncStatus: 'unprovisioned',
           syncError: null,
           invocationCount: 2,
@@ -1083,6 +1084,7 @@ describe('FlowCanvas', () => {
       playbookId: null,
       prompt: '',
       enabled: true,
+      automationId: 'auto-1',
       syncStatus: 'enabled',
       syncError: null,
       invocationCount: 2,
@@ -1628,6 +1630,7 @@ describe('FlowCanvas', () => {
           enabled: false,
           sync_status: 'unprovisioned',
           sync_error: null,
+          automation_id: null,
           invocation_count: 2,
         },
       ],
@@ -1657,6 +1660,7 @@ describe('FlowCanvas', () => {
           playbookId: null,
           prompt: '',
           enabled: false,
+          automationId: null,
           syncStatus: 'unprovisioned',
           syncError: null,
           invocationCount: 2,
@@ -1694,7 +1698,10 @@ describe('FlowCanvas', () => {
       expect.arrayContaining([
         expect.objectContaining({
           id: 'action',
-          data: expect.objectContaining({ syncStatus: 'disabled' }),
+          data: expect.objectContaining({
+            automationId: null,
+            syncStatus: 'disabled',
+          }),
         }),
       ]),
     )
@@ -1796,6 +1803,7 @@ describe('FlowCanvas', () => {
           enabled: false,
           sync_status: 'unprovisioned',
           sync_error: null,
+          automation_id: null,
           invocation_count: 2,
         },
       ],
@@ -1969,6 +1977,7 @@ describe('FlowCanvas', () => {
           enabled: false,
           sync_status: 'unprovisioned',
           sync_error: null,
+          automation_id: null,
           invocation_count: 2,
         },
       ],
@@ -2003,6 +2012,7 @@ describe('FlowCanvas', () => {
         playbookId: null,
         prompt: '',
         enabled: false,
+        automationId: null,
         syncStatus: 'unprovisioned',
         syncError: null,
         invocationCount: 2,
@@ -2204,6 +2214,7 @@ describe('FlowCanvas', () => {
     await mocks.handlers.connect?.({ source: 'action', target: 'outcome' })
     expect(action?.data).toMatchObject({
       enabled: true,
+      automationId: null,
       syncStatus: 'enabled',
       syncError: null,
     })

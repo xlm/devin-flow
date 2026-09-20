@@ -105,6 +105,7 @@ function mapNode(node: NodeRead | ActionNodeRead): Node {
     data = {
       ...data,
       ...actionFieldsOf(node),
+      automationId: node.automation_id,
       syncStatus: node.sync_status,
       syncError: node.sync_error,
       invocationCount: node.invocation_count,
@@ -308,6 +309,7 @@ async function doSaveNodeFields(
         base.data = {
           ...base.data,
           enabled: data.enabled,
+          automationId: data.automation_id,
           syncStatus: sync.status,
           syncError: sync.error,
         }
@@ -390,6 +392,7 @@ async function refreshSyncState() {
         current.data = {
           ...current.data,
           enabled: action.enabled,
+          automationId: action.automation_id,
           syncStatus: sync.status,
           syncError: sync.error,
           invocationCount: count,
@@ -400,6 +403,7 @@ async function refreshSyncState() {
         snapshot.data = {
           ...snapshot.data,
           enabled: action.enabled,
+          automationId: action.automation_id,
           syncStatus: sync.status,
           syncError: sync.error,
           invocationCount: count,

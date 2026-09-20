@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { Trash2 } from '@lucide/vue'
 import { Handle, Position, useVueFlow } from '@vue-flow/core'
 import { NodeToolbar } from '@vue-flow/node-toolbar'
 import { computed } from 'vue'
@@ -22,8 +21,9 @@ const props = withDefaults(
     complete?: boolean
     status?: string
     hint?: string
+    removeLabel?: string
   }>(),
-  { complete: false },
+  { complete: false, removeLabel: 'Delete' },
 )
 
 // Overrides Vue Flow's 6px round handle so it reads as a bar along the edge.
@@ -44,12 +44,11 @@ const statusLabel = computed(
     <slot name="toolbar" />
     <Button
       variant="destructive"
-      size="icon-xs"
-      :aria-label="props.kind === 'action' ? 'Archive node' : 'Delete node'"
+      size="xs"
       data-testid="delete-node"
       @click="removeNodes([props.id])"
     >
-      <Trash2 />
+      {{ props.removeLabel }}
     </Button>
   </NodeToolbar>
   <div
