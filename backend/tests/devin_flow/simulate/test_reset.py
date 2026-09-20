@@ -9,17 +9,14 @@ from uuid import uuid4
 import pytest
 from sqlmodel import Session, select
 
-from devin_flow import automations, invocations
+from devin_flow import invocations
 from devin_flow.config import Settings
-from devin_flow.devin.client import Automation, DevinSession, Playbook
+from devin_flow.devin.client import DevinSession, Playbook
 from devin_flow.models import ActionNode, Edge, Invocation, TriggerNode
-from devin_flow.seed import SEED_ACTION_ID, SEED_TRIGGER_ID
 from devin_flow.simulate import github, reset
 from devin_flow.simulate.scenario import load_scenario
 
 from .conftest import SCENARIO_PATH
-
-REAL_SYNC_ACTION = automations.sync_action
 
 
 def _valid_client(**kwargs: Any) -> SimpleNamespace:
@@ -42,28 +39,50 @@ def _valid_client(**kwargs: Any) -> SimpleNamespace:
     return SimpleNamespace(**defaults)
 
 
-def _seed_enabled_action(session: Session, **kwargs: Any) -> None:
-    session.add(
-        ActionNode(
-            id=SEED_ACTION_ID,
-            name="Seed: Issue triage",
-            position_x=450,
-            position_y=0,
-            enabled=True,
-            sync_status="enabled",
-            automation_id="seed-automation",
-        )
+def _add_connected_action(
+    session: Session,
+    repository: str,
+    automation_id: str,
+    *,
+    archived_at: datetime | None = None,
+) -> ActionNode:
+    trigger = TriggerNode(
+        event_action="opened",
+        repository_full_name=repository,
+        position_x=0,
+        position_y=0,
+    )
+    action = ActionNode(
+        name=f"Action {automation_id}",
+        position_x=450,
+        position_y=0,
+        enabled=True,
+        sync_status="enabled",
+        automation_id=automation_id,
+        archived_at=archived_at,
+    )
+    session.add_all(
+        [
+            trigger,
+            action,
+            Edge(
+                source_id=trigger.id,
+                source_kind="trigger",
+                target_id=action.id,
+                target_kind="action",
+            ),
+        ]
     )
     session.commit()
+    return action
 
 
 @pytest.fixture(autouse=True)
-def no_seed_sync(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(automations, "sync_action", lambda *args: None)
+def no_poll(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(invocations, "poll_once", lambda *args: None)
 
 
-def test_reset_cleans_state_and_seeds(
+def test_reset_cleans_state_and_wipes_connected_flow(
     tmp_path: Path,
     unit_session: Session,
     monkeypatch: pytest.MonkeyPatch,
@@ -73,11 +92,39 @@ def test_reset_cleans_state_and_seeds(
     tmp_path.mkdir(exist_ok=True)
     reset.repo_dir(tmp_path).mkdir()
     (tmp_path / ".simulate-run.json").write_text("{}")
+    trigger_id = uuid4()
+    action_id = uuid4()
+    unit_session.add_all(
+        [
+            TriggerNode(
+                id=trigger_id,
+                event_action="opened",
+                repository_full_name=scenario.repository,
+                position_x=0,
+                position_y=0,
+            ),
+            ActionNode(
+                id=action_id,
+                name="Issue triage",
+                position_x=450,
+                position_y=0,
+                enabled=True,
+                sync_status="enabled",
+                automation_id="seed-automation",
+            ),
+            Edge(
+                source_id=trigger_id,
+                source_kind="trigger",
+                target_id=action_id,
+                target_kind="action",
+            ),
+        ]
+    )
     unit_session.add(
         Invocation(
             session_id="seed-session",
             automation_id="seed-automation",
-            action_node_id=SEED_ACTION_ID,
+            action_node_id=action_id,
             status="running",
             session_created_at=datetime.now(UTC),
             session_updated_at=datetime.now(UTC),
@@ -127,22 +174,6 @@ def test_reset_cleans_state_and_seeds(
     )
     monkeypatch.setattr(reset, "get_settings", lambda: settings)
 
-    def fake_seed(session: Session, **kwargs: Any) -> None:
-        calls.append(("seed", kwargs))
-        session.add(
-            ActionNode(
-                id=SEED_ACTION_ID,
-                name="Seed: Issue triage",
-                position_x=450,
-                position_y=0,
-                enabled=True,
-                sync_status="pending",
-                automation_id="seed-automation",
-            )
-        )
-        session.commit()
-
-    monkeypatch.setattr(reset, "seed", fake_seed)
     poller_events: list[str] = []
     original_get_poller_state = invocations.get_poller_state
 
@@ -173,22 +204,6 @@ def test_reset_cleans_state_and_seeds(
         "delete",
         delete_spy,
     )
-    sync_calls: list[Any] = []
-
-    def fake_sync(session: Session, client: Any, action_id: Any) -> None:
-        sync_calls.append(action_id)
-        action = session.get(ActionNode, action_id)
-        assert action is not None
-        action.sync_status = "enabled"
-        action.automation_id = "seed-automation"
-        session.add(action)
-        session.commit()
-
-    monkeypatch.setattr(
-        automations,
-        "sync_action",
-        fake_sync,
-    )
     result = reset.reset(
         scenario,
         work_dir=tmp_path,
@@ -215,15 +230,8 @@ def test_reset_cleans_state_and_seeds(
     poller_state = invocations.get_poller_state(unit_session)
     assert poller_state.last_success_at is not None
     assert poller_state.last_success_at > datetime.now()
-    assert (
-        "seed",
-        {"playbook_id": "playbook-1", "repository_full_name": scenario.repository},
-    ) in calls
-    seed_index = next(index for index, call in enumerate(calls) if call[0] == "seed")
-    assert (
-        seed_index
-        < calls.index(("admin", scenario.repository))
-        < calls.index(("terminate", "seed-session"))
+    assert calls.index(("admin", scenario.repository)) < calls.index(
+        ("terminate", "seed-session")
     )
     assert git_dirs
     assert set(git_dirs) == {tmp_path / "repo"}
@@ -234,7 +242,6 @@ def test_reset_cleans_state_and_seeds(
         "reset_sha": "result-sha",
     }
     assert not (tmp_path / ".simulate-run.json").exists()
-    assert sync_calls == [SEED_ACTION_ID]
     reset_index = calls.index(("git", ("reset", "--hard", scenario.baseline)))
     clean_index = calls.index(("git", ("clean", "-fdx")))
     apply_index = calls.index(
@@ -250,25 +257,13 @@ def test_reset_terminates_upstream_sessions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     scenario = load_scenario(SCENARIO_PATH)
-    from devin_flow.models import ActionNode, Invocation
-
     reset.repo_dir(tmp_path).mkdir(parents=True)
-    unit_session.add(
-        ActionNode(
-            id=SEED_ACTION_ID,
-            name="Seed: Issue triage",
-            position_x=0,
-            position_y=0,
-            enabled=True,
-            sync_status="enabled",
-            automation_id="automation-1",
-        )
-    )
+    action = _add_connected_action(unit_session, scenario.repository, "automation-1")
     unit_session.add(
         Invocation(
             session_id="mirrored",
             automation_id="automation-1",
-            action_node_id=uuid4(),
+            action_node_id=action.id,
             status="running",
             session_created_at=datetime.now(UTC),
             session_updated_at=datetime.now(UTC),
@@ -308,7 +303,6 @@ def test_reset_terminates_upstream_sessions(
             devin_org_id="org",
         ),
     )
-    monkeypatch.setattr(reset, "seed", lambda session, **kwargs: None)
     terminated: list[str] = []
 
     class FakeClient:
@@ -345,52 +339,69 @@ def test_reset_terminates_upstream_sessions(
     )
 
 
-def test_reset_syncs_displaced_action(
+def test_reset_wipes_two_connected_actions(
     tmp_path: Path,
     unit_session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     scenario = load_scenario(SCENARIO_PATH)
     reset.repo_dir(tmp_path).mkdir(parents=True)
+    trigger_id = uuid4()
+    action_ids = [uuid4(), uuid4()]
     unit_session.add_all(
         [
             TriggerNode(
-                id=SEED_TRIGGER_ID,
+                id=trigger_id,
                 position_x=100,
                 position_y=0,
                 event_action="opened",
                 repository_full_name=scenario.repository,
             ),
-            ActionNode(
-                id=SEED_ACTION_ID,
-                name="Seed: Issue triage",
-                position_x=450,
-                position_y=0,
-                enabled=True,
-                sync_status="enabled",
-                automation_id="seed-automation",
-                playbook_id="playbook-1",
-            ),
-            ActionNode(
-                name="Displaced",
-                position_x=0,
-                position_y=0,
-                enabled=True,
-                sync_status="enabled",
-                automation_id="displaced-automation",
-                playbook_id="playbook-1",
+            *[
+                ActionNode(
+                    id=action_id,
+                    name=f"Action {index}",
+                    position_x=index * 100,
+                    position_y=0,
+                    enabled=True,
+                    sync_status="enabled",
+                    automation_id=f"auto-{index}",
+                )
+                for index, action_id in enumerate(action_ids, 1)
+            ],
+            Edge(
+                source_id=trigger_id,
+                source_kind="trigger",
+                target_id=action_ids[0],
+                target_kind="action",
             ),
         ]
     )
+    for index, automation_id in enumerate(("auto-1", "auto-2"), 1):
+        unit_session.add(
+            Invocation(
+                session_id=f"local-{index}",
+                automation_id=automation_id,
+                action_node_id=action_ids[index - 1],
+                status="running",
+                session_created_at=datetime.now(UTC),
+                session_updated_at=datetime.now(UTC),
+            )
+        )
     unit_session.commit()
-    displaced = unit_session.exec(
-        select(ActionNode).where(ActionNode.name == "Displaced")
-    ).one()
+    second_trigger = TriggerNode(
+        event_action="opened",
+        repository_full_name=scenario.repository,
+        position_x=0,
+        position_y=0,
+    )
+    unit_session.add(second_trigger)
+    unit_session.commit()
     unit_session.add(
         Edge(
-            source_id=SEED_TRIGGER_ID,
+            source_id=second_trigger.id,
             source_kind="trigger",
-            target_id=displaced.id,
+            target_id=action_ids[1],
             target_kind="action",
         )
     )
@@ -418,23 +429,21 @@ def test_reset_syncs_displaced_action(
             else "sha"
         ),
     )
-    monkeypatch.setattr(automations, "sync_action", REAL_SYNC_ACTION)
-    updates: list[tuple[str, bool | None]] = []
+    terminated: list[str] = []
 
     class FakeClient:
         def list_playbooks(self) -> list[Playbook]:
             return cast(list[Playbook], _valid_client().list_playbooks())
 
         def list_sessions(self, **kwargs: Any) -> list[DevinSession]:
-            return []
+            assert kwargs["automation_ids"] == ["auto-1", "auto-2"]
+            return [
+                DevinSession(session_id="upstream-1", status="running"),
+                DevinSession(session_id="upstream-2", status="running"),
+            ]
 
-        def update_automation(self, automation_id: str, update: Any) -> Automation:
-            updates.append((automation_id, update.enabled))
-            return Automation(
-                automation_id=automation_id,
-                name="seed",
-                enabled=bool(update.enabled),
-            )
+        def terminate_session(self, session_id: str) -> None:
+            terminated.append(session_id)
 
     reset.reset(
         scenario,
@@ -442,7 +451,115 @@ def test_reset_syncs_displaced_action(
         session=unit_session,
         devin_client=cast(Any, FakeClient()),
     )
-    assert ("displaced-automation", False) in updates
+    assert terminated == ["local-1", "local-2", "upstream-1", "upstream-2"]
+    assert unit_session.exec(select(Invocation)).all() == []
+
+
+def test_reset_rejects_empty_flow(
+    tmp_path: Path,
+    unit_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        github,
+        "require_admin",
+        lambda repo: pytest.fail("empty Flow must be checked first"),
+    )
+    with pytest.raises(RuntimeError, match="no enabled Action with an Automation"):
+        reset.reset(
+            load_scenario(SCENARIO_PATH),
+            work_dir=tmp_path,
+            session=unit_session,
+            devin_client=cast(Any, _valid_client()),
+        )
+
+
+def test_reset_ignores_archived_action(
+    tmp_path: Path,
+    unit_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scenario = load_scenario(SCENARIO_PATH)
+    _add_connected_action(
+        unit_session,
+        scenario.repository,
+        "archived",
+        archived_at=datetime.now(UTC),
+    )
+    monkeypatch.setattr(
+        github,
+        "require_admin",
+        lambda repo: pytest.fail("archived Flow must be ignored before reset"),
+    )
+    with pytest.raises(RuntimeError, match="no enabled Action with an Automation"):
+        reset.reset(
+            scenario,
+            work_dir=tmp_path,
+            session=unit_session,
+            devin_client=cast(Any, _valid_client()),
+        )
+
+
+def test_reset_leaves_other_repository_action_untouched(
+    tmp_path: Path,
+    unit_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scenario = load_scenario(SCENARIO_PATH)
+    target = _add_connected_action(unit_session, scenario.repository, "target")
+    foreign = _add_connected_action(unit_session, "other/repository", "foreign")
+    unit_session.add_all(
+        [
+            Invocation(
+                session_id="target",
+                automation_id="target",
+                action_node_id=target.id,
+                status="exit",
+                session_created_at=datetime.now(UTC),
+                session_updated_at=datetime.now(UTC),
+            ),
+            Invocation(
+                session_id="foreign",
+                automation_id="foreign",
+                action_node_id=foreign.id,
+                status="exit",
+                session_created_at=datetime.now(UTC),
+                session_updated_at=datetime.now(UTC),
+            ),
+        ]
+    )
+    unit_session.commit()
+    monkeypatch.setattr(github, "require_admin", lambda repo: None)
+    monkeypatch.setattr(github, "enable_issues", lambda repo: None)
+    monkeypatch.setattr(github, "ensure_labels", lambda repo: None)
+    monkeypatch.setattr(github, "list_issue_node_ids", lambda repo: [])
+    monkeypatch.setattr(github, "list_open_prs", lambda repo: [])
+    monkeypatch.setattr(reset, "_git_branches", lambda scenario, work_dir: [])
+    reset.repo_dir(tmp_path).mkdir()
+    monkeypatch.setattr(
+        reset,
+        "_git",
+        lambda work_dir, *args: (
+            "https://github.com/xlm/superset.git"
+            if args[:3] == ("config", "--get", "remote.origin.url")
+            else "sha"
+        ),
+    )
+    reset.reset(
+        scenario,
+        work_dir=tmp_path,
+        session=unit_session,
+        devin_client=cast(Any, _valid_client()),
+    )
+    assert unit_session.exec(
+        select(Invocation).where(Invocation.session_id == "foreign")
+    ).one()
+    assert (
+        unit_session.exec(
+            select(Invocation).where(Invocation.session_id == "target")
+        ).first()
+        is None
+    )
 
 
 def test_reset_rejects_checkout_for_different_repository(
@@ -452,6 +569,7 @@ def test_reset_rejects_checkout_for_different_repository(
 ) -> None:
     scenario = load_scenario(SCENARIO_PATH)
     reset.repo_dir(tmp_path).mkdir(parents=True)
+    _add_connected_action(unit_session, scenario.repository, "auto")
     calls: list[str] = []
     monkeypatch.setattr(github, "require_admin", lambda repo: calls.append("admin"))
     monkeypatch.setattr(
@@ -526,6 +644,7 @@ def test_reset_rejects_checkout_without_origin(
 ) -> None:
     scenario = load_scenario(SCENARIO_PATH)
     reset.repo_dir(tmp_path).mkdir(parents=True)
+    _add_connected_action(unit_session, scenario.repository, "auto")
     monkeypatch.setattr(github, "require_admin", lambda repo: None)
     monkeypatch.setattr(
         reset,
@@ -549,118 +668,6 @@ def test_reset_rejects_checkout_without_origin(
             session=unit_session,
             devin_client=cast(Any, _valid_client()),
         )
-
-
-def test_reset_deletes_state_before_failing_seed(
-    tmp_path: Path,
-    unit_session: Session,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    scenario = load_scenario(SCENARIO_PATH)
-    reset.repo_dir(tmp_path).mkdir(parents=True)
-    state_path = tmp_path / ".simulate-state.json"
-    state_path.write_text("{}")
-    (tmp_path / ".simulate-run.json").write_text("{}")
-    monkeypatch.setattr(github, "require_admin", lambda repo: None)
-    monkeypatch.setattr(github, "enable_issues", lambda repo: None)
-    monkeypatch.setattr(github, "list_issue_node_ids", lambda repo: [])
-    monkeypatch.setattr(github, "list_open_prs", lambda repo: [])
-    monkeypatch.setattr(reset, "_git_branches", lambda scenario, work_dir: [])
-    monkeypatch.setattr(
-        reset,
-        "_git",
-        lambda work_dir, *args: (
-            "https://github.com/xlm/superset.git"
-            if args[:3] == ("config", "--get", "remote.origin.url")
-            else "sha"
-        ),
-    )
-    monkeypatch.setattr(
-        reset,
-        "get_settings",
-        lambda: Settings(
-            devin_api_token="token",
-            devin_org_id="org",
-        ),
-    )
-
-    def fail_seed(session: Session, **kwargs: Any) -> None:
-        raise RuntimeError("seed failed")
-
-    monkeypatch.setattr(reset, "seed", fail_seed)
-    with pytest.raises(RuntimeError, match="seed failed"):
-        reset.reset(
-            scenario,
-            work_dir=tmp_path,
-            session=unit_session,
-            devin_client=cast(Any, _valid_client()),
-        )
-    assert state_path.exists()
-    assert (tmp_path / ".simulate-run.json").exists()
-
-
-def test_reset_fails_when_seed_action_sync_is_not_enabled(
-    tmp_path: Path,
-    unit_session: Session,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    scenario = load_scenario(SCENARIO_PATH)
-    reset.repo_dir(tmp_path).mkdir(parents=True)
-    monkeypatch.setattr(
-        reset,
-        "get_settings",
-        lambda: Settings(
-            devin_api_token="token",
-            devin_org_id="org",
-        ),
-    )
-    monkeypatch.setattr(github, "require_admin", lambda repo: None)
-    monkeypatch.setattr(github, "enable_issues", lambda repo: None)
-    monkeypatch.setattr(github, "list_issue_node_ids", lambda repo: [])
-    monkeypatch.setattr(github, "list_open_prs", lambda repo: [])
-    monkeypatch.setattr(reset, "_git_branches", lambda scenario, work_dir: [])
-    monkeypatch.setattr(
-        reset,
-        "_git",
-        lambda work_dir, *args: (
-            "https://github.com/xlm/superset.git"
-            if args[:3] == ("config", "--get", "remote.origin.url")
-            else "sha"
-        ),
-    )
-
-    def seed_disabled_action(session: Session, **kwargs: Any) -> None:
-        session.add(
-            ActionNode(
-                id=SEED_ACTION_ID,
-                name="Seed: Issue triage",
-                position_x=450,
-                position_y=0,
-                enabled=False,
-                sync_status="pending",
-                sync_error="upstream rejected",
-            )
-        )
-        session.commit()
-
-    monkeypatch.setattr(reset, "seed", seed_disabled_action)
-    sync_calls: list[Any] = []
-    monkeypatch.setattr(
-        automations,
-        "sync_action",
-        lambda session, client, action_id: sync_calls.append(action_id),
-    )
-    with pytest.raises(
-        RuntimeError, match="seed action sync failed: upstream rejected"
-    ):
-        reset.reset(
-            scenario,
-            work_dir=tmp_path,
-            session=unit_session,
-            devin_client=cast(Any, _valid_client()),
-        )
-    assert sync_calls == [SEED_ACTION_ID]
-    assert not (tmp_path / ".simulate-state.json").exists()
 
 
 def test_reset_rejects_missing_playbook_before_destructive_work(
@@ -857,7 +864,7 @@ def test_reset_clones_missing_worktree(
             devin_org_id="org",
         ),
     )
-    monkeypatch.setattr(reset, "seed", _seed_enabled_action)
+    _add_connected_action(unit_session, scenario.repository, "auto-1")
     reset.reset(
         scenario,
         work_dir=work_dir,
@@ -881,11 +888,12 @@ def test_reset_handles_session_termination_without_wiping(
     from devin_flow.models import Invocation
 
     reset.repo_dir(tmp_path).mkdir(parents=True)
+    action = _add_connected_action(unit_session, scenario.repository, "auto")
     unit_session.add(
         Invocation(
             session_id="running",
             automation_id="auto",
-            action_node_id=uuid4(),
+            action_node_id=action.id,
             status="running",
             session_created_at=datetime.now(),
             session_updated_at=datetime.now(),
@@ -916,19 +924,7 @@ def test_reset_handles_session_termination_without_wiping(
             devin_org_id="org",
         ),
     )
-    unit_session.add(
-        ActionNode(
-            id=SEED_ACTION_ID,
-            name="Seed: Issue triage",
-            position_x=450,
-            position_y=0,
-            enabled=True,
-            sync_status="enabled",
-            automation_id="auto",
-        )
-    )
     unit_session.commit()
-    monkeypatch.setattr(reset, "seed", lambda session, **kwargs: None)
     client = _valid_client(
         list_sessions=lambda **kwargs: [],
         terminate_session=lambda session_id: terminated.append(session_id),

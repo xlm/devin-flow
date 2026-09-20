@@ -5,12 +5,12 @@ from pathlib import Path
 
 from sqlmodel import Session, col, delete, select
 
-from devin_flow import automations, invocations
+from devin_flow import invocations
 from devin_flow.config import get_settings
 from devin_flow.devin import DevinClient
 from devin_flow.devin.client import TERMINAL_SESSION_STATUSES
-from devin_flow.models import ActionNode, Invocation
-from devin_flow.seed import SEED_ACTION_ID, find_seed_playbook, seed
+from devin_flow.models import ActionNode, Edge, Invocation, TriggerNode
+from devin_flow.seed import find_seed_playbook
 from devin_flow.simulate import github
 from devin_flow.simulate.scenario import Scenario
 
@@ -43,16 +43,25 @@ def _git(work_dir: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
-def _require_synced_seed_action(session: Session) -> ActionNode:
-    action = session.get(ActionNode, SEED_ACTION_ID)
-    sync_error = action.sync_error if action is not None else None
-    if (
-        action is None
-        or action.sync_status != "enabled"
-        or action.automation_id is None
-    ):
-        raise RuntimeError(f"seed action sync failed: {sync_error}")
-    return action
+def target_automation_ids(session: Session, repository: str) -> list[str]:
+    trigger_ids = select(TriggerNode.id).where(
+        TriggerNode.repository_full_name == repository
+    )
+    action_ids = select(Edge.target_id).where(
+        col(Edge.source_id).in_(trigger_ids),
+        Edge.source_kind == "trigger",
+        Edge.target_kind == "action",
+    )
+    actions = session.exec(
+        select(ActionNode).where(
+            col(ActionNode.id).in_(action_ids),
+            col(ActionNode.archived_at).is_(None),
+            col(ActionNode.automation_id).is_not(None),
+        )
+    ).all()
+    return sorted(
+        {action.automation_id for action in actions if action.automation_id is not None}
+    )
 
 
 def reset(
@@ -87,6 +96,13 @@ def reset(
     for patch_path in patch_paths:
         if not patch_path.exists():
             raise RuntimeError(f"missing poison patch: {patch_path}")
+    automation_ids = target_automation_ids(session, scenario.repository)
+    if not automation_ids:
+        raise RuntimeError(
+            "no enabled Action with an Automation is connected to a Trigger for "
+            f"{scenario.repository}, build the Flow on the Canvas first "
+            "(or run uv run seed)"
+        )
     state_path = work_dir / ".simulate-state.json"
     run_path = work_dir / ".simulate-run.json"
     work_dir.mkdir(parents=True, exist_ok=True)
@@ -105,38 +121,29 @@ def reset(
                 "simulator checkout repository mismatch: "
                 f"expected {scenario.repository}, got {actual_repository}"
             )
-    seed(
-        session,
-        playbook_id=playbook_id,
-        repository_full_name=scenario.repository,
-    )
-    automations.retry_syncs(session, devin_client)
-    action = _require_synced_seed_action(session)
     state_path.unlink(missing_ok=True)
     run_path.unlink(missing_ok=True)
     github.require_admin(scenario.repository)
-    seed_automation = action.automation_id
     terminated: set[str] = set()
-    if seed_automation is not None:
-        for invocation in session.exec(
-            select(Invocation).where(
-                Invocation.automation_id == seed_automation,
-            )
-        ).all():
-            if invocation.status not in TERMINAL_SESSION_STATUSES:
-                devin_client.terminate_session(invocation.session_id)
-                terminated.add(invocation.session_id)
-        for upstream_session in devin_client.list_sessions(
-            automation_ids=[seed_automation],
-            created_after=None,
-            paginate=True,
+    for invocation in session.exec(
+        select(Invocation).where(
+            col(Invocation.automation_id).in_(automation_ids),
+        )
+    ).all():
+        if invocation.status not in TERMINAL_SESSION_STATUSES:
+            devin_client.terminate_session(invocation.session_id)
+            terminated.add(invocation.session_id)
+    for upstream_session in devin_client.list_sessions(
+        automation_ids=automation_ids,
+        created_after=None,
+        paginate=True,
+    ):
+        if (
+            upstream_session.status not in TERMINAL_SESSION_STATUSES
+            and upstream_session.session_id not in terminated
         ):
-            if (
-                upstream_session.status not in TERMINAL_SESSION_STATUSES
-                and upstream_session.session_id not in terminated
-            ):
-                devin_client.terminate_session(upstream_session.session_id)
-                terminated.add(upstream_session.session_id)
+            devin_client.terminate_session(upstream_session.session_id)
+            terminated.add(upstream_session.session_id)
     github.enable_issues(scenario.repository)
     github.ensure_labels(scenario.repository)
     for node_id in github.list_issue_node_ids(scenario.repository):
@@ -183,13 +190,12 @@ def reset(
         poller_state = invocations.get_poller_state(session)
         session.exec(
             delete(Invocation).where(
-                col(Invocation.action_node_id) == SEED_ACTION_ID,
+                col(Invocation.automation_id).in_(automation_ids),
             )
         )
         poller_state.last_success_at = datetime.now(UTC) + invocations.SAFETY_MARGIN
         session.add(poller_state)
         session.commit()
-    _require_synced_seed_action(session)
     state_path.write_text(
         json.dumps(
             {

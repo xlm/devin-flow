@@ -33,7 +33,8 @@ this repository next to the Scenario rather than in the Target repository.
   that is not in the Scenario is lost on Reset.
 - Reset needs an admin `gh` login on the Target repository: enabling
   Issues, `deleteIssue` (GraphQL), force-push and branch deletion.
-- The Seed Flow's Action node and Automation are never wiped, only
-  Invocation rows, so one Automation serves every run.
+- Actions connected to a Trigger for the Target repository are never wiped,
+  only their Invocation rows. Users build the Flow on the Canvas before
+  resetting.
 - Sessions from the previous run are terminated, not awaited. Their work
   is disposable by definition.
