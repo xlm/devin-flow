@@ -45,6 +45,7 @@ const reason = computed(() =>
   ),
 )
 const linkedTrigger = computed(() => hasLinkedTrigger(props.id, edges.value))
+const provisioned = computed(() => typeof props.data.automationId === 'string')
 const hint = computed(() =>
   reason.value === 'no-trigger'
     ? 'Connect a Trigger to this Action'
@@ -108,6 +109,7 @@ async function toggleEnabled() {
           : undefined
     "
     :hint="hint"
+    :remove-label="provisioned ? 'Archive' : 'Delete'"
   >
     <template #toolbar>
       <button

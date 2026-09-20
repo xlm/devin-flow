@@ -195,6 +195,20 @@ describe('ActionNode', () => {
     expect(button.text()).toBe('No Trigger')
   })
 
+  it('labels removal as archive for a provisioned action', async () => {
+    GET.mockResolvedValue({ data: [], error: undefined })
+    const wrapper = mountAction({ automationId: 'auto-1' })
+    await flushPromises()
+    expect(wrapper.get('[data-testid="delete-node"]').text()).toBe('Archive')
+  })
+
+  it('labels removal as delete for an unprovisioned action', async () => {
+    GET.mockResolvedValue({ data: [], error: undefined })
+    const wrapper = mountAction()
+    await flushPromises()
+    expect(wrapper.get('[data-testid="delete-node"]').text()).toBe('Delete')
+  })
+
   it('disables the switch for an incomplete connected trigger', async () => {
     GET.mockResolvedValue({ data: [], error: undefined })
     edges.value = [
