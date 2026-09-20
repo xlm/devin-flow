@@ -174,11 +174,12 @@ Check the harness stub's routes before reusing it. Archive needs both
 
 Seed multiple Invocations plus their InvocationOutcome links using the fixture
 shapes above. Open Action and Outcome sheets through their edge labels.
-Archive one row from each sheet and verify the row disappears, both Canvas
-counts decrease, and both invocation-list APIs exclude the archived IDs after
-reload. Separately return 500 from archive POST and from post-archive GET:
-POST failure must retain the row with `Could not archive session`, while GET
-failure after successful POST must still persist `archived_at` and hide the row.
+Archive one row from each sheet and verify the row remains with a disabled
+`Archived` button, Canvas counts stay unchanged, and both invocation-list APIs
+include the archived IDs with `archived_at` after reload. Separately return 500
+from archive POST and from post-archive GET: POST failure must retain the row
+with `Could not archive session`, while GET failure after successful POST must
+retain the existing row and report the load error.
 
 When checking the default poll interval, unset `POLL_INTERVAL_SECONDS` and
 check `.env` too. Terminal fixture sessions avoid stale-session refetches, and

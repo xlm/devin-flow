@@ -28,6 +28,7 @@ class OutcomeInvocationRead(BaseModel):
     session_created_at: datetime
     pull_requests: list[PullRequestLink]
     duplicate_of: str | None
+    archived_at: datetime | None
 
 
 @router.get(
@@ -65,7 +66,6 @@ def list_outcome_invocations(
             col(InvocationOutcome.invocation_id) == col(Invocation.id),
         )
         .where(col(Invocation.action_node_id).in_(action_ids))
-        .where(col(Invocation.archived_at).is_(None))
         .where(col(InvocationOutcome.kind) == node.kind)
         .order_by(col(Invocation.session_created_at).desc())
     ).all()
@@ -77,6 +77,7 @@ def list_outcome_invocations(
             url=invocation.url,
             status=invocation.status,
             session_created_at=invocation.session_created_at,
+            archived_at=invocation.archived_at,
             pull_requests=pull_request_links(invocation),
             duplicate_of=duplicate_of(invocation),
         )

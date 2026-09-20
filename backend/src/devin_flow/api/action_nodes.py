@@ -44,7 +44,6 @@ def list_action_invocations(
         select(Invocation)
         .where(
             col(Invocation.action_node_id) == node_id,
-            col(Invocation.archived_at).is_(None),
         )
         .order_by(col(Invocation.session_created_at).desc())
     ).all()
@@ -56,6 +55,7 @@ def list_action_invocations(
             url=invocation.url,
             status=invocation.status,
             session_created_at=invocation.session_created_at,
+            archived_at=invocation.archived_at,
             pull_requests=pull_request_links(invocation),
             duplicate_of=duplicate_of(invocation),
             issue=issue_ref(invocation, repository_full_name),

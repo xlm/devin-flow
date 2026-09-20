@@ -61,6 +61,7 @@ function invocation(overrides: Record<string, unknown> = {}) {
     url: 'https://app.devin.ai/sessions/s-1',
     status: 'exit',
     session_created_at: '2026-01-02T03:04:05Z',
+    archived_at: null,
     pull_requests: [],
     duplicate_of: null,
     issue: null,
@@ -257,6 +258,40 @@ describe('ActionInvocationsSheet', () => {
       'Could not archive session',
     )
     expect(wrapper.emitted('archived')).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('renders archived invocations with a disabled Archived button', async () => {
+    mocks.GET.mockResolvedValue({
+      data: [invocation({ archived_at: '2026-01-03T03:04:05Z' })],
+      error: undefined,
+    })
+    const wrapper = mountSheet({})
+    await flushPromises()
+    const button = wrapper.find('[data-testid="archive-invocation"]')
+    expect(button.text()).toBe('Archived')
+    expect(button.attributes('disabled')).toBeDefined()
+    wrapper.unmount()
+  })
+
+  it('keeps the row and marks it archived after a successful archive', async () => {
+    mocks.GET.mockResolvedValueOnce({
+      data: [invocation()],
+      error: undefined,
+    })
+    mocks.GET.mockResolvedValueOnce({
+      data: [invocation({ archived_at: '2026-01-03T03:04:05Z' })],
+      error: undefined,
+    })
+    mocks.POST.mockResolvedValue({ data: undefined, error: undefined })
+    const wrapper = mountSheet({})
+    await flushPromises()
+    await wrapper.find('[data-testid="archive-invocation"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('[data-testid="action-invocation"]')).toHaveLength(1)
+    const button = wrapper.find('[data-testid="archive-invocation"]')
+    expect(button.text()).toBe('Archived')
+    expect(button.attributes('disabled')).toBeDefined()
     wrapper.unmount()
   })
 

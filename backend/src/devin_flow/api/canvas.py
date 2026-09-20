@@ -261,7 +261,6 @@ def invocation_count(session: Session, action_id: UUID) -> int:
     return session.exec(
         select(func.count()).where(
             Invocation.action_node_id == action_id,
-            col(Invocation.archived_at).is_(None),
         )
     ).one()
 
@@ -270,9 +269,9 @@ def invocation_count(session: Session, action_id: UUID) -> int:
 def get_canvas(session: SessionDep) -> CanvasRead:
     counts = dict(
         session.exec(
-            select(col(Invocation.action_node_id), func.count())
-            .where(col(Invocation.archived_at).is_(None))
-            .group_by(col(Invocation.action_node_id))
+            select(col(Invocation.action_node_id), func.count()).group_by(
+                col(Invocation.action_node_id)
+            )
         ).all()
     )
     edges = session.exec(select(Edge).order_by(col(Edge.created_at))).all()
@@ -294,7 +293,6 @@ def get_canvas(session: SessionDep) -> CanvasRead:
                     col(InvocationOutcome.invocation_id) == col(Invocation.id),
                 )
                 .where(col(Invocation.action_node_id).in_(action_ids))
-                .where(col(Invocation.archived_at).is_(None))
                 .group_by(col(Invocation.action_node_id), col(InvocationOutcome.kind))
             ).all()
         }
@@ -344,9 +342,9 @@ def get_canvas(session: SessionDep) -> CanvasRead:
 def list_archived_actions(session: SessionDep) -> list[ArchivedActionRead]:
     counts = dict(
         session.exec(
-            select(col(Invocation.action_node_id), func.count())
-            .where(col(Invocation.archived_at).is_(None))
-            .group_by(col(Invocation.action_node_id))
+            select(col(Invocation.action_node_id), func.count()).group_by(
+                col(Invocation.action_node_id)
+            )
         ).all()
     )
     return [

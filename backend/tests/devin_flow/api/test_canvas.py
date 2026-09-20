@@ -1039,7 +1039,7 @@ def test_canvas_counts_invocations_per_action(
     counts = {
         UUID(node["id"]): node["invocation_count"] for node in canvas["action_nodes"]
     }
-    assert counts == {counted_id: 2, empty_id: 0}
+    assert counts == {counted_id: 3, empty_id: 0}
     created = unit_client.post(
         "/api/canvas/nodes/action", json={"position": {"x": 0, "y": 0}}
     )
@@ -1047,7 +1047,7 @@ def test_canvas_counts_invocations_per_action(
     moved = unit_client.patch(
         f"/api/canvas/nodes/action/{counted_id}", json={"position": {"x": 1, "y": 1}}
     )
-    assert moved.json()["invocation_count"] == 2
+    assert moved.json()["invocation_count"] == 3
 
 
 def add_invocation(
@@ -1057,6 +1057,7 @@ def add_invocation(
     *,
     pull_requests: list[dict[str, object]] | None = None,
     structured_output: dict[str, object] | None = None,
+    archived_at: datetime | None = None,
 ) -> Invocation:
     now = datetime.now(UTC)
     invocation = Invocation(
@@ -1066,6 +1067,7 @@ def add_invocation(
         status="exit",
         pull_requests=pull_requests or [],
         structured_output=structured_output,
+        archived_at=archived_at,
         session_created_at=now,
         session_updated_at=now,
     )
@@ -1140,6 +1142,8 @@ def test_canvas_edges_report_outcome_counts(
         action_id,
         "s-2",
         pull_requests=[{"pr_url": "https://github.com/a/b/pull/2"}],
+        structured_output={"outcome": "duplicate"},
+        archived_at=datetime.now(UTC),
     )
     add_invocation(unit_session, action_id, "s-3")
     trigger_id = create_node(unit_client, "trigger")
@@ -1160,7 +1164,7 @@ def test_canvas_edges_report_outcome_counts(
     )
     canvas_edges = unit_client.get("/api/canvas").json()["edges"]
     by_target = {edge["target"]["id"]: edge for edge in canvas_edges}
-    assert by_target[str(dup_outcome.id)]["outcome_count"] == 1
+    assert by_target[str(dup_outcome.id)]["outcome_count"] == 2
     assert by_target[str(pr_outcome.id)]["outcome_count"] == 2
     assert by_target[str(unset_outcome.id)]["outcome_count"] == 0
     assert by_target[str(action_id)]["outcome_count"] is None

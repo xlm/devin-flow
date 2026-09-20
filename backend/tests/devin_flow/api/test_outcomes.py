@@ -144,7 +144,7 @@ def test_lists_matching_invocations_newest_first(
     assert rows[1]["duplicate_of"] == "s-0"
 
 
-def test_archived_invocations_are_not_listed(
+def test_archived_invocations_are_listed_with_archive_dates(
     unit_client: TestClient, unit_session: Session
 ) -> None:
     action_id = UUID(create_node(unit_client, "action"))
@@ -171,7 +171,9 @@ def test_archived_invocations_are_not_listed(
         archived_at=datetime.now(UTC),
     )
     rows = unit_client.get(f"/api/outcome-nodes/{outcome.id}/invocations").json()
-    assert [row["session_id"] for row in rows] == ["s-visible"]
+    assert [row["session_id"] for row in rows] == ["s-archived", "s-visible"]
+    assert rows[0]["archived_at"] is not None
+    assert rows[1]["archived_at"] is None
 
 
 def test_pull_request_outcome_lists_only_pr_invocations(
