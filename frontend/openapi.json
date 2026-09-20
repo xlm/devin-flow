@@ -2031,6 +2031,69 @@
         "summary": "Refresh Invocations"
       }
     },
+    "/api/invocations/{invocation_id}/archive": {
+      "post": {
+        "operationId": "archive_invocation_api_invocations__invocation_id__archive_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "invocation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Invocation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invocation not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Devin API failure"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Devin API not configured"
+          }
+        },
+        "summary": "Archive Invocation"
+      }
+    },
     "/api/outcome-nodes/{node_id}/invocations": {
       "get": {
         "operationId": "list_outcome_invocations_api_outcome_nodes__node_id__invocations_get",
