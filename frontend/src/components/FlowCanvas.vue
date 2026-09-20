@@ -580,7 +580,10 @@ async function saveConnection(connection: Connection) {
     })
     if (data) {
       // refreshSyncState below fills in the real invocation count
-      const edge = mapEdge(data, new Map(), new Set())
+      const actionId =
+        refs.source.kind === 'action' ? refs.source.id : refs.target.id
+      const live = findNode(actionId)?.data.syncStatus === 'enabled'
+      const edge = mapEdge(data, new Map(), new Set(live ? [actionId] : []))
       edgeSnapshots.set(edge.id, copyEdge(edge))
       addEdges([edge])
       await refreshSyncState()
