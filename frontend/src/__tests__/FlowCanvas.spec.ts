@@ -68,6 +68,7 @@ vi.mock('@vue-flow/core', () => ({
       nodes: { type: Array, default: () => [] },
       edges: { type: Array, default: () => [] },
       nodeTypes: { type: Object, default: () => ({}) },
+      edgeTypes: { type: Object, default: () => ({}) },
       isValidConnection: { type: Function, default: undefined },
       defaultEdgeOptions: { type: Object, default: undefined },
       applyDefault: { type: Boolean, default: true },
@@ -364,6 +365,7 @@ describe('FlowCanvas', () => {
     expect(vueFlow(wrapper).props('defaultEdgeOptions')).toEqual({
       type: 'smoothstep',
     })
+    expect(vueFlow(wrapper).props('edgeTypes')).toHaveProperty('smoothstep')
     expect(vueFlow(wrapper).props('applyDefault')).toBe(false)
     const node = {
       id: 'action',

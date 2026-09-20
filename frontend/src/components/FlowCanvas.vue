@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, provide, ref } from 'vue'
+import { computed, markRaw, onMounted, onUnmounted, provide, ref } from 'vue'
 import {
   VueFlow,
   useVueFlow,
@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button'
 import NodePalette from '@/components/NodePalette.vue'
 import ActionInvocationsSheet from '@/components/ActionInvocationsSheet.vue'
 import ArchivedActionsSheet from '@/components/ArchivedActionsSheet.vue'
+import CountEdge from '@/components/edges/CountEdge.vue'
 import HelperLines from '@/components/HelperLines.vue'
 import OutcomeInvocationsSheet from '@/components/OutcomeInvocationsSheet.vue'
 import { nodeTypes } from '@/components/nodes/nodeTypes'
@@ -63,6 +64,7 @@ const props = withDefaults(defineProps<{ archivedOpen?: boolean }>(), {
   archivedOpen: false,
 })
 const emit = defineEmits<{ 'update:archivedOpen': [value: boolean] }>()
+const edgeTypes = { smoothstep: markRaw(CountEdge) }
 
 const RESIZE_DEBOUNCE_MS = 100
 
@@ -816,6 +818,7 @@ onUnmounted(() => {
         :nodes="nodes"
         :edges="edges"
         :node-types="nodeTypes"
+        :edge-types="edgeTypes"
         :default-edge-options="{ type: 'smoothstep' }"
         :apply-default="false"
         fit-view-on-init
