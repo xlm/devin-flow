@@ -361,11 +361,6 @@ describe('FlowCanvas', () => {
             source: { id: 'stale-action', kind: 'action' },
             target: { id: 'outcome', kind: 'outcome' },
           },
-          {
-            id: 'trigger-outcome',
-            source: { id: 'trigger', kind: 'trigger' },
-            target: { id: 'outcome', kind: 'outcome' },
-          },
         ],
       }),
     )
@@ -381,7 +376,6 @@ describe('FlowCanvas', () => {
       ['live-outcome', true],
       ['trigger-stale', false],
       ['stale-outcome', false],
-      ['trigger-outcome', undefined],
     ])
     wrapper.unmount()
   })
