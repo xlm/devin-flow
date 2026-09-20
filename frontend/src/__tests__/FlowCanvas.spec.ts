@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, h, inject, ref } from 'vue'
 import type { Edge, Node } from '@vue-flow/core'
-import { NODE_KIND_MIME } from '@/lib/nodeKinds'
+import { ARCHIVED_ACTION_MIME, NODE_KIND_MIME } from '@/lib/nodeKinds'
 import { SAVE_NODE_FIELDS, type SaveNodeFields } from '@/lib/canvasInjection'
 
 type DragHandler = (event: { node: Node }) => void | Promise<void>
@@ -39,6 +39,8 @@ const mocks = vi.hoisted(() => {
     },
     sheetProps: {} as Record<string, unknown>,
     actionSheetProps: {} as Record<string, unknown>,
+    archivedSheetProps: {} as Record<string, unknown>,
+    archivedRemove: vi.fn(),
   }
 })
 
@@ -123,6 +125,20 @@ vi.mock('@/components/OutcomeInvocationsSheet.vue', () => ({
     setup(props) {
       mocks.sheetProps = props
       return () => h('div', { 'data-testid': 'outcome-sheet-stub' })
+    },
+  }),
+}))
+vi.mock('@/components/ArchivedActionsSheet.vue', () => ({
+  default: defineComponent({
+    name: 'ArchivedActionsSheet',
+    props: {
+      open: { type: Boolean, default: false },
+    },
+    emits: ['update:open', 'restore'],
+    setup(props, { expose }) {
+      mocks.archivedSheetProps = props
+      expose({ remove: mocks.archivedRemove })
+      return () => h('div', { 'data-testid': 'archived-sheet-stub' })
     },
   }),
 }))
@@ -2602,5 +2618,234 @@ describe('FlowCanvas', () => {
     resizeWindow()
     vi.runAllTimers()
     expect(mocks.fitView).toHaveBeenCalledTimes(fitViewCalls)
+  })
+
+  it('restores an archived action dropped on the canvas', async () => {
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    mocks.screenToFlowCoordinate.mockReturnValue({ x: 40, y: 50 })
+    mocks.POST.mockResolvedValue(
+      response({
+        id: 'restored',
+        kind: 'action',
+        position: { x: 40, y: 50 },
+        name: 'Triage',
+        playbook_id: 'pb-1',
+        prompt: '',
+        enabled: false,
+        sync_status: 'disabled',
+        sync_error: null,
+        automation_id: 'auto-1',
+        invocation_count: 2,
+      }),
+    )
+    const dataTransfer = {
+      types: [ARCHIVED_ACTION_MIME],
+      getData: vi.fn().mockReturnValue('restored'),
+      dropEffect: '',
+    }
+    const dropZone = wrapper.find('[data-testid="canvas-drop-zone"]')
+    const dragOverEvent = new Event('dragover', {
+      bubbles: true,
+      cancelable: true,
+    })
+    Object.defineProperty(dragOverEvent, 'dataTransfer', {
+      value: dataTransfer,
+    })
+    dropZone.element.dispatchEvent(dragOverEvent)
+    expect(dragOverEvent.defaultPrevented).toBe(true)
+    const dropEvent = new Event('drop', { bubbles: true, cancelable: true })
+    Object.defineProperty(dropEvent, 'dataTransfer', { value: dataTransfer })
+    Object.defineProperty(dropEvent, 'clientX', { value: 100 })
+    Object.defineProperty(dropEvent, 'clientY', { value: 200 })
+    dropZone.element.dispatchEvent(dropEvent)
+    await flushPromises()
+    expect(mocks.POST).toHaveBeenCalledWith(
+      '/api/canvas/nodes/action/{node_id}/restore',
+      {
+        params: { path: { node_id: 'restored' } },
+        body: { position: { x: 40, y: 50 } },
+      },
+    )
+    expect(mocks.addNodes).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'restored', type: 'action' }),
+    ])
+    expect(mocks.archivedRemove).toHaveBeenCalledWith('restored')
+    wrapper.unmount()
+  })
+
+  it('restores an archived action from the sheet without a position', async () => {
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    mocks.POST.mockResolvedValue(
+      response({
+        id: 'restored',
+        kind: 'action',
+        position: { x: 3, y: 4 },
+        name: 'Triage',
+        playbook_id: 'pb-1',
+        prompt: '',
+        enabled: false,
+        sync_status: 'disabled',
+        sync_error: null,
+        automation_id: 'auto-1',
+        invocation_count: 0,
+      }),
+    )
+    wrapper
+      .findComponent({ name: 'ArchivedActionsSheet' })
+      .vm.$emit('restore', 'restored')
+    await flushPromises()
+    expect(mocks.POST).toHaveBeenCalledWith(
+      '/api/canvas/nodes/action/{node_id}/restore',
+      {
+        params: { path: { node_id: 'restored' } },
+        body: null,
+      },
+    )
+    expect(mocks.addNodes).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'restored', type: 'action' }),
+    ])
+    expect(mocks.archivedRemove).toHaveBeenCalledWith('restored')
+    wrapper.unmount()
+  })
+
+  it('forwards the archived sheet open state', async () => {
+    const wrapper = mount(FlowCanvas, { props: { archivedOpen: true } })
+    await flushPromises()
+    expect(mocks.archivedSheetProps.open).toBe(true)
+    wrapper
+      .findComponent({ name: 'ArchivedActionsSheet' })
+      .vm.$emit('update:open', false)
+    expect(wrapper.emitted('update:archivedOpen')).toEqual([[false]])
+    wrapper.unmount()
+  })
+
+  it('blocks archived drops while the canvas is loading', async () => {
+    mocks.GET.mockImplementationOnce(() => new Promise(() => {}))
+    const wrapper = mount(FlowCanvas)
+    const dataTransfer = {
+      types: [ARCHIVED_ACTION_MIME],
+      getData: vi.fn().mockReturnValue('restored'),
+      dropEffect: '',
+    }
+    const dropEvent = new Event('drop', { bubbles: true, cancelable: true })
+    Object.defineProperty(dropEvent, 'dataTransfer', { value: dataTransfer })
+    Object.defineProperty(dropEvent, 'clientX', { value: 100 })
+    Object.defineProperty(dropEvent, 'clientY', { value: 200 })
+    wrapper
+      .find('[data-testid="canvas-drop-zone"]')
+      .element.dispatchEvent(dropEvent)
+    await flushPromises()
+    expect(mocks.POST).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('does not add nodes when a restore fails', async () => {
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    mocks.POST.mockResolvedValue(response(undefined, { detail: 'gone' }, 404))
+    wrapper
+      .findComponent({ name: 'ArchivedActionsSheet' })
+      .vm.$emit('restore', 'restored')
+    await flushPromises()
+    expect(mocks.addNodes).not.toHaveBeenCalled()
+    expect(mocks.archivedRemove).not.toHaveBeenCalled()
+    mocks.POST.mockRejectedValue(new Error('down'))
+    wrapper
+      .findComponent({ name: 'ArchivedActionsSheet' })
+      .vm.$emit('restore', 'restored')
+    await flushPromises()
+    expect(mocks.addNodes).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('ignores drops without a data transfer or with an empty id', async () => {
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    const dropZone = wrapper.find('[data-testid="canvas-drop-zone"]')
+    const bareDrop = new Event('drop', { bubbles: true, cancelable: true })
+    dropZone.element.dispatchEvent(bareDrop)
+    await flushPromises()
+    const emptyIdTransfer = {
+      types: [ARCHIVED_ACTION_MIME],
+      getData: vi.fn().mockReturnValue(''),
+      dropEffect: '',
+    }
+    const emptyDrop = new Event('drop', { bubbles: true, cancelable: true })
+    Object.defineProperty(emptyDrop, 'dataTransfer', {
+      value: emptyIdTransfer,
+    })
+    Object.defineProperty(emptyDrop, 'clientX', { value: 100 })
+    Object.defineProperty(emptyDrop, 'clientY', { value: 200 })
+    dropZone.element.dispatchEvent(emptyDrop)
+    await flushPromises()
+    expect(mocks.POST).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('waits for an in-flight load before adding a restored node', async () => {
+    let resolveLoad: ((value: ReturnType<typeof response>) => void) | undefined
+    mocks.GET.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveLoad = resolve
+        }),
+    )
+    const wrapper = mount(FlowCanvas)
+    mocks.POST.mockResolvedValue(
+      response({
+        id: 'restored',
+        kind: 'action',
+        position: { x: 3, y: 4 },
+        name: 'Triage',
+        playbook_id: 'pb-1',
+        prompt: '',
+        enabled: false,
+        sync_status: 'disabled',
+        sync_error: null,
+        automation_id: 'auto-1',
+        invocation_count: 0,
+      }),
+    )
+    wrapper
+      .findComponent({ name: 'ArchivedActionsSheet' })
+      .vm.$emit('restore', 'restored')
+    await flushPromises()
+    expect(mocks.addNodes).not.toHaveBeenCalled()
+    resolveLoad?.(response(canvas))
+    await flushPromises()
+    expect(mocks.addNodes).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'restored' }),
+    ])
+    wrapper.unmount()
+  })
+
+  it('skips adding a restored node that is already on the canvas', async () => {
+    const wrapper = mount(FlowCanvas)
+    await flushPromises()
+    mocks.findNode.mockReturnValue({ id: 'restored' } as Node)
+    mocks.POST.mockResolvedValue(
+      response({
+        id: 'restored',
+        kind: 'action',
+        position: { x: 3, y: 4 },
+        name: 'Triage',
+        playbook_id: 'pb-1',
+        prompt: '',
+        enabled: false,
+        sync_status: 'disabled',
+        sync_error: null,
+        automation_id: 'auto-1',
+        invocation_count: 0,
+      }),
+    )
+    wrapper
+      .findComponent({ name: 'ArchivedActionsSheet' })
+      .vm.$emit('restore', 'restored')
+    await flushPromises()
+    expect(mocks.archivedRemove).toHaveBeenCalledWith('restored')
+    expect(mocks.addNodes).not.toHaveBeenCalled()
+    wrapper.unmount()
   })
 })

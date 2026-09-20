@@ -29,6 +29,7 @@ export const NODE_HANDLES: Record<
 
 export const NODE_KINDS: readonly NodeKind[] = Object.keys(KINDS) as NodeKind[]
 export const NODE_KIND_MIME = 'application/x-devin-flow-node-kind'
+export const ARCHIVED_ACTION_MIME = 'application/x-devin-flow-archived-action'
 
 export function isNodeKind(value: string): value is NodeKind {
   return NODE_KINDS.includes(value as NodeKind)

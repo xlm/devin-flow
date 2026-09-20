@@ -5,7 +5,13 @@ import { defineComponent, h } from 'vue'
 vi.mock('@/components/FlowCanvas.vue', () => ({
   default: defineComponent({
     name: 'FlowCanvas',
-    render: () => h('div', { 'data-testid': 'flow-canvas' }),
+    props: { archivedOpen: { type: Boolean, default: false } },
+    emits: ['update:archivedOpen'],
+    setup: (props) => () =>
+      h('div', {
+        'data-testid': 'flow-canvas',
+        'data-archived-open': String(props.archivedOpen),
+      }),
   }),
 }))
 
@@ -73,6 +79,31 @@ describe('App', () => {
     const status = indicator(wrapper)
     expect(status.attributes('data-tone')).toBe('loading')
     expect(status.classes()).toContain('pointer-events-none')
+  })
+
+  it('opens and closes the archived actions sheet', async () => {
+    const { wrapper } = await mountApp(
+      vi.fn().mockReturnValue(new Promise(() => {})),
+    )
+    const canvas = wrapper.find('[data-testid="flow-canvas"]')
+    expect(canvas.attributes('data-archived-open')).toBe('false')
+    await wrapper
+      .find('[data-testid="archived-actions-button"]')
+      .trigger('click')
+    expect(
+      wrapper
+        .find('[data-testid="flow-canvas"]')
+        .attributes('data-archived-open'),
+    ).toBe('true')
+    wrapper
+      .findComponent({ name: 'FlowCanvas' })
+      .vm.$emit('update:archivedOpen', false)
+    await wrapper.vm.$nextTick()
+    expect(
+      wrapper
+        .find('[data-testid="flow-canvas"]')
+        .attributes('data-archived-open'),
+    ).toBe('false')
   })
 
   it('shows green Live when the API is ok and the poller is fresh', async () => {

@@ -18,6 +18,7 @@ import { client } from '@/api/client'
 import { Button } from '@/components/ui/button'
 import NodePalette from '@/components/NodePalette.vue'
 import ActionInvocationsSheet from '@/components/ActionInvocationsSheet.vue'
+import ArchivedActionsSheet from '@/components/ArchivedActionsSheet.vue'
 import OutcomeInvocationsSheet from '@/components/OutcomeInvocationsSheet.vue'
 import { nodeTypes } from '@/components/nodes/nodeTypes'
 import { refreshApiHealth } from '@/composables/useApiHealth'
@@ -47,8 +48,18 @@ import {
   type OutcomeRead,
   type Position,
 } from '@/lib/connectRules'
-import { isNodeKind, NODE_KIND_MIME, nodeLabel } from '@/lib/nodeKinds'
+import {
+  ARCHIVED_ACTION_MIME,
+  isNodeKind,
+  NODE_KIND_MIME,
+  nodeLabel,
+} from '@/lib/nodeKinds'
 import { outcomeCountLabel } from '@/lib/outcomeKinds'
+
+const props = withDefaults(defineProps<{ archivedOpen?: boolean }>(), {
+  archivedOpen: false,
+})
+const emit = defineEmits<{ 'update:archivedOpen': [value: boolean] }>()
 
 const RESIZE_DEBOUNCE_MS = 100
 
@@ -559,6 +570,31 @@ async function refreshInvocations() {
   await Promise.all([loadCanvas(), refreshApiHealth()])
 }
 
+const archivedSheet = ref<InstanceType<typeof ArchivedActionsSheet> | null>(
+  null,
+)
+
+async function restoreArchived(id: string, position?: Position) {
+  try {
+    const { data } = await client.POST(
+      '/api/canvas/nodes/action/{node_id}/restore',
+      {
+        params: { path: { node_id: id } },
+        body: position === undefined ? null : { position },
+      },
+    )
+    if (!data) return
+    archivedSheet.value?.remove?.(id)
+    if (loadPromise) await loadPromise
+    if (loadError.value || findNode(data.id)) return
+    const node = mapNode(data)
+    nodeSnapshots.set(node.id, copyNode(node))
+    addNodes([node])
+  } catch {
+    // The node was never added locally, so there is nothing to revert.
+  }
+}
+
 async function createNode(kind: NodeKind, position: Position) {
   try {
     const { data } = await client.POST('/api/canvas/nodes/{kind}', {
@@ -579,21 +615,36 @@ async function createNode(kind: NodeKind, position: Position) {
 
 function onDragOver(event: DragEvent) {
   if (creationBlocked.value) return
-  if (!event.dataTransfer?.types.includes(NODE_KIND_MIME)) return
+  const transfer = event.dataTransfer
+  if (
+    !transfer?.types.includes(NODE_KIND_MIME) &&
+    !transfer?.types.includes(ARCHIVED_ACTION_MIME)
+  ) {
+    return
+  }
   event.preventDefault()
-  event.dataTransfer.dropEffect = 'move'
+  transfer.dropEffect = 'move'
 }
 
 function onDrop(event: DragEvent) {
   if (creationBlocked.value) return
-  if (!event.dataTransfer?.types.includes(NODE_KIND_MIME)) return
-  const kind = event.dataTransfer.getData(NODE_KIND_MIME)
-  if (!isNodeKind(kind)) return
-  event.preventDefault()
+  const transfer = event.dataTransfer
+  if (!transfer) return
   const position = screenToFlowCoordinate({
     x: event.clientX,
     y: event.clientY,
   })
+  if (transfer.types.includes(ARCHIVED_ACTION_MIME)) {
+    const id = transfer.getData(ARCHIVED_ACTION_MIME)
+    if (!id) return
+    event.preventDefault()
+    void restoreArchived(id, position)
+    return
+  }
+  if (!transfer.types.includes(NODE_KIND_MIME)) return
+  const kind = transfer.getData(NODE_KIND_MIME)
+  if (!isNodeKind(kind)) return
+  event.preventDefault()
   void createNode(kind, position)
 }
 
@@ -734,6 +785,12 @@ onUnmounted(() => {
         v-model:open="actionSheetOpen"
         :node-id="selectedActionSheetId"
         :action-name="selectedActionName"
+      />
+      <ArchivedActionsSheet
+        ref="archivedSheet"
+        :open="props.archivedOpen"
+        @update:open="emit('update:archivedOpen', $event)"
+        @restore="restoreArchived"
       />
     </div>
   </div>

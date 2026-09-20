@@ -16,6 +16,7 @@ export type OutcomeUpdate = Schemas['OutcomeUpdate']
 export type OutcomeKind = NonNullable<OutcomeRead['kind']>
 export type OutcomeInvocationRead = Schemas['OutcomeInvocationRead']
 export type ActionInvocationRead = Schemas['ActionInvocationRead']
+export type ArchivedActionRead = Schemas['ArchivedActionRead']
 export type IssueRef = Schemas['IssueRef']
 
 export type CanvasEdge = {
