@@ -27,12 +27,14 @@ _Avoid_: Source, event node, input
 **Action node**:
 A node describing the Devin session to start: a Playbook plus optional
 extra instructions, and a user friendly name. Owns exactly one Automation
-and carries its enabled switch. An Action node is never deleted, only
-archived.
+and carries its enabled switch. An Action node that owns an Automation is
+archived, never deleted; one without an Automation owns no Invocations
+and is deleted outright.
 _Avoid_: Task, step, output
 
 **Archived Action**:
-An Action node removed from the Canvas by the user. It keeps its
+An Action node with an Automation, removed from the Canvas by the user.
+It keeps its
 identity, settings, Automation and every Invocation forever, and can be
 restored to the Canvas with no Edges. Its Invocations keep being
 mirrored while archived, so restoring surfaces every metric. Archiving
