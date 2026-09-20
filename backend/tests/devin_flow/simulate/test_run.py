@@ -13,7 +13,7 @@ from .conftest import SCENARIO_PATH
 def test_run_schedules_and_records_issues(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    scenario = load_scenario(SCENARIO_PATH)
+    scenario = load_scenario(SCENARIO_PATH, default_repository="xlm/superset")
     calls: list[str] = []
     clock = [0.0]
 
@@ -60,11 +60,13 @@ def test_run_refuses_changed_target(
     monkeypatch.setattr(github, "get_branch_sha", lambda repo, branch: "changed")
     with pytest.raises(RuntimeError, match="changed since Reset"):
         run.run(
-            load_scenario(SCENARIO_PATH),
+            load_scenario(SCENARIO_PATH, default_repository="xlm/superset"),
             state={
                 "repository": "xlm/superset",
                 "default_branch": "master",
-                "baseline": load_scenario(SCENARIO_PATH).baseline,
+                "baseline": load_scenario(
+                    SCENARIO_PATH, default_repository="xlm/superset"
+                ).baseline,
                 "reset_sha": "reset",
             },
             work_dir=tmp_path,
@@ -74,7 +76,7 @@ def test_run_refuses_changed_target(
 def test_run_refuses_existing_run_file(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    scenario = load_scenario(SCENARIO_PATH)
+    scenario = load_scenario(SCENARIO_PATH, default_repository="xlm/superset")
     (tmp_path / ".simulate-run.json").write_text("{}")
     monkeypatch.setattr(
         github,
@@ -99,7 +101,7 @@ def test_run_refuses_existing_run_file(
 def test_run_persists_partial_progress(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    scenario = load_scenario(SCENARIO_PATH)
+    scenario = load_scenario(SCENARIO_PATH, default_repository="xlm/superset")
     calls = 0
 
     monkeypatch.setattr(github, "get_branch_sha", lambda repo, branch: "reset")
@@ -130,7 +132,7 @@ def test_run_persists_partial_progress(
 
 
 def test_run_rejects_different_or_legacy_state(tmp_path: Path) -> None:
-    scenario = load_scenario(SCENARIO_PATH)
+    scenario = load_scenario(SCENARIO_PATH, default_repository="xlm/superset")
     state = {
         "repository": scenario.repository,
         "default_branch": scenario.default_branch,

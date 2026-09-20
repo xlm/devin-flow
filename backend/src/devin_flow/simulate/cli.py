@@ -39,9 +39,11 @@ def _add_shared_options(parser: argparse.ArgumentParser) -> None:
 
 def main() -> None:
     args = build_parser().parse_args()
-    scenario = load_scenario(args.scenario)
+    settings = get_settings()
+    scenario = load_scenario(
+        args.scenario, default_repository=settings.seed_repository_full_name
+    )
     if args.command == "reset":
-        settings = get_settings()
         with Session(db.get_engine()) as session:
             reset.reset(
                 scenario,

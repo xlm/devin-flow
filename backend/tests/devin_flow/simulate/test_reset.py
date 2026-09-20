@@ -93,7 +93,7 @@ def test_reset_cleans_state_and_wipes_connected_flow(
     unit_session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    scenario = load_scenario(SCENARIO_PATH)
+    scenario = load_scenario(SCENARIO_PATH, default_repository="xlm/superset")
     calls: list[tuple[str, Any]] = []
     tmp_path.mkdir(exist_ok=True)
     reset.repo_dir(tmp_path).mkdir()
@@ -275,7 +275,7 @@ def test_reset_terminates_upstream_sessions(
     unit_session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    scenario = load_scenario(SCENARIO_PATH)
+    scenario = load_scenario(SCENARIO_PATH, default_repository="xlm/superset")
     reset.repo_dir(tmp_path).mkdir(parents=True)
     action = _add_connected_action(unit_session, scenario.repository, "automation-1")
     unit_session.add(
@@ -363,7 +363,7 @@ def test_reset_wipes_two_connected_actions(
     unit_session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    scenario = load_scenario(SCENARIO_PATH)
+    scenario = load_scenario(SCENARIO_PATH, default_repository="xlm/superset")
     reset.repo_dir(tmp_path).mkdir(parents=True)
     trigger_id = uuid4()
     action_ids = [uuid4(), uuid4()]
@@ -489,7 +489,7 @@ def test_reset_rejects_empty_flow(
         RuntimeError, match="no enabled Action using the Issue triage Playbook"
     ):
         reset.reset(
-            load_scenario(SCENARIO_PATH),
+            load_scenario(SCENARIO_PATH, default_repository="xlm/superset"),
             work_dir=tmp_path,
             session=unit_session,
             devin_client=cast(Any, _valid_client()),
@@ -501,7 +501,7 @@ def test_reset_ignores_archived_action(
     unit_session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    scenario = load_scenario(SCENARIO_PATH)
+    scenario = load_scenario(SCENARIO_PATH, default_repository="xlm/superset")
     _add_connected_action(
         unit_session,
         scenario.repository,
@@ -539,7 +539,7 @@ def test_reset_rejects_ineligible_action(
     monkeypatch: pytest.MonkeyPatch,
     overrides: dict[str, Any],
 ) -> None:
-    scenario = load_scenario(SCENARIO_PATH)
+    scenario = load_scenario(SCENARIO_PATH, default_repository="xlm/superset")
     _add_connected_action(
         unit_session,
         scenario.repository,
@@ -567,7 +567,7 @@ def test_reset_leaves_other_repository_action_untouched(
     unit_session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    scenario = load_scenario(SCENARIO_PATH)
+    scenario = load_scenario(SCENARIO_PATH, default_repository="xlm/superset")
     target = _add_connected_action(unit_session, scenario.repository, "target")
     foreign = _add_connected_action(unit_session, "other/repository", "foreign")
     unit_session.add_all(
@@ -629,7 +629,7 @@ def test_reset_rejects_checkout_for_different_repository(
     unit_session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    scenario = load_scenario(SCENARIO_PATH)
+    scenario = load_scenario(SCENARIO_PATH, default_repository="xlm/superset")
     reset.repo_dir(tmp_path).mkdir(parents=True)
     _add_connected_action(unit_session, scenario.repository, "auto")
     calls: list[str] = []
@@ -667,7 +667,7 @@ def test_reset_rejects_scenario_for_different_seed_repository(
     unit_session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    scenario = load_scenario(SCENARIO_PATH)
+    scenario = load_scenario(SCENARIO_PATH, default_repository="xlm/superset")
     _add_connected_action(unit_session, scenario.repository, "auto")
     calls: list[str] = []
     monkeypatch.setattr(
@@ -705,7 +705,7 @@ def test_reset_rejects_scenario_for_different_default_branch(
     unit_session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    scenario = load_scenario(SCENARIO_PATH)
+    scenario = load_scenario(SCENARIO_PATH, default_repository="xlm/superset")
     _add_connected_action(unit_session, scenario.repository, "auto")
     state_path = tmp_path / ".simulate-state.json"
     state_path.write_text("existing state\n")
@@ -743,7 +743,7 @@ def test_reset_rejects_checkout_without_origin(
     unit_session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    scenario = load_scenario(SCENARIO_PATH)
+    scenario = load_scenario(SCENARIO_PATH, default_repository="xlm/superset")
     reset.repo_dir(tmp_path).mkdir(parents=True)
     _add_connected_action(unit_session, scenario.repository, "auto")
     monkeypatch.setattr(github, "require_admin", lambda repo: None)
@@ -789,7 +789,7 @@ def test_reset_rejects_missing_playbook_before_destructive_work(
     )
     with pytest.raises(RuntimeError, match="playbook 'Issue triage' not found"):
         reset.reset(
-            load_scenario(SCENARIO_PATH),
+            load_scenario(SCENARIO_PATH, default_repository="xlm/superset"),
             work_dir=tmp_path,
             session=unit_session,
             devin_client=cast(
@@ -841,7 +841,7 @@ def test_reset_rejects_playbook_without_issue_number(
         ),
     ):
         reset.reset(
-            load_scenario(SCENARIO_PATH),
+            load_scenario(SCENARIO_PATH, default_repository="xlm/superset"),
             work_dir=tmp_path,
             session=unit_session,
             devin_client=cast(Any, client),
@@ -854,7 +854,7 @@ def test_reset_rejects_missing_poison_patch_before_destructive_work(
     unit_session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    scenario = load_scenario(SCENARIO_PATH)
+    scenario = load_scenario(SCENARIO_PATH, default_repository="xlm/superset")
     scenario.patch_dir = tmp_path / "patches"
     _add_connected_action(unit_session, scenario.repository, "auto")
     calls: list[str] = []
@@ -908,7 +908,7 @@ def test_git_and_branch_helpers(
         reset._git(tmp_path, "status")
         == "sha-fix\trefs/heads/devin/123-fix\nsha-master\trefs/heads/master"
     )
-    scenario = load_scenario(SCENARIO_PATH)
+    scenario = load_scenario(SCENARIO_PATH, default_repository="xlm/superset")
     assert reset._git_branches(scenario, tmp_path) == ["devin/123-fix"]
     assert calls[0][0] == ["git", *reset.GIT_CREDENTIAL_ARGS, "status"]
 
@@ -924,16 +924,16 @@ def test_git_branches_ignores_malformed_refs(
             "sha-fix\trefs/heads/devin/123-fix\nsha-master\trefs/heads/master"
         ),
     )
-    assert reset._git_branches(load_scenario(SCENARIO_PATH), tmp_path) == [
-        "devin/123-fix"
-    ]
+    assert reset._git_branches(
+        load_scenario(SCENARIO_PATH, default_repository="xlm/superset"), tmp_path
+    ) == ["devin/123-fix"]
     assert reset._normalize_repository("local/repository") == "local/repository"
 
 
 def test_reset_clones_missing_worktree(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, unit_session: Session
 ) -> None:
-    scenario = load_scenario(SCENARIO_PATH)
+    scenario = load_scenario(SCENARIO_PATH, default_repository="xlm/superset")
     work_dir = tmp_path / "clone"
     clone_calls: list[Any] = []
     monkeypatch.setattr(github, "require_admin", lambda repo: None)
@@ -986,7 +986,7 @@ def test_reset_handles_session_termination_without_wiping(
     unit_session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    scenario = load_scenario(SCENARIO_PATH)
+    scenario = load_scenario(SCENARIO_PATH, default_repository="xlm/superset")
     from devin_flow.models import Invocation
 
     reset.repo_dir(tmp_path).mkdir(parents=True)
@@ -1045,4 +1045,10 @@ def test_reset_handles_session_termination_without_wiping(
 
 
 def test_reset_git_branches_ignores_missing_worktree(tmp_path: Path) -> None:
-    assert reset._git_branches(load_scenario(SCENARIO_PATH), tmp_path / "missing") == []
+    assert (
+        reset._git_branches(
+            load_scenario(SCENARIO_PATH, default_repository="xlm/superset"),
+            tmp_path / "missing",
+        )
+        == []
+    )

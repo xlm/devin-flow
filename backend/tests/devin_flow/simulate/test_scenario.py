@@ -8,7 +8,7 @@ from .conftest import SCENARIO_PATH
 
 
 def test_packaged_scenario_has_expected_issue_phases() -> None:
-    scenario = load_scenario(SCENARIO_PATH)
+    scenario = load_scenario(SCENARIO_PATH, default_repository="xlm/superset")
     assert len(scenario.poisons) == 3
     assert scenario.patch_dir == SCENARIO_PATH.resolve().parent / "patches"
     assert [issue.phase for issue in scenario.issues] == [
@@ -34,7 +34,9 @@ def test_packaged_scenario_has_expected_issue_phases() -> None:
 def test_scenario_rejects_invalid_ids(
     field: str, message: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    scenario = load_scenario(SCENARIO_PATH).model_dump()
+    scenario = load_scenario(
+        SCENARIO_PATH, default_repository="xlm/superset"
+    ).model_dump()
     if field == "baseline":
         scenario[field] = "not-a-sha"
     elif field == "poisons":
@@ -46,38 +48,52 @@ def test_scenario_rejects_invalid_ids(
 
 
 def test_scenario_rejects_phase_and_duplicate_rules() -> None:
-    scenario = load_scenario(SCENARIO_PATH).model_dump()
+    scenario = load_scenario(
+        SCENARIO_PATH, default_repository="xlm/superset"
+    ).model_dump()
     scenario["issues"][0]["phase"] = "filler"
     with pytest.raises(ValueError, match="ordered"):
         Scenario.model_validate(scenario)
 
-    scenario = load_scenario(SCENARIO_PATH).model_dump()
+    scenario = load_scenario(
+        SCENARIO_PATH, default_repository="xlm/superset"
+    ).model_dump()
     scenario["issues"][-1]["duplicate_of"] = "missing"
     with pytest.raises(ValueError, match="reference"):
         Scenario.model_validate(scenario)
 
-    scenario = load_scenario(SCENARIO_PATH).model_dump()
+    scenario = load_scenario(
+        SCENARIO_PATH, default_repository="xlm/superset"
+    ).model_dump()
     scenario["issues"][-1]["duplicate_of"] = None
     with pytest.raises(ValueError, match="require"):
         Scenario.model_validate(scenario)
 
-    scenario = load_scenario(SCENARIO_PATH).model_dump()
+    scenario = load_scenario(
+        SCENARIO_PATH, default_repository="xlm/superset"
+    ).model_dump()
     scenario["issues"][0]["duplicate_of"] = "date-parser-offset"
     with pytest.raises(ValueError, match="only valid"):
         Scenario.model_validate(scenario)
 
-    scenario = load_scenario(SCENARIO_PATH).model_dump()
+    scenario = load_scenario(
+        SCENARIO_PATH, default_repository="xlm/superset"
+    ).model_dump()
     scenario["issues"][0]["id"] = "missing-poison"
     scenario["issues"] = scenario["issues"][:6]
     with pytest.raises(ValueError, match="fixed originals"):
         Scenario.model_validate(scenario)
 
-    scenario = load_scenario(SCENARIO_PATH).model_dump()
+    scenario = load_scenario(
+        SCENARIO_PATH, default_repository="xlm/superset"
+    ).model_dump()
     scenario["poisons"][0]["patch"] = "../escape.patch"
     with pytest.raises(ValueError):
         Scenario.model_validate(scenario)
 
-    scenario = load_scenario(SCENARIO_PATH).model_dump()
+    scenario = load_scenario(
+        SCENARIO_PATH, default_repository="xlm/superset"
+    ).model_dump()
     scenario["poisons"].append(
         {
             "id": "unused",
@@ -97,7 +113,27 @@ def test_scenario_resolves_patches_beside_file(tmp_path: Path) -> None:
     patch_path = patch_dir / "date-parser-offset.patch"
     patch_path.write_text("")
 
-    scenario = load_scenario(scenario_path)
+    scenario = load_scenario(scenario_path, default_repository="xlm/superset")
 
     assert scenario.patch_dir == patch_dir
     assert scenario.patch_path(scenario.poisons[0]) == patch_path
+
+
+def test_packaged_scenario_uses_default_repository() -> None:
+    scenario = load_scenario(SCENARIO_PATH, default_repository="me/superset")
+
+    assert scenario.repository == "me/superset"
+
+
+def test_scenario_repository_overrides_default(tmp_path: Path) -> None:
+    scenario_path = tmp_path / "scenario.toml"
+    scenario_path.write_text(
+        SCENARIO_PATH.read_text().replace(
+            'default_branch = "master"\n',
+            'repository = "other/superset"\ndefault_branch = "master"\n',
+        )
+    )
+
+    scenario = load_scenario(scenario_path, default_repository="me/superset")
+
+    assert scenario.repository == "other/superset"
