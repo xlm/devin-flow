@@ -125,6 +125,27 @@ to `FlowCanvas.vue` as unverified until it has run in the real browser.
    original matching rows and no load-error alert. A subsequent successful
    picker change must clear the save alert and refresh the count.
 
+## Archived Actions
+
+Deleting an Action node archives it (DELETE `/api/canvas/nodes/action/{id}`
+sets `archived_at` only when the Action has an `automation_id`, so seed a
+configured Action or insert the column directly for fixtures). Archived
+Actions keep their Invocations and keep being polled.
+
+1. Open the sheet with the `archived-actions-button` in the top-right
+   toolbar. It is non-modal so rows can be dragged onto the Canvas behind
+   it. Rows list name, playbook, invocation count and archived date from
+   GET `/api/canvas/archived-actions`.
+2. The Restore button (`archived-restore`) calls
+   POST `/api/canvas/nodes/action/{id}/restore` with no body and brings the
+   node back at its old position. Dragging a row onto the Canvas posts the
+   same restore with the drop position. The row leaves the sheet on
+   success; the node reappears in GET `/api/canvas` with its count.
+3. Restore creates no Edges and does not touch Devin: `sync_status`,
+   `enabled` and `automation_id` survive unchanged. Redraw edges to make
+   the Action a Flow again. Relevant selectors: `archived-sheet`,
+   `archived-action`, `archived-empty`, `archived-error`, `archived-retry`.
+
 ## Load-error recovery
 
 With persisted nodes present, stop the backend process and confirm its port
