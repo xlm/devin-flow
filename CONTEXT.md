@@ -90,8 +90,8 @@ recreated, so its Automation is stable across runs.
 _Avoid_: Default flow, demo flow, fixture
 
 **Target repository**:
-The GitHub repository the Seed Flow triggers on and the Simulator files
-issues against. A test bed whose default branch is overwritten on every
+The GitHub repository a manually built Flow triggers on and the Simulator
+files issues against. A test bed whose default branch is overwritten on every
 Reset.
 _Avoid_: Fork, superset, victim
 
@@ -129,7 +129,9 @@ filler or duplicate. Every original precedes every duplicate.
 _Avoid_: Stage, bucket, wave
 
 **Reset**:
-Returning the Target repository and the Seed Flow to the Scenario's start
-state: sessions terminated, issues and pull requests removed, default
-branch set to Baseline plus Poisoned bugs, Invocations cleared.
+Returning the Target repository and every non-archived Action connected to a
+Trigger for it to the Scenario's start state: sessions terminated, issues and
+pull requests removed, default branch set to Baseline plus Poisoned bugs,
+Invocations cleared. Users build the Flow on the Canvas first; `uv run seed`
+is an optional shortcut.
 _Avoid_: Cleanup, rollback, restore

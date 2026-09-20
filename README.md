@@ -80,9 +80,12 @@ Test fixtures pass no playbook and call the same function.
 
 ## Issue simulator
 
-The Issue simulator resets the Target repository to the Scenario's pinned
-Baseline plus its Poisoned bugs, then files the ordered Simulated issues across
-the configured run window so a running Seed Flow can be watched end to end.
+The Issue simulator requires a Flow built manually on the Canvas. Its Trigger
+must target the Scenario repository, and every non-archived Action wired to
+that Trigger is reset. It then resets the Target repository to the Scenario's
+pinned Baseline plus its Poisoned bugs and files the ordered Simulated issues
+across the configured run window. `uv run seed` is an optional shortcut for
+building the Flow.
 
 Before running it, ensure that:
 
@@ -97,6 +100,9 @@ Before running it, ensure that:
   available.
 - `SEED_REPOSITORY_FULL_NAME` is set to the Target repository. Reset rejects
   scenarios for any other repository.
+- A Canvas Flow is connected to a Trigger targeting the Target repository.
+  Reset requires at least one non-archived Action with an Automation connected
+  to that Trigger. `uv run seed` is an optional shortcut for creating one.
 - The Devin GitHub connection's Automation scope is set to **All installed
   repos**, because the Target repository is public.
 
