@@ -7,7 +7,7 @@ status: accepted
 The Devin API has no outbound webhooks or event stream, only inbound
 webhook triggers. To show invocation and outcome counts on the canvas we
 mirror sessions into an `invocation` table in our own database, refreshed
-by a poller inside the FastAPI lifespan (every 30 seconds, plus a manual
+by a poller inside the FastAPI lifespan (every 15 seconds, plus a manual
 refresh), rather than querying Devin live on every canvas load.
 
 ## Considered options

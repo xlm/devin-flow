@@ -25,7 +25,7 @@ def test_defaults() -> None:
     assert settings.devin_api_token == "test-token"
     assert settings.devin_api_base_url == "https://api.devin.ai/v3"
     assert settings.devin_org_id == "org-test"
-    assert settings.poll_interval_seconds == 30
+    assert settings.poll_interval_seconds == 15
     assert DEFAULT_STATIC_DIR.parts[-2:] == ("frontend", "dist")
 
 
