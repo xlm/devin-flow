@@ -26,6 +26,7 @@ class Invocation(SQLModel, table=True):
     )
     session_created_at: datetime = Field(sa_type=TIMESTAMP)
     session_updated_at: datetime = Field(sa_type=TIMESTAMP)
+    archived_at: datetime | None = Field(default=None, sa_type=TIMESTAMP, nullable=True)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
         sa_type=TIMESTAMP,

@@ -195,6 +195,14 @@ class DevinClient:
             response.raise_for_status()
             return DevinSession.model_validate(response.json())
 
+    def archive_session(self, session_id: str) -> DevinSession:
+        with _upstream_errors():
+            response = self.http.post(
+                f"/organizations/{self.org_id}/sessions/{session_id}/archive"
+            )
+            response.raise_for_status()
+            return DevinSession.model_validate(response.json())
+
     def list_playbooks(self) -> list[Playbook]:
         with _upstream_errors():
             playbooks: list[Playbook] = []

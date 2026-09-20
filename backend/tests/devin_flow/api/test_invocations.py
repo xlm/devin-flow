@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from sqlmodel import Session, select
 
 from devin_flow.devin import DevinClient, get_devin_client
+from devin_flow.devin.client import DevinNotConfiguredError
 from devin_flow.models import ActionNode, Invocation, PollerState
 
 
@@ -92,3 +93,83 @@ def test_refresh_reports_upstream_failure(
     assert response.status_code == 502
     assert response.json() == {"detail": "devin api returned HTTP 500"}
     assert unit_session.get(PollerState, 1) is None
+
+
+def add_invocation(session: Session) -> Invocation:
+    action = add_action(session, "auto-1")
+    now = datetime.now(UTC)
+    invocation = Invocation(
+        session_id="session-archive",
+        automation_id="auto-1",
+        action_node_id=action.id,
+        status="running",
+        session_created_at=now,
+        session_updated_at=now,
+    )
+    session.add(invocation)
+    session.commit()
+    session.refresh(invocation)
+    return invocation
+
+
+def test_archive_invocation_returns_no_content_and_updates_row(
+    unit_client: TestClient, unit_session: Session
+) -> None:
+    invocation = add_invocation(unit_session)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path.endswith("/sessions/session-archive/archive")
+        return httpx.Response(
+            200,
+            json={"session_id": "session-archive", "status": "exit"},
+        )
+
+    install_upstream(unit_client, httpx.MockTransport(handler))
+    response = unit_client.post(f"/api/invocations/{invocation.id}/archive")
+    assert response.status_code == 204
+    assert response.content == b""
+    archived = unit_session.get(Invocation, invocation.id)
+    assert archived is not None
+    assert archived.archived_at is not None
+    assert archived.status == "exit"
+
+
+def test_archive_invocation_returns_not_found(
+    unit_client: TestClient, unit_session: Session
+) -> None:
+    response = unit_client.post(
+        "/api/invocations/00000000-0000-0000-0000-000000000001/archive"
+    )
+    assert response.status_code == 404
+
+
+def test_archive_invocation_reports_upstream_failure(
+    unit_client: TestClient, unit_session: Session
+) -> None:
+    invocation = add_invocation(unit_session)
+    install_upstream(
+        unit_client,
+        httpx.MockTransport(lambda _request: httpx.Response(500, text="boom")),
+    )
+    response = unit_client.post(f"/api/invocations/{invocation.id}/archive")
+    assert response.status_code == 502
+    assert response.json() == {"detail": "devin api returned HTTP 500"}
+    stored = unit_session.get(Invocation, invocation.id)
+    assert stored is not None
+    assert stored.archived_at is None
+
+
+def test_archive_invocation_reports_missing_configuration(
+    unit_client: TestClient, unit_session: Session
+) -> None:
+    invocation = add_invocation(unit_session)
+
+    def missing_client() -> DevinClient:
+        raise DevinNotConfiguredError("missing")
+
+    cast(FastAPI, unit_client.app).dependency_overrides[get_devin_client] = (
+        missing_client
+    )
+    response = unit_client.post(f"/api/invocations/{invocation.id}/archive")
+    assert response.status_code == 503

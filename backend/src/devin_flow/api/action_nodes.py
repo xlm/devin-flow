@@ -42,7 +42,10 @@ def list_action_invocations(
             repository_full_name = trigger.repository_full_name
     invocations = session.exec(
         select(Invocation)
-        .where(col(Invocation.action_node_id) == node_id)
+        .where(
+            col(Invocation.action_node_id) == node_id,
+            col(Invocation.archived_at).is_(None),
+        )
         .order_by(col(Invocation.session_created_at).desc())
     ).all()
     return [
