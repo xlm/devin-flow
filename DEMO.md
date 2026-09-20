@@ -66,7 +66,7 @@ uv run simulate-issues reset
 uv run simulate-issues run --report
 ```
 
-Issues start appearing on the fork right away, eight over three minutes: the
+Issues start appearing on the fork right away, eight over 10 seconds: the
 three poisoned bugs, then a feature request and two fake reports, then two
 duplicates. Within a poll interval (15s) each shows up as an Invocation on the
 Action. As sessions finish, the Outcome counts move, and clicking an Outcome

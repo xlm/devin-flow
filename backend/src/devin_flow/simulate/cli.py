@@ -38,7 +38,7 @@ def _add_shared_options(parser: argparse.ArgumentParser) -> None:
 
 
 def _add_report_options(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--timeout", type=float, default=45 * 60)
+    parser.add_argument("--timeout", type=float, default=10 * 60)
     parser.add_argument("--flow-url", default="http://localhost:8000")
 
 

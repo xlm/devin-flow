@@ -1,6 +1,6 @@
 default_branch = "master"
 baseline = "3cc432d2e64899c78f162e2b897d712e6fc2ae40"
-window_seconds = 180
+window_seconds = 10
 
 [[poisons]]
 id = "date-parser-offset"

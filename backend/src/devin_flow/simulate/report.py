@@ -16,7 +16,7 @@ def report(
     *,
     work_dir: Path,
     flow_url: str = "http://localhost:8000",
-    timeout: float = 45 * 60,
+    timeout: float = 10 * 60,
     sleep: Callable[[float], None] = time.sleep,
     now: Callable[[], float] = time.monotonic,
     http: httpx.Client | None = None,
