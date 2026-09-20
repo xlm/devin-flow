@@ -1,5 +1,14 @@
 # devin-flow
 
+A visual editor for creating event-driven workflows for Devin via the Automations API,
+as well track the sessions and their outcomes.
+
+## Demo / Simulating Workflows
+
+For running a demonstration or to simulate of the workflow yourself, see [`DEMO.md`](./DEMO.md).
+
+## Repo background
+
 Monorepo with a FastAPI backend and a Vue 3 (Vite, Tailwind, shadcn-vue)
 frontend. The backend serves the built SPA in production.
 
