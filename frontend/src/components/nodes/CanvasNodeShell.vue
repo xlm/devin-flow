@@ -26,6 +26,9 @@ const props = withDefaults(
   { complete: false },
 )
 
+// Overrides Vue Flow's 6px round handle so it reads as a bar along the edge.
+const HANDLE_SHAPE_CLASS = 'h-1.5! w-10! rounded-sm! border-0!'
+
 const { removeNodes } = useVueFlow()
 const statusLabel = computed(
   () => props.status ?? (props.complete ? 'Ready' : 'Incomplete'),
@@ -66,12 +69,12 @@ const statusLabel = computed(
     v-if="NODE_HANDLES[props.kind].target"
     type="target"
     :position="Position.Top"
-    :class="nodeHandleClass(props.kind, 'target')"
+    :class="[HANDLE_SHAPE_CLASS, nodeHandleClass(props.kind, 'target')]"
   />
   <Handle
     v-if="NODE_HANDLES[props.kind].source"
     type="source"
     :position="Position.Bottom"
-    :class="nodeHandleClass(props.kind, 'source')"
+    :class="[HANDLE_SHAPE_CLASS, nodeHandleClass(props.kind, 'source')]"
   />
 </template>
