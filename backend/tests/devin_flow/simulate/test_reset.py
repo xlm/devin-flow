@@ -60,6 +60,7 @@ def _seed_enabled_action(session: Session, **kwargs: Any) -> None:
 @pytest.fixture(autouse=True)
 def no_seed_sync(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(automations, "sync_action", lambda *args: None)
+    monkeypatch.setattr(invocations, "poll_once", lambda *args: None)
 
 
 def test_reset_cleans_state_and_seeds(
@@ -152,6 +153,11 @@ def test_reset_cleans_state_and_seeds(
         "get_poller_state",
         get_poller_state_spy,
     )
+    monkeypatch.setattr(
+        invocations,
+        "poll_once",
+        lambda session, client: poller_events.append("poll"),
+    )
 
     original_delete = cast(Any, reset).delete
 
@@ -224,7 +230,13 @@ def test_reset_cleans_state_and_seeds(
     }
     assert not (tmp_path / ".simulate-run.json").exists()
     assert sync_calls == [SEED_ACTION_ID]
-    assert poller_events[:2] == ["lock", "delete"]
+    reset_index = calls.index(("git", ("reset", "--hard", scenario.baseline)))
+    clean_index = calls.index(("git", ("clean", "-fdx")))
+    apply_index = calls.index(
+        ("git", ("apply", str(scenario.patch_path(scenario.poisons[0]))))
+    )
+    assert reset_index < clean_index < apply_index
+    assert poller_events[:3] == ["poll", "lock", "delete"]
 
 
 def test_reset_terminates_upstream_sessions(
