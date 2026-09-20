@@ -122,6 +122,11 @@ function invocationLabel(count: number): string {
   return `${count} ${count === 1 ? 'invocation' : 'invocations'}`
 }
 
+/** The Action endpoint of an edge: target for Trigger->Action, source for Action->Outcome. */
+function connectedActionId(edge: EdgeRead): string {
+  return edge.target.kind === 'action' ? edge.target.id : edge.source.id
+}
+
 function mapEdge(
   edge: EdgeRead,
   counts: Map<string, number>,
@@ -141,15 +146,7 @@ function mapEdge(
     mapped.label = outcomeCountLabel(edge.outcome_count ?? 0)
     mapped.class = 'cursor-pointer'
   }
-  const actionId =
-    edge.target.kind === 'action'
-      ? edge.target.id
-      : edge.source.kind === 'action'
-        ? edge.source.id
-        : undefined
-  if (actionId !== undefined) {
-    mapped.animated = liveActionIds.has(actionId)
-  }
+  mapped.animated = liveActionIds.has(connectedActionId(edge))
   return mapped
 }
 
