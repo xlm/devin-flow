@@ -6,6 +6,7 @@ import pytest
 
 from devin_flow import playbooks
 from devin_flow.devin.client import DevinClient
+from devin_flow.outcomes import STRUCTURED_OUTCOMES
 from devin_flow.playbooks import (
     PLAYBOOKS_DIR,
     load_playbook,
@@ -273,3 +274,20 @@ def test_repo_playbooks_load() -> None:
     assert playbook.title == "Issue triage"
     assert playbook.structured_output_schema is not None
     assert playbook.structured_output_schema["title"] == "IssueTriageOutcome"
+
+
+def test_issue_triage_schema_matches_outcome_readers() -> None:
+    schema = load_playbook(PLAYBOOKS_DIR / "issue-triage.md").structured_output_schema
+    assert schema is not None
+    properties = schema["properties"]
+    assert set(properties["outcome"]["enum"]) == STRUCTURED_OUTCOMES | {"fixed"}
+    assert {
+        "outcome",
+        "duplicate_of",
+        "issue_url",
+        "issue_number",
+        "issue_title",
+    } <= set(properties)
+    assert {"issue_url", "issue_number", "issue_title"} <= set(schema["required"])
+    assert properties["issue_number"]["type"] == "integer"
+    assert properties["issue_title"]["type"] == "string"
