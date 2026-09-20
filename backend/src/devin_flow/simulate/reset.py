@@ -10,7 +10,7 @@ from devin_flow.config import get_settings
 from devin_flow.devin import DevinClient
 from devin_flow.devin.client import TERMINAL_SESSION_STATUSES
 from devin_flow.models import ActionNode, Invocation
-from devin_flow.seed import SEED_ACTION_ID, seed
+from devin_flow.seed import SEED_ACTION_ID, find_seed_playbook, seed
 from devin_flow.simulate import github
 from devin_flow.simulate.scenario import Scenario
 
@@ -64,14 +64,13 @@ def reset(
     wipe_invocations: bool = True,
 ) -> str:
     settings = get_settings()
-    playbook_id = settings.seed_playbook_id
-    if playbook_id is None:
-        raise RuntimeError("SEED_PLAYBOOK_ID is required for reset")
-    playbooks = devin_client.list_playbooks()
-    playbook = next(
-        (playbook for playbook in playbooks if playbook.playbook_id == playbook_id),
-        None,
-    )
+    playbook = find_seed_playbook(devin_client)
+    if playbook is None:
+        raise RuntimeError(
+            "playbook 'Issue triage' not found in the Devin org, "
+            "run uv run sync-playbooks"
+        )
+    playbook_id = playbook.playbook_id
     schema = playbook.structured_output_schema if playbook is not None else None
     properties = schema.get("properties") if isinstance(schema, dict) else None
     if not isinstance(properties, dict) or "issue_number" not in properties:

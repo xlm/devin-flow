@@ -1,3 +1,4 @@
+import sys
 from uuid import UUID
 
 from sqlmodel import Session, select
@@ -10,9 +11,11 @@ from devin_flow.canvas import (
     check_edge_uniqueness,
 )
 from devin_flow.config import get_settings
+from devin_flow.devin.client import DevinClient, Playbook, create_client
 from devin_flow.models import ActionNode, Edge, OutcomeKind, OutcomeNode, TriggerNode
 
 SEED_TRIGGER_ID = UUID("00000000-0000-0000-0000-000000000001")
+SEED_PLAYBOOK_TITLE = "Issue triage"
 SEED_ACTION_ID = UUID("00000000-0000-0000-0000-000000000002")
 SEED_OUTCOME_IDS: dict[OutcomeKind, UUID] = {
     "pull_request": UUID("00000000-0000-0000-0000-000000000003"),
@@ -20,6 +23,17 @@ SEED_OUTCOME_IDS: dict[OutcomeKind, UUID] = {
     "not_reproducible": UUID("00000000-0000-0000-0000-000000000005"),
     "not_a_bug": UUID("00000000-0000-0000-0000-000000000006"),
 }
+
+
+def find_seed_playbook(client: DevinClient) -> Playbook | None:
+    return next(
+        (
+            playbook
+            for playbook in client.list_playbooks()
+            if playbook.title == SEED_PLAYBOOK_TITLE
+        ),
+        None,
+    )
 
 
 def _add_edge(session: Session, source: NodeRef, target: NodeRef) -> bool:
@@ -168,10 +182,17 @@ def seed(
 
 def main() -> None:
     settings = get_settings()
+    playbook = find_seed_playbook(create_client(settings))
+    if playbook is None:
+        print(
+            "playbook 'Issue triage' not found in the Devin org, run uv run "
+            "sync-playbooks; Seed Flow left unmanaged",
+            file=sys.stderr,
+        )
     with Session(db.get_engine()) as session:
         seed(
             session,
-            playbook_id=settings.seed_playbook_id,
+            playbook_id=playbook.playbook_id if playbook is not None else None,
             repository_full_name=settings.seed_repository_full_name,
         )
 

@@ -1,10 +1,13 @@
 from datetime import UTC, datetime
+from types import SimpleNamespace
+from typing import cast
 
 import pytest
 from sqlalchemy import Engine
 from sqlmodel import Session, col, delete, select, text
 
 from devin_flow import db, seed
+from devin_flow.devin.client import DevinClient, Playbook
 from devin_flow.models import ActionNode, Edge, OutcomeNode, TriggerNode
 
 
@@ -27,12 +30,32 @@ def test_seed_is_idempotent(unit_session: Session) -> None:
 
 
 def test_main_seeds_configured_engine(
-    monkeypatch: pytest.MonkeyPatch, unit_engine: Engine
+    monkeypatch: pytest.MonkeyPatch,
+    unit_engine: Engine,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.setattr(db, "get_engine", lambda: unit_engine)
+    monkeypatch.setattr(
+        seed,
+        "create_client",
+        lambda settings: SimpleNamespace(list_playbooks=lambda: []),
+    )
     seed.main()
     with Session(unit_engine) as session:
         assert canvas_counts(session) == [0, 0, 0, 0]
+    assert "Seed Flow left unmanaged" in capsys.readouterr().err
+
+
+def test_find_seed_playbook_by_title() -> None:
+    expected = Playbook(playbook_id="playbook-1", title="Issue triage", body="body")
+    client = SimpleNamespace(
+        list_playbooks=lambda: [
+            Playbook(playbook_id="playbook-2", title="Other", body="body"),
+            expected,
+        ]
+    )
+
+    assert seed.find_seed_playbook(cast(DevinClient, client)) == expected
 
 
 def test_seed_inserts_seed_flow_when_playbook_is_configured(
