@@ -18,6 +18,12 @@ GIT_CREDENTIAL_ARGS = (
     "-c",
     "credential.helper=!gh auth git-credential",
 )
+GIT_IDENTITY_ARGS = (
+    "-c",
+    "user.name=devin-flow simulator",
+    "-c",
+    "user.email=simulator@devin-flow.invalid",
+)
 
 
 def _git(work_dir: Path, *args: str) -> str:
@@ -64,11 +70,12 @@ def reset(
         github.delete_branch(scenario.repository, branch)
     _git(work_dir, "fetch", "origin")
     _git(work_dir, "checkout", "-B", scenario.default_branch, scenario.baseline)
+    _git(work_dir, "reset", "--hard", scenario.baseline)
     for poison in scenario.poisons:
         patch = Path(__file__).resolve().parent / poison.patch
         _git(work_dir, "apply", str(patch))
         _git(work_dir, "add", "-A")
-        _git(work_dir, "commit", "-m", f"chore: {poison.id}")
+        _git(work_dir, *GIT_IDENTITY_ARGS, "commit", "-m", f"chore: {poison.id}")
     reset_sha = _git(work_dir, "rev-parse", "HEAD")
     _git(
         work_dir,
