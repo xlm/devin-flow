@@ -90,6 +90,40 @@ to `FlowCanvas.vue` as unverified until it has run in the real browser.
 4. Finish when the rendered graph and its labels match GET after every
    repetition and the console shows no new warnings.
 
+### Enabling an Action and checking edge animation
+
+Select the Action heading to expose its toolbar and Enable/Disable switch.
+Eligibility requires a nonblank Action name, a saved playbook ID, an incoming
+Trigger edge, and a Trigger with event and repository configured. Prompt and
+Outcome configuration are not required for enabling.
+
+When upstream dropdowns are unavailable, seed repository and playbook values
+through the local Canvas API before opening the board, then complete the name
+through the UI. The saved playbook appears as `Unknown Playbook`; this exercises
+the real local renderer but does not verify playbook discovery or Devin sync.
+Sync failure may leave `enabled=true` with `sync_status=error`. The switch
+reflects the requested enabled flag, but edge animation requires
+`sync_status=enabled`. For animation testing, use the E2E stub upstream, or
+obtain approval to seed that sync status in the isolated local database for
+a visual-only fixture. Disclose fixture-based coverage rather than claiming
+real Devin synchronization.
+
+Vue Flow puts `animated` on `.vue-flow__edge` groups, not the SVG path itself.
+Check each group's class and its `.vue-flow__edge-path` computed style:
+live sync uses `animation-name: dashdraw` and changing `stroke-dashoffset`;
+other sync states use `animation-name: none` and `stroke-dasharray: none`.
+Verify both Trigger->Action and Action->Outcome through enable, disable,
+re-enable, two Refresh clicks, and browser reload.
+
+### Edge clicks
+
+Only a click on the edge label (`.vue-flow__edge-textwrapper`) opens the
+Invocation or Outcome sheet. A click on the path selects the edge without a
+sheet: the group gains `selected` and `.vue-flow__edge-path` switches to the
+blue `--edge-selected` stroke at 2px, also while animated. The label sits on
+the path centre, so click the path with an offset position when a plain
+selection is wanted.
+
 ## Outcome fixtures and assertions
 
 1. Connect one Action to three unset Outcomes. Seed four rows directly in the
@@ -109,15 +143,15 @@ to `FlowCanvas.vue` as unverified until it has run in the real browser.
    Incomplete and zero. After reload, GET `/api/canvas` must contain
    `outcome.kind` values `pull_request`, `duplicate`, null and counts 2/2/0.
    Also verify clearing a kind restores Incomplete and zero.
-3. Click the Action->Outcome edge (or its `N outcomes` label), not the
-   node, to open the right-side sheet. PR and duplicate sheets each list
+3. Click the Action->Outcome edge's `N outcomes` label, not the node or
+   the path, to open the right-side sheet. PR and duplicate sheets each list
    exactly two matching entries newest first. Verify Session hrefs, PR
    hrefs and state badges, and Duplicate of hrefs. The both-match row
    belongs in both lists. The neither row belongs in neither. The unset
    sheet shows `No invocations yet`.
    Relevant selectors: `outcome-invocation`, `outcome-empty`, `outcome-error`,
    `outcome-retry`.
-   Clicking a Trigger->Action edge or its `N invocations` label opens the
+   Clicking a Trigger->Action edge's `N invocations` label opens the
    action sheet (`action-sheet`, `action-invocation`). Each row leads with
    the triggering issue link, derived from `structured_output.issue_url` or
    a `#N` reference in the session title resolved against the Trigger's
