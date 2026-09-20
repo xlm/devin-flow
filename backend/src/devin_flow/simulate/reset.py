@@ -91,6 +91,35 @@ def eligible_automation_ids(
     )
 
 
+def ineligibility_reasons(
+    session: Session, repository: str, playbook_id: str
+) -> list[str]:
+    reasons_by_action = []
+    for action, trigger in _connected_actions(session, repository):
+        if action.archived_at is not None:
+            continue
+        reasons = []
+        if trigger.event_action != "opened":
+            reasons.append(f"trigger event is {trigger.event_action!r}, not 'opened'")
+        if not action.enabled:
+            reasons.append("action is disabled")
+        if action.sync_status != "enabled":
+            sync_error = f" ({action.sync_error})" if action.sync_error else ""
+            reasons.append(
+                f"sync status is {action.sync_status!r}, not 'enabled'{sync_error}"
+            )
+        if action.playbook_id != playbook_id:
+            reasons.append(
+                f"playbook is {action.playbook_id!r}, expected {playbook_id!r} "
+                "(Issue triage)"
+            )
+        if action.automation_id is None:
+            reasons.append("no automation id")
+        if reasons:
+            reasons_by_action.append(f"{action.name!r}: " + "; ".join(reasons))
+    return reasons_by_action
+
+
 def reset(
     scenario: Scenario,
     *,
@@ -115,10 +144,17 @@ def reset(
             "run uv run sync-playbooks"
         )
     if not eligible_automation_ids(session, scenario.repository, playbook_id):
+        reasons = ineligibility_reasons(session, scenario.repository, playbook_id)
+        diagnosis = (
+            "; connected Actions: " + "; ".join(reasons)
+            if reasons
+            else "; no connected Actions found for this repository "
+            "(check DATABASE_URL points at the same database as the running backend)"
+        )
         raise RuntimeError(
             "no enabled Action using the Issue triage Playbook is connected to "
             f"an opened Trigger for {scenario.repository}, build and enable the "
-            "Flow on the Canvas first (or run uv run seed)"
+            "Flow on the Canvas first (or run uv run seed)" + diagnosis
         )
     if scenario.repository != settings.seed_repository_full_name:
         raise RuntimeError(

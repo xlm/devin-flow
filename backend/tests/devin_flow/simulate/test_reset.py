@@ -1,4 +1,5 @@
 import json
+import re
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
@@ -49,6 +50,7 @@ def _add_connected_action(
     event_action: Literal["opened", "closed"] = "opened",
     playbook_id: str | None = "playbook-1",
     sync_status: str = "enabled",
+    sync_error: str | None = None,
 ) -> ActionNode:
     trigger = TriggerNode(
         event_action=event_action,
@@ -65,6 +67,7 @@ def _add_connected_action(
         automation_id=automation_id,
         playbook_id=playbook_id,
         archived_at=archived_at,
+        sync_error=sync_error,
     )
     session.add_all(
         [
@@ -491,9 +494,7 @@ def test_reset_rejects_empty_flow(
         "require_admin",
         lambda repo: pytest.fail("empty Flow must be checked first"),
     )
-    with pytest.raises(
-        RuntimeError, match="no enabled Action using the Issue triage Playbook"
-    ):
+    with pytest.raises(RuntimeError, match="no connected Actions found"):
         reset.reset(
             load_scenario(SCENARIO_PATH, default_repository="xlm/superset"),
             work_dir=tmp_path,
@@ -531,12 +532,23 @@ def test_reset_ignores_archived_action(
 
 
 @pytest.mark.parametrize(
-    "overrides",
+    ("overrides", "expected_fragment"),
     [
-        {"enabled": False},
-        {"event_action": "closed"},
-        {"playbook_id": "other-playbook"},
-        {"sync_status": "pending"},
+        ({"enabled": False}, "action is disabled"),
+        ({"event_action": "closed"}, "trigger event is 'closed'"),
+        ({"playbook_id": "other-playbook"}, "playbook is 'other-playbook'"),
+        (
+            {"sync_status": "pending", "sync_error": "sync failed"},
+            "sync status is 'pending'",
+        ),
+        (
+            {
+                "enabled": False,
+                "sync_status": "pending",
+                "sync_error": "sync failed",
+            },
+            "action is disabled; sync status is 'pending', not 'enabled' (sync failed)",
+        ),
     ],
 )
 def test_reset_rejects_ineligible_action(
@@ -544,6 +556,7 @@ def test_reset_rejects_ineligible_action(
     unit_session: Session,
     monkeypatch: pytest.MonkeyPatch,
     overrides: dict[str, Any],
+    expected_fragment: str,
 ) -> None:
     scenario = load_scenario(SCENARIO_PATH, default_repository="xlm/superset")
     _add_connected_action(
@@ -557,9 +570,7 @@ def test_reset_rejects_ineligible_action(
         "require_admin",
         lambda repo: pytest.fail("ineligible Flow must be rejected first"),
     )
-    with pytest.raises(
-        RuntimeError, match="no enabled Action using the Issue triage Playbook"
-    ):
+    with pytest.raises(RuntimeError, match=re.escape(expected_fragment)):
         reset.reset(
             scenario,
             work_dir=tmp_path,
