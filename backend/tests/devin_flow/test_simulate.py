@@ -349,7 +349,10 @@ def test_git_and_branch_helpers(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     completed = subprocess.CompletedProcess(
-        ["git"], 0, "refs/heads/fix\nrefs/heads/master\n", ""
+        ["git"],
+        0,
+        "sha-fix\trefs/heads/devin/123-fix\nsha-master\trefs/heads/master\n",
+        "",
     )
     calls: list[Any] = []
 
@@ -362,9 +365,29 @@ def test_git_and_branch_helpers(
         "run",
         record_git,
     )
-    assert reset._git(tmp_path, "status") == "refs/heads/fix\nrefs/heads/master"
+    assert (
+        reset._git(tmp_path, "status")
+        == "sha-fix\trefs/heads/devin/123-fix\nsha-master\trefs/heads/master"
+    )
     scenario = load_scenario(SCENARIO_PATH)
-    assert reset._git_branches(scenario, tmp_path) == ["fix"]
+    assert reset._git_branches(scenario, tmp_path) == ["devin/123-fix"]
+    assert calls[0][0] == ["git", *reset.GIT_CREDENTIAL_ARGS, "status"]
+
+
+def test_git_branches_ignores_malformed_refs(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(
+        reset,
+        "_git",
+        lambda work_dir, *args: (
+            "malformed\nsha-tag\trefs/tags/v1\n"
+            "sha-fix\trefs/heads/devin/123-fix\nsha-master\trefs/heads/master"
+        ),
+    )
+    assert reset._git_branches(load_scenario(SCENARIO_PATH), tmp_path) == [
+        "devin/123-fix"
+    ]
 
 
 def test_reset_clones_missing_worktree(
@@ -398,7 +421,11 @@ def test_reset_clones_missing_worktree(
         session=unit_session,
         devin_client=cast(Any, SimpleNamespace()),
     )
-    assert clone_calls[0][0][:2] == ["git", "clone"]
+    assert clone_calls[0][0][0] == "git"
+    assert clone_calls[0][0][1 : 1 + len(reset.GIT_CREDENTIAL_ARGS)] == list(
+        reset.GIT_CREDENTIAL_ARGS
+    )
+    assert clone_calls[0][0][1 + len(reset.GIT_CREDENTIAL_ARGS)] == "clone"
 
 
 def test_reset_handles_session_termination_without_wiping(

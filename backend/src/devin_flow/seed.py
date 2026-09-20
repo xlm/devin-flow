@@ -8,6 +8,7 @@ from devin_flow.canvas import (
     check_edge_kinds,
     check_edge_uniqueness,
 )
+from devin_flow.config import get_settings
 from devin_flow.models import ActionNode, Edge, OutcomeKind, OutcomeNode, TriggerNode
 
 SEED_TRIGGER_ID = UUID("00000000-0000-0000-0000-000000000001")
@@ -97,8 +98,6 @@ def seed(
 
 
 def main() -> None:
-    from devin_flow.config import get_settings
-
     settings = get_settings()
     with Session(db.get_engine()) as session:
         seed(
