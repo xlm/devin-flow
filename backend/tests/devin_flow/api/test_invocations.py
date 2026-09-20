@@ -118,8 +118,13 @@ def test_archive_invocation_returns_no_content_and_updates_row(
     invocation = add_invocation(unit_session)
 
     def handler(request: httpx.Request) -> httpx.Response:
-        assert request.method == "POST"
-        assert request.url.path.endswith("/sessions/session-archive/archive")
+        if request.url.path.endswith("/sessions/session-archive/archive"):
+            return httpx.Response(
+                200,
+                json={"session_id": "session-archive", "status": "exit"},
+            )
+        assert request.method == "GET"
+        assert request.url.path.endswith("/sessions/session-archive")
         return httpx.Response(
             200,
             json={"session_id": "session-archive", "status": "exit"},
@@ -133,6 +138,39 @@ def test_archive_invocation_returns_no_content_and_updates_row(
     assert archived is not None
     assert archived.archived_at is not None
     assert archived.status == "exit"
+
+
+def test_archive_invocation_refetches_full_session_after_sparse_response(
+    unit_client: TestClient, unit_session: Session
+) -> None:
+    invocation = add_invocation(unit_session)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/sessions/session-archive/archive"):
+            return httpx.Response(
+                200,
+                json={"session_id": "session-archive", "status": "exit"},
+            )
+        assert request.url.path.endswith("/sessions/session-archive")
+        return httpx.Response(
+            200,
+            json={
+                "session_id": "session-archive",
+                "status": "exit",
+                "title": "Archived session",
+                "pull_requests": [{"pr_url": "https://github.com/acme/widgets/pull/2"}],
+            },
+        )
+
+    install_upstream(unit_client, httpx.MockTransport(handler))
+    response = unit_client.post(f"/api/invocations/{invocation.id}/archive")
+    assert response.status_code == 204
+    archived = unit_session.get(Invocation, invocation.id)
+    assert archived is not None
+    assert archived.title == "Archived session"
+    assert archived.pull_requests == [
+        {"pr_url": "https://github.com/acme/widgets/pull/2", "pr_state": None}
+    ]
 
 
 def test_archive_invocation_returns_not_found(

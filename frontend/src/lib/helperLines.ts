@@ -17,8 +17,8 @@ export function getHelperLines(
   const nodeA = nodes.find((node) => node.id === change.id)
   if (!nodeA || !change.position) return result
 
-  const widthA = Number(nodeA.dimensions.width ?? 0)
-  const heightA = Number(nodeA.dimensions.height ?? 0)
+  const widthA = Number(nodeA.dimensions.width ?? nodeA.width ?? 0)
+  const heightA = Number(nodeA.dimensions.height ?? nodeA.height ?? 0)
   const boundsA = {
     left: change.position.x,
     right: change.position.x + widthA,
