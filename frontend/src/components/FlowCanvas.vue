@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, provide, ref } from 'vue'
+import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue'
 import {
   VueFlow,
   useVueFlow,
@@ -23,7 +23,7 @@ import ArchivedActionsSheet from '@/components/ArchivedActionsSheet.vue'
 import HelperLines from '@/components/HelperLines.vue'
 import OutcomeInvocationsSheet from '@/components/OutcomeInvocationsSheet.vue'
 import { nodeTypes } from '@/components/nodes/nodeTypes'
-import { refreshApiHealth } from '@/composables/useApiHealth'
+import { refreshApiHealth, useApiHealth } from '@/composables/useApiHealth'
 import { useTheme } from '@/composables/useTheme'
 import {
   actionFieldsOf,
@@ -99,6 +99,7 @@ const {
   screenToFlowCoordinate,
 } = useVueFlow()
 const { mode, icon, cycleMode } = useTheme()
+const { polling } = useApiHealth()
 
 let resizeTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -469,6 +470,15 @@ async function refreshSyncState() {
     return
   }
 }
+
+watch(
+  () => polling.value?.last_success_at,
+  (current, previous) => {
+    if (previous === undefined || current === previous || current == null)
+      return
+    void refreshSyncState()
+  },
+)
 
 provide<RefreshSyncState>(REFRESH_SYNC_STATE, refreshSyncState)
 

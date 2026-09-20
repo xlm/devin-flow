@@ -41,8 +41,10 @@
   `seed` one-shot.
 - `frontend/` - Vite + Vue 3 + TypeScript + Tailwind 4 + shadcn-vue.
   `@/*` maps to `src/*`. Generated shadcn code in `src/components/ui` is
-  excluded from lint and formatting. `src/api/schema.d.ts` is generated
-  from the backend OpenAPI schema and also excluded from lint/format.
+  excluded from lint and formatting. Its API health indicator polls
+  `/api/health` every 15 seconds, and FlowCanvas refreshes counts when
+  `last_success_at` advances. `src/api/schema.d.ts` is generated from the
+  backend OpenAPI schema and also excluded from lint/format.
 - `pyproject.toml` - uv workspace root plus shared ruff, mypy (strict,
   pydantic plugin) and pytest config.
 - `package.json` / `pnpm-workspace.yaml` - pnpm workspace; root scripts
