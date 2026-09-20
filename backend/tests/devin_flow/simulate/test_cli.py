@@ -51,15 +51,36 @@ def test_cli_dispatches_run_and_reset(
     cli.main()
     assert run_calls
 
-    monkeypatch.setattr(cli, "report", SimpleNamespace(report=lambda **kwargs: 0))
+    report_calls: list[dict[str, Any]] = []
+
+    def fake_report(**kwargs: Any) -> int:
+        report_calls.append(kwargs)
+        return 0
+
+    monkeypatch.setattr(cli, "report", SimpleNamespace(report=fake_report))
     monkeypatch.setattr(
         sys,
         "argv",
-        ["simulate-issues", "run", "--report", "--work-dir", str(tmp_path)],
+        [
+            "simulate-issues",
+            "run",
+            "--report",
+            "--timeout",
+            "5",
+            "--work-dir",
+            str(tmp_path),
+        ],
     )
     with pytest.raises(SystemExit) as raised:
         cli.main()
     assert raised.value.code == 0
+    assert report_calls == [
+        {
+            "work_dir": tmp_path,
+            "timeout": 5.0,
+            "flow_url": "http://localhost:8000",
+        }
+    ]
 
     class FakeSession:
         def __enter__(self) -> Any:
