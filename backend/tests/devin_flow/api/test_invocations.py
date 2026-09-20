@@ -93,6 +93,8 @@ def test_refresh_reports_upstream_failure(
     assert response.status_code == 502
     assert response.json() == {"detail": "devin api returned HTTP 500"}
     assert unit_session.get(PollerState, 1) is None
+
+
 def add_invocation(session: Session) -> Invocation:
     action = add_action(session, "auto-1")
     now = datetime.now(UTC)
