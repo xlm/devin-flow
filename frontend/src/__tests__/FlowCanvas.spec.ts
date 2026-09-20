@@ -9,7 +9,7 @@ type DragHandler = (event: { node: Node }) => void | Promise<void>
 type ChangeHandler = (changes: NodeChange[]) => void
 type ConnectHandler = (connection: { source: string; target: string }) => void
 type EdgeClickHandler = (event: {
-  event: Event
+  event: { target: Element }
   edge: {
     source: string
     target: string
@@ -23,7 +23,6 @@ const mocks = vi.hoisted(() => {
     addNodes: vi.fn(),
     addEdges: vi.fn(),
     getEdges: { value: [] as Edge[] },
-    findEdge: vi.fn(),
     findNode: vi.fn(),
     GET: vi.fn(),
     POST: vi.fn(),
@@ -80,7 +79,6 @@ vi.mock('@vue-flow/core', () => ({
   }),
   useVueFlow: () => ({
     fitView: mocks.fitView,
-    findEdge: mocks.findEdge,
     findNode: mocks.findNode,
     addNodes: mocks.addNodes,
     addEdges: mocks.addEdges,
@@ -256,58 +254,16 @@ function saveProbe(provided: { value: SaveNodeFields | undefined }) {
   })
 }
 
-function edgeElement(tagName: string): SVGElement {
-  return document.createElementNS('http://www.w3.org/2000/svg', tagName)
-}
-
-function labelClickEvent(): MouseEvent {
-  const edge = edgeElement('g')
-  edge.classList.add('vue-flow__edge')
-  edge.dataset.id = 'edge'
-  const wrapper = edgeElement('g')
-  wrapper.classList.add('vue-flow__edge-textwrapper')
-  const label = edgeElement('text')
+function labelClickEvent(): { target: Element } {
+  const wrapper = document.createElement('g')
+  wrapper.className = 'vue-flow__edge-textwrapper'
+  const label = document.createElement('text')
   wrapper.appendChild(label)
-  edge.appendChild(wrapper)
-  const event = new MouseEvent('click', { bubbles: true })
-  label.dispatchEvent(event)
-  return event
+  return { target: label }
 }
 
-function pathClickEvent(clientX = 0, clientY = 0): MouseEvent {
-  const path = edgeElement('path')
-  const event = new MouseEvent('click', {
-    bubbles: true,
-    clientX,
-    clientY,
-  })
-  path.dispatchEvent(event)
-  return event
-}
-
-function positionedEdgeLabel(
-  id: string | undefined,
-  rect: Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom'>,
-) {
-  const wrapper = edgeElement('g')
-  wrapper.classList.add('vue-flow__edge-textwrapper')
-  vi.spyOn(wrapper, 'getBoundingClientRect').mockReturnValue({
-    ...rect,
-    x: rect.left,
-    y: rect.top,
-    width: rect.right - rect.left,
-    height: rect.bottom - rect.top,
-    toJSON: () => ({}),
-  })
-  if (id === undefined) {
-    document.body.appendChild(wrapper)
-    return
-  }
-  const edge = edgeElement('g')
-  edge.classList.add('vue-flow__edge')
-  edge.dataset.id = id
-  edge.appendChild(wrapper)
-  document.body.appendChild(edge)
+function pathClickEvent(): { target: Element } {
+  return { target: document.createElement('path') }
 }
 
 describe('FlowCanvas', () => {
@@ -319,9 +275,6 @@ describe('FlowCanvas', () => {
     mocks.DELETE.mockResolvedValue(response(undefined))
     mocks.screenToFlowCoordinate.mockReturnValue({ x: 0, y: 0 })
     mocks.findNode.mockImplementation(() => undefined)
-    mocks.findEdge.mockImplementation((id: string) =>
-      mocks.getEdges.value.find((edge) => edge.id === id),
-    )
     mocks.getEdges.value.length = 0
     mocks.getNodes.value.length = 0
     mocks.applyNodeChanges.mockClear()
@@ -347,9 +300,6 @@ describe('FlowCanvas', () => {
   })
 
   afterEach(() => {
-    document
-      .querySelectorAll('.vue-flow__edge')
-      .forEach((edge) => edge.remove())
     vi.useRealTimers()
     vi.unstubAllGlobals()
     vi.clearAllMocks()
@@ -2836,125 +2786,6 @@ describe('FlowCanvas', () => {
     await flushPromises()
     mocks.handlers.edgeClick?.({
       event: pathClickEvent(),
-      edge: {
-        source: 'action',
-        target: 'outcome',
-        data: { sourceKind: 'action', targetKind: 'outcome' },
-      },
-    })
-    await flushPromises()
-    expect(mocks.sheetProps?.open).not.toBe(true)
-    wrapper.unmount()
-  })
-
-  it('opens the outcome sheet from a label hit after path interception', async () => {
-    const wrapper = mount(FlowCanvas)
-    await flushPromises()
-    mocks.findNode.mockReturnValue({
-      id: 'sibling-outcome',
-      data: { kind: 'outcome', outcome: { kind: 'duplicate' } },
-    } as Node)
-    mocks.getEdges.value.push({
-      id: 'sibling-edge',
-      source: 'action',
-      target: 'sibling-outcome',
-      data: { sourceKind: 'action', targetKind: 'outcome' },
-    })
-    positionedEdgeLabel('sibling-edge', {
-      left: 10,
-      right: 20,
-      top: 10,
-      bottom: 20,
-    })
-    mocks.handlers.edgeClick?.({
-      event: pathClickEvent(15, 15),
-      edge: {
-        source: 'action',
-        target: 'outcome',
-        data: { sourceKind: 'action', targetKind: 'outcome' },
-      },
-    })
-    await flushPromises()
-    expect(mocks.sheetProps).toMatchObject({
-      open: true,
-      nodeId: 'sibling-outcome',
-      actionNodeId: 'action',
-      kind: 'duplicate',
-    })
-    wrapper.unmount()
-  })
-
-  it('does not open a sheet when the pointer misses every edge label', async () => {
-    const wrapper = mount(FlowCanvas)
-    await flushPromises()
-    positionedEdgeLabel('edge', {
-      left: 10,
-      right: 20,
-      top: 10,
-      bottom: 20,
-    })
-    mocks.handlers.edgeClick?.({
-      event: pathClickEvent(30, 30),
-      edge: {
-        source: 'action',
-        target: 'outcome',
-        data: { sourceKind: 'action', targetKind: 'outcome' },
-      },
-    })
-    await flushPromises()
-    expect(mocks.sheetProps?.open).not.toBe(true)
-    wrapper.unmount()
-  })
-
-  it('does not open a sheet for an unknown geometric edge', async () => {
-    const wrapper = mount(FlowCanvas)
-    await flushPromises()
-    positionedEdgeLabel('unknown-edge', {
-      left: 10,
-      right: 20,
-      top: 10,
-      bottom: 20,
-    })
-    mocks.handlers.edgeClick?.({
-      event: pathClickEvent(15, 15),
-      edge: {
-        source: 'action',
-        target: 'outcome',
-        data: { sourceKind: 'action', targetKind: 'outcome' },
-      },
-    })
-    await flushPromises()
-    expect(mocks.sheetProps?.open).not.toBe(true)
-    wrapper.unmount()
-  })
-
-  it('ignores an edge label without an edge parent', async () => {
-    const wrapper = mount(FlowCanvas)
-    await flushPromises()
-    positionedEdgeLabel(undefined, {
-      left: 10,
-      right: 20,
-      top: 10,
-      bottom: 20,
-    })
-    mocks.handlers.edgeClick?.({
-      event: pathClickEvent(15, 15),
-      edge: {
-        source: 'action',
-        target: 'outcome',
-        data: { sourceKind: 'action', targetKind: 'outcome' },
-      },
-    })
-    await flushPromises()
-    expect(mocks.sheetProps?.open).not.toBe(true)
-    wrapper.unmount()
-  })
-
-  it('ignores non-mouse edge events', async () => {
-    const wrapper = mount(FlowCanvas)
-    await flushPromises()
-    mocks.handlers.edgeClick?.({
-      event: new Event('click'),
       edge: {
         source: 'action',
         target: 'outcome',

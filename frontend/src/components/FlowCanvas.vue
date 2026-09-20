@@ -6,6 +6,7 @@ import {
   type Connection,
   type Edge,
   type EdgeChange,
+  type EdgeMouseEvent,
   type Node,
   type NodeChange,
   type NodeDragEvent,
@@ -83,7 +84,6 @@ let loadPromise: Promise<void> | undefined
 
 const {
   fitView,
-  findEdge,
   findNode,
   addEdges,
   addNodes,
@@ -741,53 +741,30 @@ const actionSheetOpen = ref(false)
 const selectedActionSheetId = ref<string | null>(null)
 const selectedActionName = ref<string | null>(null)
 
-function edgeIdAtPointer(event: MouseEvent): string | null {
-  const wrappers = document.querySelectorAll<SVGGElement>(
-    '.vue-flow__edge-textwrapper',
+function isEdgeLabelClick(event: EdgeMouseEvent): boolean {
+  const target = event.event.target
+  return (
+    target instanceof Element &&
+    target.closest('.vue-flow__edge-textwrapper') !== null
   )
-  for (const wrapper of wrappers) {
-    const rect = wrapper.getBoundingClientRect()
-    if (
-      event.clientX >= rect.left &&
-      event.clientX <= rect.right &&
-      event.clientY >= rect.top &&
-      event.clientY <= rect.bottom
-    ) {
-      return wrapper.closest<SVGGElement>('.vue-flow__edge')?.dataset.id ?? null
-    }
-  }
-  return null
 }
 
 onEdgeClick((event) => {
-  if (!(event.event instanceof MouseEvent)) return
-  const target = event.event.target
-  let edge: Edge | undefined
-  if (
-    target instanceof Element &&
-    target.closest('.vue-flow__edge-textwrapper') !== null
-  ) {
-    edge = event.edge
-  } else {
-    const edgeId = edgeIdAtPointer(event.event)
-    if (edgeId === null) return
-    edge = findEdge(edgeId)
-  }
-  if (!edge) return
-  if (edge.data?.targetKind === 'action') {
-    selectedActionSheetId.value = edge.target
-    const actionData = findNode(edge.target)?.data
+  if (!isEdgeLabelClick(event)) return
+  if (event.edge.data?.targetKind === 'action') {
+    selectedActionSheetId.value = event.edge.target
+    const actionData = findNode(event.edge.target)?.data
     selectedActionName.value =
       typeof actionData?.name === 'string' ? actionData.name : null
     actionSheetOpen.value = true
     return
   }
-  if (edge.data?.targetKind !== 'outcome') return
-  selectedOutcomeId.value = edge.target
-  selectedActionId.value = edge.source
+  if (event.edge.data?.targetKind !== 'outcome') return
+  selectedOutcomeId.value = event.edge.target
+  selectedActionId.value = event.edge.source
   selectedOutcomeKind.value =
-    (findNode(edge.target)?.data?.outcome as OutcomeRead | undefined)?.kind ??
-    null
+    (findNode(event.edge.target)?.data?.outcome as OutcomeRead | undefined)
+      ?.kind ?? null
   outcomeSheetOpen.value = true
 })
 
