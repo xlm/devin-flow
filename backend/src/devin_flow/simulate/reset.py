@@ -12,10 +12,17 @@ from devin_flow.seed import seed
 from devin_flow.simulate import github
 from devin_flow.simulate.scenario import Scenario
 
+GIT_CREDENTIAL_ARGS = (
+    "-c",
+    "credential.helper=",
+    "-c",
+    "credential.helper=!gh auth git-credential",
+)
+
 
 def _git(work_dir: Path, *args: str) -> str:
     result = subprocess.run(
-        ["git", *args],
+        ["git", *GIT_CREDENTIAL_ARGS, *args],
         cwd=work_dir,
         check=True,
         capture_output=True,
@@ -46,6 +53,7 @@ def reset(
         subprocess.run(
             [
                 "git",
+                *GIT_CREDENTIAL_ARGS,
                 "clone",
                 f"https://github.com/{scenario.repository}.git",
                 str(work_dir),
@@ -95,8 +103,14 @@ def _git_branches(scenario: Scenario, work_dir: Path) -> list[str]:
         "--heads",
         "origin",
     )
-    return [
-        line.rsplit("/", 1)[-1]
-        for line in branches.splitlines()
-        if line and not line.endswith(f"/{scenario.default_branch}")
-    ]
+    result = []
+    for line in branches.splitlines():
+        if "\t" not in line:
+            continue
+        _, ref = line.split("\t", 1)
+        if not ref.startswith("refs/heads/"):
+            continue
+        branch = ref.removeprefix("refs/heads/")
+        if branch != scenario.default_branch:
+            result.append(branch)
+    return result
