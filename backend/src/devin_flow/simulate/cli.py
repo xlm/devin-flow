@@ -25,16 +25,21 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser = commands.add_parser("run")
     _add_shared_options(run_parser)
     run_parser.add_argument("--report", action="store_true")
+    _add_report_options(run_parser)
     report_parser = commands.add_parser("report")
     _add_shared_options(report_parser)
-    report_parser.add_argument("--timeout", type=float, default=45 * 60)
-    report_parser.add_argument("--flow-url", default="http://localhost:8000")
+    _add_report_options(report_parser)
     return parser
 
 
 def _add_shared_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--scenario", type=Path, default=argparse.SUPPRESS)
     parser.add_argument("--work-dir", type=Path, default=argparse.SUPPRESS)
+
+
+def _add_report_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--timeout", type=float, default=45 * 60)
+    parser.add_argument("--flow-url", default="http://localhost:8000")
 
 
 def main() -> None:
@@ -56,7 +61,13 @@ def main() -> None:
         state = json.loads((args.work_dir / ".simulate-state.json").read_text())
         run.run(scenario, state=state, work_dir=args.work_dir)
         if args.report:
-            raise SystemExit(report.report(work_dir=args.work_dir))
+            raise SystemExit(
+                report.report(
+                    work_dir=args.work_dir,
+                    timeout=args.timeout,
+                    flow_url=args.flow_url,
+                )
+            )
     else:
         raise SystemExit(
             report.report(
