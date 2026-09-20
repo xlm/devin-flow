@@ -456,25 +456,25 @@ def delete_node(
     action = (
         connected_action(session, node.id) if isinstance(node, TriggerNode) else None
     )
-    if isinstance(node, ActionNode) and node.automation_id is not None:
+    if isinstance(node, ActionNode):
         disable_error: str | None = None
-        try:
-            client.update_automation(
-                node.automation_id,
-                AutomationUpdate(enabled=False),
-            )
-        except DevinUpstreamError as exc:
-            disable_error = exc.detail
-        except DevinNotConfiguredError:
-            disable_error = "devin api not configured"
+        if node.automation_id is not None:
+            try:
+                client.update_automation(
+                    node.automation_id,
+                    AutomationUpdate(enabled=False),
+                )
+            except DevinUpstreamError as exc:
+                disable_error = exc.detail
+            except DevinNotConfiguredError:
+                disable_error = "devin api not configured"
+            node.sync_status = "error" if disable_error is not None else "disabled"
+            node.sync_error = disable_error
         session.exec(
             delete(Edge).where(
                 (col(Edge.source_id) == node_id) | (col(Edge.target_id) == node_id)
             )
         )
-        node.enabled = False
-        node.sync_status = "error" if disable_error is not None else "disabled"
-        node.sync_error = disable_error
         node.archived_at = datetime.now(UTC)
         session.add(node)
         session.commit()
