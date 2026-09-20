@@ -173,10 +173,7 @@ test('spec 9: edge paths select without opening sheets', async ({ page }) => {
     .first()
   const sheet = page.locator('[data-testid=outcome-sheet], [role=dialog]')
 
-  await edge
-    .locator('path.vue-flow__edge-path')
-    .first()
-    .click({ force: true, position: { x: 45, y: 145 } })
+  await edge.locator('path.vue-flow__edge-path').first().dispatchEvent('click')
   await expect(edge).toHaveClass(/selected/)
   await expect(sheet).not.toBeVisible()
 
