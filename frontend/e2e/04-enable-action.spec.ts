@@ -34,7 +34,10 @@ test('spec 4: configuring and enabling an Action provisions automation', async (
   ])
   const name = action.locator('[data-testid=action-name]')
   await name.fill('Triage issue')
-  await Promise.all([patch('action', fixture.actionId), name.blur()])
+  await Promise.all([
+    patch('action', fixture.actionId),
+    name.dispatchEvent('change'),
+  ])
   await Promise.all([
     patch('action', fixture.actionId),
     action.locator('[data-testid=action-playbook]').selectOption('pb-triage'),
