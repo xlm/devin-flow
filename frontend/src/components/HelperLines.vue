@@ -22,7 +22,8 @@ function drawLines() {
   canvas.height = height.value * dpi
   context.scale(dpi, dpi)
   context.clearRect(0, 0, width.value, height.value)
-  context.strokeStyle = 'var(--primary)'
+  context.strokeStyle =
+    getComputedStyle(canvas).getPropertyValue('--primary').trim() || '#00af79'
 
   if (typeof props.vertical === 'number') {
     context.beginPath()

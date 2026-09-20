@@ -46,10 +46,18 @@ describe('HelperLines', () => {
       moveTo: vi.fn(),
       scale: vi.fn(),
       stroke: vi.fn(),
+      strokeStyle: '',
     }
     mocks.getContext.mockReturnValue(context)
+    vi.spyOn(window, 'getComputedStyle').mockImplementation(
+      () =>
+        ({
+          getPropertyValue: () => ' rgb(1, 2, 3) ',
+        }) as unknown as CSSStyleDeclaration,
+    )
     const wrapper = mountLines()
     await flushPromises()
+    expect(context.strokeStyle).toBe('rgb(1, 2, 3)')
     expect(context.scale).toHaveBeenCalledWith(
       window.devicePixelRatio,
       window.devicePixelRatio,
@@ -72,14 +80,22 @@ describe('HelperLines', () => {
       moveTo: vi.fn(),
       scale: vi.fn(),
       stroke: vi.fn(),
+      strokeStyle: '',
     }
     mocks.getContext.mockReturnValue(context)
+    vi.spyOn(window, 'getComputedStyle').mockImplementation(
+      () =>
+        ({
+          getPropertyValue: () => '',
+        }) as unknown as CSSStyleDeclaration,
+    )
     const vertical = mount(HelperLines, { props: { vertical: 40 } })
     await flushPromises()
     vertical.unmount()
     const horizontal = mount(HelperLines, { props: { horizontal: 30 } })
     await flushPromises()
     horizontal.unmount()
+    expect(context.strokeStyle).toBe('#00af79')
     expect(context.stroke).toHaveBeenCalledTimes(2)
     vi.restoreAllMocks()
   })
