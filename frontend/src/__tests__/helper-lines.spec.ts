@@ -64,6 +64,34 @@ describe('getHelperLines', () => {
     expect(result.vertical).toBe(100)
   })
 
+  it('uses fallback dimensions for the dragged node', () => {
+    const dragged = {
+      ...node('a', 81, 0),
+      dimensions: { width: undefined, height: undefined },
+      width: 20,
+      height: 10,
+    } as unknown as GraphNode
+    const result = getHelperLines(change('a', 81, 0), [
+      dragged,
+      node('b', 100, 0),
+    ])
+    expect(result.vertical).toBe(100)
+    expect(result.snapPosition.x).toBe(80)
+
+    const emptyDragged = {
+      ...node('empty', 0, 100),
+      dimensions: { width: undefined, height: undefined },
+      width: undefined,
+      height: undefined,
+    } as unknown as GraphNode
+    expect(
+      getHelperLines(change('empty', 0, 100), [
+        emptyDragged,
+        node('b', 100, 0),
+      ]),
+    ).toEqual({ snapPosition: {} })
+  })
+
   it.each([
     ['left edge', 101, 0, 100, 100],
     ['right edge', 99, 0, 100, 100],

@@ -63,7 +63,8 @@ def archive_invocation(
         raise HTTPException(404, "invocation not found")
     try:
         now = datetime.now(UTC)
-        devin_session = client.archive_session(invocation.session_id)
+        client.archive_session(invocation.session_id)
+        devin_session = client.get_session(invocation.session_id)
         apply_session(invocation, devin_session, now)
         invocation.archived_at = now
         session.add(invocation)
