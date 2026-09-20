@@ -77,6 +77,36 @@ Outcome node for each Outcome kind. Existing Seed Flow rows are reused
 without changing their Automation. Leave `SEED_PLAYBOOK_ID` empty to keep the
 Canvas empty. Test fixtures pass no playbook and call the same function.
 
+## Issue simulator
+
+The Issue simulator resets the Target repository to the Scenario's pinned
+Baseline plus its Poisoned bugs, then files the ordered Simulated issues across
+the configured run window so a running Seed Flow can be watched end to end.
+
+Before running it, ensure that:
+
+- `gh auth status` uses an admin login on `xlm/superset`, for example
+  `GH_TOKEN` set to a fine-grained PAT with Administration, Contents, Issues,
+  and Pull requests read/write permissions on the Target repository.
+- Git can push with the same credentials. Run `gh auth setup-git`, or configure
+  an equivalent Git credential helper. The simulator also uses `gh`'s Git
+  credential helper automatically when `GH_TOKEN` is set.
+- `SEED_PLAYBOOK_ID` is set to the issue triage Playbook id.
+- The Devin GitHub connection's Automation scope is set to **All installed
+  repos**, because the Target repository is public.
+
+```sh
+uv run simulate-issues reset   # destructively recreate the Target start state
+uv run simulate-issues run     # file the Scenario's Simulated issues
+uv run simulate-issues report  # wait for terminal Invocations and compare Outcomes
+```
+
+Reset is destructive: it wipes issues, pull requests, and non-default branches,
+terminates non-terminal sessions, clears simulator state, and force-pushes
+`master`. The default work directory is
+`~/.cache/devin-flow/superset`; it contains the checkout,
+`.simulate-state.json`, and `.simulate-run.json`.
+
 ## Checks
 
 ```sh
