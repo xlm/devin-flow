@@ -96,9 +96,9 @@ def ineligibility_reasons(
 ) -> list[str]:
     reasons_by_action = []
     for action, trigger in _connected_actions(session, repository):
-        if action.archived_at is not None:
-            continue
         reasons = []
+        if action.archived_at is not None:
+            reasons.append("action is archived")
         if trigger.event_action != "opened":
             reasons.append(f"trigger event is {trigger.event_action!r}, not 'opened'")
         if not action.enabled:

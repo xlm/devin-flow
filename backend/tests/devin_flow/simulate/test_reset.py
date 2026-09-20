@@ -520,9 +520,7 @@ def test_reset_ignores_archived_action(
         "require_admin",
         lambda repo: pytest.fail("archived Flow must be ignored before reset"),
     )
-    with pytest.raises(
-        RuntimeError, match="no enabled Action using the Issue triage Playbook"
-    ):
+    with pytest.raises(RuntimeError, match="action is archived"):
         reset.reset(
             scenario,
             work_dir=tmp_path,
