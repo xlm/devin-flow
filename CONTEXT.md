@@ -79,3 +79,57 @@ How an Invocation ended, as reported by the session: Pull Request,
 Duplicate, Not reproducible or Not a bug. An Invocation with no reported
 Outcome belongs to no Outcome node.
 _Avoid_: Result, status, verdict
+
+### Simulation
+
+**Seed Flow**:
+The Flow that `seed` creates when it is missing: a Trigger on the Target
+repository's issue opened event, the Action node "Seed: Issue triage"
+under a fixed id, and one Outcome node per Outcome kind. Reused, never
+recreated, so its Automation is stable across runs.
+_Avoid_: Default flow, demo flow, fixture
+
+**Target repository**:
+The GitHub repository the Seed Flow triggers on and the Simulator files
+issues against. A test bed whose default branch is overwritten on every
+Reset.
+_Avoid_: Fork, superset, victim
+
+**Simulator**:
+The command that resets the Target repository and then files the Scenario's
+issues over a short window so a running Flow can be watched end to end.
+_Avoid_: Load generator, harness, driver
+
+**Scenario**:
+The versioned description of one Simulator run: the Baseline, the Poisoned
+bugs, and the ordered list of Simulated issues with their Phase and
+expected Outcome.
+_Avoid_: Config, plan, fixture
+
+**Baseline**:
+The commit of the Target repository that a Reset starts from, pinned by
+SHA in the Scenario.
+_Avoid_: Tag, snapshot, golden
+
+**Poisoned bug**:
+A deliberate defect applied on top of the Baseline by a Reset, paired with
+the Simulated issue that reports it. Each one fails exactly one existing
+unit test.
+_Avoid_: Mutation, injected fault, plant
+
+**Simulated issue**:
+One GitHub issue the Simulator files, written in the Target repository's
+bug report template, with an expected Outcome. Duplicates reference the
+Simulated issue they repeat.
+_Avoid_: Ticket, fake issue, event
+
+**Phase**:
+The slot of the run window a Simulated issue is filed in: original,
+filler or duplicate. Every original precedes every duplicate.
+_Avoid_: Stage, bucket, wave
+
+**Reset**:
+Returning the Target repository and the Seed Flow to the Scenario's start
+state: sessions terminated, issues and pull requests removed, default
+branch set to Baseline plus Poisoned bugs, Invocations cleared.
+_Avoid_: Cleanup, rollback, restore
