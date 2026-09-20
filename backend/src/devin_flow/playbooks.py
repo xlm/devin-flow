@@ -7,14 +7,13 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from devin_flow.config import get_settings
 from devin_flow.devin.client import (
     DevinClient,
     DevinUpstreamError,
     PlaybookCreate,
     get_devin_client,
 )
-
-PLAYBOOKS_DIR = Path(__file__).resolve().parents[3] / "playbooks"
 
 _HEADING = re.compile(r"^#+\s+(.+?)\s*$")
 
@@ -39,9 +38,7 @@ def load_playbook(path: Path) -> PlaybookFile:
     )
 
 
-def sync_playbooks(
-    client: DevinClient, directory: Path = PLAYBOOKS_DIR
-) -> Iterator[tuple[Path, str]]:
+def sync_playbooks(client: DevinClient, directory: Path) -> Iterator[tuple[Path, str]]:
     if not directory.is_dir():
         raise ValueError(f"{directory}: playbooks directory not found")
     files = [
@@ -75,7 +72,9 @@ def sync_playbooks(
 
 def main() -> None:
     try:
-        for path, action in sync_playbooks(get_devin_client(), PLAYBOOKS_DIR):
+        for path, action in sync_playbooks(
+            get_devin_client(), get_settings().playbooks_dir
+        ):
             print(f"{action} {path.name}")
     except (DevinUpstreamError, ValueError, OSError) as exc:
         print(f"sync-playbooks failed: {exc}", file=sys.stderr)

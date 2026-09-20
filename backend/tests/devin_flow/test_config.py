@@ -3,13 +3,19 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from devin_flow.config import DEFAULT_STATIC_DIR, Settings, get_settings
+from devin_flow.config import (
+    DEFAULT_PLAYBOOKS_DIR,
+    DEFAULT_STATIC_DIR,
+    Settings,
+    get_settings,
+)
 
 
 @pytest.fixture(autouse=True)
 def clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.delenv("STATIC_DIR", raising=False)
+    monkeypatch.delenv("PLAYBOOKS_DIR", raising=False)
     monkeypatch.delenv("DEVIN_API_BASE_URL", raising=False)
     monkeypatch.delenv("POLL_INTERVAL_SECONDS", raising=False)
     monkeypatch.chdir(tmp_path)  # no stray .env
@@ -22,6 +28,7 @@ def test_defaults() -> None:
         "postgresql+psycopg://devin:devin@localhost:5432/devin_flow"
     )
     assert settings.static_dir == DEFAULT_STATIC_DIR
+    assert settings.playbooks_dir == DEFAULT_PLAYBOOKS_DIR
     assert settings.devin_api_token == "test-token"
     assert settings.devin_api_base_url == "https://api.devin.ai/v3"
     assert settings.devin_org_id == "org-test"
@@ -32,12 +39,14 @@ def test_defaults() -> None:
 def test_env_overrides(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://u:p@db:5432/x")
     monkeypatch.setenv("STATIC_DIR", str(tmp_path))
+    monkeypatch.setenv("PLAYBOOKS_DIR", str(tmp_path / "playbooks"))
     monkeypatch.setenv("DEVIN_API_TOKEN", "test-token")
     monkeypatch.setenv("DEVIN_API_BASE_URL", "https://devin.example/v3")
     monkeypatch.setenv("DEVIN_ORG_ID", "org-test")
     settings = Settings()
     assert settings.database_url == "postgresql+psycopg://u:p@db:5432/x"
     assert settings.static_dir == tmp_path
+    assert settings.playbooks_dir == tmp_path / "playbooks"
     assert settings.devin_api_token == "test-token"
     assert settings.devin_api_base_url == "https://devin.example/v3"
     assert settings.devin_org_id == "org-test"

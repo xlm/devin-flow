@@ -5,10 +5,10 @@ import httpx
 import pytest
 
 from devin_flow import playbooks
+from devin_flow.config import DEFAULT_PLAYBOOKS_DIR, Settings
 from devin_flow.devin.client import DevinClient
 from devin_flow.outcomes import STRUCTURED_OUTCOMES
 from devin_flow.playbooks import (
-    PLAYBOOKS_DIR,
     load_playbook,
     main,
     sync_playbooks,
@@ -228,7 +228,15 @@ def test_main_prints_actions(
         )
 
     client = make_client(httpx.MockTransport(handler))
-    monkeypatch.setattr(playbooks, "PLAYBOOKS_DIR", tmp_path)
+    monkeypatch.setattr(
+        playbooks,
+        "get_settings",
+        lambda: Settings(
+            devin_api_token="test-token",
+            devin_org_id="org-test",
+            playbooks_dir=tmp_path,
+        ),
+    )
     monkeypatch.setattr(playbooks, "get_devin_client", lambda: client)
     main()
     assert capsys.readouterr().out == "created a.md\n"
@@ -242,7 +250,15 @@ def test_main_exits_on_upstream_error(
     client = make_client(
         httpx.MockTransport(lambda request: httpx.Response(500, text="boom"))
     )
-    monkeypatch.setattr(playbooks, "PLAYBOOKS_DIR", tmp_path)
+    monkeypatch.setattr(
+        playbooks,
+        "get_settings",
+        lambda: Settings(
+            devin_api_token="test-token",
+            devin_org_id="org-test",
+            playbooks_dir=tmp_path,
+        ),
+    )
     monkeypatch.setattr(playbooks, "get_devin_client", lambda: client)
     with pytest.raises(SystemExit) as error:
         main()
@@ -261,7 +277,15 @@ def test_main_wraps_load_errors(
         raise AssertionError("no requests expected")
 
     client = make_client(httpx.MockTransport(handler))
-    monkeypatch.setattr(playbooks, "PLAYBOOKS_DIR", tmp_path)
+    monkeypatch.setattr(
+        playbooks,
+        "get_settings",
+        lambda: Settings(
+            devin_api_token="test-token",
+            devin_org_id="org-test",
+            playbooks_dir=tmp_path,
+        ),
+    )
     monkeypatch.setattr(playbooks, "get_devin_client", lambda: client)
     with pytest.raises(SystemExit) as error:
         main()
@@ -270,14 +294,16 @@ def test_main_wraps_load_errors(
 
 
 def test_repo_playbooks_load() -> None:
-    playbook = load_playbook(PLAYBOOKS_DIR / "issue-triage.md")
+    playbook = load_playbook(DEFAULT_PLAYBOOKS_DIR / "issue-triage.md")
     assert playbook.title == "Issue triage"
     assert playbook.structured_output_schema is not None
     assert playbook.structured_output_schema["title"] == "IssueTriageOutcome"
 
 
 def test_issue_triage_schema_matches_outcome_readers() -> None:
-    schema = load_playbook(PLAYBOOKS_DIR / "issue-triage.md").structured_output_schema
+    schema = load_playbook(
+        DEFAULT_PLAYBOOKS_DIR / "issue-triage.md"
+    ).structured_output_schema
     assert schema is not None
     properties = schema["properties"]
     assert set(properties["outcome"]["enum"]) == STRUCTURED_OUTCOMES | {"fixed"}

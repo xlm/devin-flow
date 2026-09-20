@@ -22,7 +22,8 @@ COPY --from=backend /app/backend/alembic.ini /app/backend/alembic.ini
 COPY --from=backend /app/backend/alembic /app/backend/alembic
 COPY --from=backend /app/backend/entrypoint.sh /app/backend/entrypoint.sh
 COPY --from=frontend /app/frontend/dist /app/static
-ENV STATIC_DIR=/app/static PATH=/app/.venv/bin:$PATH
+COPY playbooks/ /app/playbooks
+ENV STATIC_DIR=/app/static PLAYBOOKS_DIR=/app/playbooks PATH=/app/.venv/bin:$PATH
 USER appuser
 EXPOSE 8000
 # DATABASE_URL must point at a reachable Postgres; migrations run on start
