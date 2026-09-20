@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     devin_api_base_url: str = "https://api.devin.ai/v3"
     devin_org_id: str = Field(min_length=1)
     poll_interval_seconds: float = Field(default=15, ge=0)
+    seed_playbook_id: str | None = None
+    seed_repository_full_name: str = "xlm/superset"
 
 
 @lru_cache

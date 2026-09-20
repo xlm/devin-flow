@@ -103,7 +103,7 @@ def session(postgres_engine: Engine) -> Iterator[Session]:
 
 @pytest.fixture
 def seeded_session(session: Session) -> Session:
-    seed(session)
+    seed(session, playbook_id=None, repository_full_name="xlm/superset")
     return session
 
 

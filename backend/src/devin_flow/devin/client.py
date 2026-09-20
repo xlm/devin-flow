@@ -186,6 +186,14 @@ class DevinClient:
             response.raise_for_status()
             return DevinSession.model_validate(response.json())
 
+    def terminate_session(self, session_id: str) -> DevinSession:
+        with _upstream_errors():
+            response = self.http.delete(
+                f"/organizations/{self.org_id}/sessions/{session_id}"
+            )
+            response.raise_for_status()
+            return DevinSession.model_validate(response.json())
+
     def create_session(self, payload: SessionCreate) -> DevinSession:
         with _upstream_errors():
             response = self.http.post(

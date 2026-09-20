@@ -210,6 +210,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/invocations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Invocations */
+        get: operations["list_invocations_api_invocations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/invocations/refresh": {
         parameters: {
             query?: never;
@@ -446,6 +463,35 @@ export interface components {
              * @constant
              */
             status: "ok";
+        };
+        /** InvocationRead */
+        InvocationRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Pull Requests */
+            pull_requests: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Session Created At
+             * Format: date-time
+             */
+            session_created_at: string;
+            /** Session Id */
+            session_id: string;
+            /** Status */
+            status: string;
+            /** Structured Output */
+            structured_output: {
+                [key: string]: unknown;
+            } | null;
+            /** Title */
+            title: string | null;
+            /** Url */
+            url: string | null;
         };
         /** IssueRef */
         IssueRef: {
@@ -1231,6 +1277,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    list_invocations_api_invocations_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvocationRead"][];
                 };
             };
         };

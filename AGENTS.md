@@ -14,7 +14,7 @@
   engine lazily and exposes the `get_session` dependency. Table models
   live in `models/` and must be imported from `models/__init__.py` so
   `SQLModel.metadata` is complete. `seed.py` holds the idempotent
-  `seed(session)` used by `uv run seed` and by test fixtures.
+  `seed(session, *, playbook_id, repository_full_name)`. `uv run seed` creates the Seed Flow when `SEED_PLAYBOOK_ID` is set, targeting `SEED_REPOSITORY_FULL_NAME` (default `xlm/superset`), and test fixtures pass `playbook_id=None` to keep an empty Canvas.
   `playbooks.py` holds `uv run sync-playbooks`, which upserts the repo's
   `playbooks/` directory to Devin.
 - `backend/alembic/` + `backend/alembic.ini` - migrations (target

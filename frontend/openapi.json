@@ -563,6 +563,82 @@
         "title": "HealthResponse",
         "type": "object"
       },
+      "InvocationRead": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "pull_requests": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Pull Requests",
+            "type": "array"
+          },
+          "session_created_at": {
+            "format": "date-time",
+            "title": "Session Created At",
+            "type": "string"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "structured_output": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structured Output"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "required": [
+          "id",
+          "session_id",
+          "status",
+          "title",
+          "url",
+          "pull_requests",
+          "structured_output",
+          "session_created_at"
+        ],
+        "title": "InvocationRead",
+        "type": "object"
+      },
       "IssueRef": {
         "properties": {
           "number": {
@@ -2017,6 +2093,28 @@
           }
         },
         "summary": "Health"
+      }
+    },
+    "/api/invocations": {
+      "get": {
+        "operationId": "list_invocations_api_invocations_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/InvocationRead"
+                  },
+                  "title": "Response List Invocations Api Invocations Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Invocations"
       }
     },
     "/api/invocations/refresh": {

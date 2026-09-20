@@ -235,6 +235,22 @@ def test_get_session_upstream_error_includes_status() -> None:
     client.http.close()
 
 
+def test_terminate_session_deletes_one_session() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "DELETE"
+        assert request.url.path == "/organizations/org-test/sessions/session-9"
+        return httpx.Response(
+            200,
+            json={"session_id": "session-9", "status": "error"},
+        )
+
+    client = make_client(httpx.MockTransport(handler))
+    assert client.terminate_session("session-9") == DevinSession(
+        session_id="session-9", status="error"
+    )
+    client.http.close()
+
+
 def test_create_session_posts_prompt() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "POST"

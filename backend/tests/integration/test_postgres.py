@@ -90,7 +90,7 @@ def test_seeded_session_is_empty_canvas(seeded_session: Session) -> None:
 
 
 def test_seed_twice_is_idempotent(seeded_session: Session) -> None:
-    seed.seed(seeded_session)
+    seed.seed(seeded_session, playbook_id=None, repository_full_name="xlm/superset")
     assert all(
         seeded_session.connection()
         .execute(text(f"select count(*) from {table}"))
