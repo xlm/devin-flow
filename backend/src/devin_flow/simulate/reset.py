@@ -55,6 +55,18 @@ def reset(
     playbook_id = settings.seed_playbook_id
     if playbook_id is None:
         raise RuntimeError("SEED_PLAYBOOK_ID is required for reset")
+    playbooks = devin_client.list_playbooks()
+    playbook = next(
+        (playbook for playbook in playbooks if playbook.playbook_id == playbook_id),
+        None,
+    )
+    schema = playbook.structured_output_schema if playbook is not None else None
+    properties = schema.get("properties") if isinstance(schema, dict) else None
+    if not isinstance(properties, dict) or "issue_number" not in properties:
+        raise RuntimeError(
+            f"playbook {playbook_id} structured output schema lacks issue_number, "
+            "run uv run sync-playbooks"
+        )
     if scenario.repository != settings.seed_repository_full_name:
         raise RuntimeError(
             f"scenario repository {scenario.repository} does not match "
