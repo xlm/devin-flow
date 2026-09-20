@@ -108,7 +108,8 @@ terminates non-terminal sessions, clears simulator state, and force-pushes
 `master`. The default work directory is
 `~/.cache/devin-flow/superset`; the Git checkout is in its `repo/` child,
 while `.simulate-state.json` and `.simulate-run.json` stay directly in the
-work directory.
+work directory. `DATABASE_URL` used by reset and `--flow-url` used by report
+must point to the same devin-flow deployment.
 
 ## Checks
 

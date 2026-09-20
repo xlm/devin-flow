@@ -45,16 +45,14 @@ def seed(
 ) -> None:
     """Bring the database to its seeded state. Safe to run repeatedly or concurrently.
 
-    When a playbook is configured, the Seed Flow is inserted one missing row at
-    a time. Existing rows are reused, with a changed Trigger repository or a
-    tombstoned Action restored, and conflicting Trigger edges removed, without
-    changing the Action automation.
+    When a playbook is configured, the Seed Flow is normalized one row at a
+    time. Existing rows are reused, preserving their identity, positions, and
+    Action automation, while conflicting Trigger edges are removed.
     Caller work already pending on the session is committed so the seeded
     database is always in a consistent, committed state.
     """
     if playbook_id is not None:
         trigger = session.get(TriggerNode, SEED_TRIGGER_ID)
-        trigger_changed = False
         if trigger is None:
             trigger = TriggerNode(
                 id=SEED_TRIGGER_ID,
@@ -64,10 +62,15 @@ def seed(
                 repository_full_name=repository_full_name,
             )
             session.add(trigger)
-        elif trigger.repository_full_name != repository_full_name:
+            trigger_changed = True
+        else:
+            trigger_changed = (
+                trigger.event_action != "opened"
+                or trigger.repository_full_name != repository_full_name
+            )
+            trigger.event_action = "opened"
             trigger.repository_full_name = repository_full_name
             session.add(trigger)
-            trigger_changed = True
         action = session.get(ActionNode, SEED_ACTION_ID)
         if action is None:
             action = ActionNode(
@@ -80,18 +83,26 @@ def seed(
                 sync_status="pending",
             )
             session.add(action)
+            action_changed = True
         else:
-            if action.deleted_at is not None:
-                action.deleted_at = None
-                action.enabled = True
-                action.sync_status = "pending"
-                action.sync_error = None
-            if trigger_changed or action.playbook_id != playbook_id:
-                action.playbook_id = playbook_id
-                action.sync_status = "pending"
+            action_changed = any(
+                (
+                    action.name != "Seed: Issue triage",
+                    action.playbook_id != playbook_id,
+                    action.prompt != "",
+                    not action.enabled,
+                    action.deleted_at is not None,
+                )
+            )
+            action.name = "Seed: Issue triage"
+            action.playbook_id = playbook_id
+            action.prompt = ""
+            action.enabled = True
+            action.deleted_at = None
             session.add(action)
         for index, (kind, outcome_id) in enumerate(SEED_OUTCOME_IDS.items()):
-            if session.get(OutcomeNode, outcome_id) is None:
+            outcome = session.get(OutcomeNode, outcome_id)
+            if outcome is None:
                 session.add(
                     OutcomeNode(
                         id=outcome_id,
@@ -100,6 +111,13 @@ def seed(
                         kind=kind,
                     )
                 )
+            else:
+                outcome.kind = kind
+                session.add(outcome)
+        if trigger_changed or action_changed:
+            mark_pending(action)
+            action.sync_error = None
+            session.add(action)
         session.flush()
         for edge in session.exec(
             select(Edge).where(
