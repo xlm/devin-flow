@@ -40,6 +40,7 @@ async function clickOutcomeEdge(
     .locator('.vue-flow__edge')
     .filter({ hasText: label })
     .nth(index)
+    .locator('.vue-flow__edge-textwrapper')
     .click({ force: true })
 }
 
@@ -117,7 +118,7 @@ test('spec 9: Trigger -> Action edge count opens the Invocation sheet', async ({
   const sheet = page.locator('[data-testid=action-sheet], [role=dialog]')
   const rows = sheet.locator('[data-testid=action-invocation]')
 
-  await edge.click({ force: true })
+  await edge.locator('.vue-flow__edge-textwrapper').click({ force: true })
   await expect(sheet).toContainText('Triage issue invocations')
   await expect(rows).toHaveCount(0)
   await expect(sheet.locator('[data-testid=action-empty]')).toBeVisible()
@@ -151,7 +152,7 @@ test('spec 9: Trigger -> Action edge count opens the Invocation sheet', async ({
   await expect(sheet).toBeHidden()
 
   await stopBackend(request)
-  await edge.click({ force: true })
+  await edge.locator('.vue-flow__edge-textwrapper').click({ force: true })
   await expect(sheet.locator('[data-testid=action-error]')).toBeVisible()
   await expect(rows).toHaveCount(0)
   await startBackend(request)
@@ -161,4 +162,24 @@ test('spec 9: Trigger -> Action edge count opens the Invocation sheet', async ({
   await page.getByRole('button', { name: 'Close' }).click()
   await expect(sheet).toBeHidden()
   expect((await canvas()).action_nodes[0].invocation_count).toBe(3)
+})
+
+test('spec 9: edge paths select without opening sheets', async ({ page }) => {
+  await seedOutcomeGraph()
+  await page.goto('/')
+  const edge = page
+    .locator('.vue-flow__edge')
+    .filter({ hasText: '0 outcomes' })
+    .first()
+  const sheet = page.locator('[data-testid=outcome-sheet], [role=dialog]')
+
+  await edge
+    .locator('path.vue-flow__edge-path')
+    .first()
+    .click({ force: true, position: { x: 45, y: 145 } })
+  await expect(edge).toHaveClass(/selected/)
+  await expect(sheet).not.toBeVisible()
+
+  await edge.locator('.vue-flow__edge-textwrapper').click({ force: true })
+  await expect(sheet).toBeVisible()
 })
