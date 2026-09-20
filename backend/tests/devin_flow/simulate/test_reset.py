@@ -827,6 +827,7 @@ def test_reset_clones_missing_worktree(
     clone_calls: list[Any] = []
     monkeypatch.setattr(github, "require_admin", lambda repo: None)
     monkeypatch.setattr(github, "enable_issues", lambda repo: None)
+    monkeypatch.setattr(github, "ensure_labels", lambda repo: None)
     monkeypatch.setattr(github, "list_issue_node_ids", lambda repo: [])
     monkeypatch.setattr(github, "list_open_prs", lambda repo: [])
     monkeypatch.setattr(reset, "_git_branches", lambda scenario, work_dir: [])
