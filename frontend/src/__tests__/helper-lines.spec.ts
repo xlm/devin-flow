@@ -44,13 +44,13 @@ describe('getHelperLines', () => {
       dimensions: { width: undefined, height: undefined },
       width: 20,
       height: 10,
-    } as GraphNode
+    } as unknown as GraphNode
     const candidate = {
       ...node('b', 100, 0),
       dimensions: { width: undefined, height: undefined },
       width: 20,
       height: 10,
-    } as GraphNode
+    } as unknown as GraphNode
     const result = getHelperLines(change('a', 101, 0), [
       dragged,
       candidate,
@@ -59,7 +59,7 @@ describe('getHelperLines', () => {
         id: 'empty',
         width: undefined,
         height: undefined,
-      } as GraphNode,
+      } as unknown as GraphNode,
     ])
     expect(result.vertical).toBe(100)
   })
