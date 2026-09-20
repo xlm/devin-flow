@@ -43,24 +43,51 @@ def _git(work_dir: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
+def _connected_actions(
+    session: Session, repository: str
+) -> list[tuple[ActionNode, TriggerNode]]:
+    return list(
+        session.exec(
+            select(ActionNode, TriggerNode)
+            .join(Edge, col(Edge.target_id) == col(ActionNode.id))
+            .join(TriggerNode, col(TriggerNode.id) == col(Edge.source_id))
+            .where(
+                TriggerNode.repository_full_name == repository,
+                Edge.source_kind == "trigger",
+                Edge.target_kind == "action",
+            )
+        ).all()
+    )
+
+
 def target_automation_ids(session: Session, repository: str) -> list[str]:
-    trigger_ids = select(TriggerNode.id).where(
-        TriggerNode.repository_full_name == repository
-    )
-    action_ids = select(Edge.target_id).where(
-        col(Edge.source_id).in_(trigger_ids),
-        Edge.source_kind == "trigger",
-        Edge.target_kind == "action",
-    )
-    actions = session.exec(
-        select(ActionNode).where(
-            col(ActionNode.id).in_(action_ids),
-            col(ActionNode.archived_at).is_(None),
-            col(ActionNode.automation_id).is_not(None),
-        )
-    ).all()
+    actions = _connected_actions(session, repository)
     return sorted(
-        {action.automation_id for action in actions if action.automation_id is not None}
+        {
+            action.automation_id
+            for action, _ in actions
+            if action.archived_at is None and action.automation_id is not None
+        }
+    )
+
+
+def eligible_automation_ids(
+    session: Session, repository: str, playbook_id: str
+) -> list[str]:
+    actions = _connected_actions(session, repository)
+    return sorted(
+        {
+            action.automation_id
+            for action, trigger in actions
+            if (
+                trigger.event_action == "opened"
+                and action.enabled is True
+                and action.sync_status == "enabled"
+                and action.playbook_id == playbook_id
+                and action.archived_at is None
+                and action.automation_id is not None
+            )
+        }
     )
 
 
@@ -87,6 +114,12 @@ def reset(
             f"playbook {playbook_id} structured output schema lacks issue_number, "
             "run uv run sync-playbooks"
         )
+    if not eligible_automation_ids(session, scenario.repository, playbook_id):
+        raise RuntimeError(
+            "no enabled Action using the Issue triage Playbook is connected to "
+            f"an opened Trigger for {scenario.repository}, build and enable the "
+            "Flow on the Canvas first (or run uv run seed)"
+        )
     if scenario.repository != settings.seed_repository_full_name:
         raise RuntimeError(
             f"scenario repository {scenario.repository} does not match "
@@ -97,12 +130,6 @@ def reset(
         if not patch_path.exists():
             raise RuntimeError(f"missing poison patch: {patch_path}")
     automation_ids = target_automation_ids(session, scenario.repository)
-    if not automation_ids:
-        raise RuntimeError(
-            "no enabled Action with an Automation is connected to a Trigger for "
-            f"{scenario.repository}, build the Flow on the Canvas first "
-            "(or run uv run seed)"
-        )
     state_path = work_dir / ".simulate-state.json"
     run_path = work_dir / ".simulate-run.json"
     work_dir.mkdir(parents=True, exist_ok=True)
@@ -187,6 +214,15 @@ def reset(
     )
     if wipe_invocations:
         invocations.poll_once(session, devin_client)
+        for invocation in session.exec(
+            select(Invocation).where(
+                col(Invocation.automation_id).in_(automation_ids),
+                col(Invocation.status).not_in(TERMINAL_SESSION_STATUSES),
+            )
+        ).all():
+            if invocation.session_id not in terminated:
+                devin_client.terminate_session(invocation.session_id)
+                terminated.add(invocation.session_id)
         poller_state = invocations.get_poller_state(session)
         session.exec(
             delete(Invocation).where(

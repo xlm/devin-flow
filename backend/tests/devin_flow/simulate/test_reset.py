@@ -3,7 +3,7 @@ import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import Any, Literal, cast
 from uuid import uuid4
 
 import pytest
@@ -45,9 +45,13 @@ def _add_connected_action(
     automation_id: str,
     *,
     archived_at: datetime | None = None,
+    enabled: bool = True,
+    event_action: Literal["opened", "closed"] = "opened",
+    playbook_id: str | None = "playbook-1",
+    sync_status: str = "enabled",
 ) -> ActionNode:
     trigger = TriggerNode(
-        event_action="opened",
+        event_action=event_action,
         repository_full_name=repository,
         position_x=0,
         position_y=0,
@@ -56,9 +60,10 @@ def _add_connected_action(
         name=f"Action {automation_id}",
         position_x=450,
         position_y=0,
-        enabled=True,
-        sync_status="enabled",
+        enabled=enabled,
+        sync_status=sync_status,
         automation_id=automation_id,
+        playbook_id=playbook_id,
         archived_at=archived_at,
     )
     session.add_all(
@@ -111,6 +116,7 @@ def test_reset_cleans_state_and_wipes_connected_flow(
                 enabled=True,
                 sync_status="enabled",
                 automation_id="seed-automation",
+                playbook_id="playbook-1",
             ),
             Edge(
                 source_id=trigger_id,
@@ -186,11 +192,22 @@ def test_reset_cleans_state_and_wipes_connected_flow(
         "get_poller_state",
         get_poller_state_spy,
     )
-    monkeypatch.setattr(
-        invocations,
-        "poll_once",
-        lambda session, client: poller_events.append("poll"),
-    )
+
+    def poll_once(session: Session, client: Any) -> None:
+        poller_events.append("poll")
+        session.add(
+            Invocation(
+                session_id="late-session",
+                automation_id="seed-automation",
+                action_node_id=action_id,
+                status="running",
+                session_created_at=datetime.now(UTC),
+                session_updated_at=datetime.now(UTC),
+            )
+        )
+        session.commit()
+
+    monkeypatch.setattr(invocations, "poll_once", poll_once)
 
     original_delete = cast(Any, reset).delete
 
@@ -233,6 +250,7 @@ def test_reset_cleans_state_and_wipes_connected_flow(
     assert calls.index(("admin", scenario.repository)) < calls.index(
         ("terminate", "seed-session")
     )
+    assert ("terminate", "late-session") in calls
     assert git_dirs
     assert set(git_dirs) == {tmp_path / "repo"}
     assert json.loads((tmp_path / ".simulate-state.json").read_text()) == {
@@ -363,9 +381,10 @@ def test_reset_wipes_two_connected_actions(
                     name=f"Action {index}",
                     position_x=index * 100,
                     position_y=0,
-                    enabled=True,
+                    enabled=index == 1,
                     sync_status="enabled",
                     automation_id=f"auto-{index}",
+                    playbook_id="playbook-1",
                 )
                 for index, action_id in enumerate(action_ids, 1)
             ],
@@ -465,7 +484,9 @@ def test_reset_rejects_empty_flow(
         "require_admin",
         lambda repo: pytest.fail("empty Flow must be checked first"),
     )
-    with pytest.raises(RuntimeError, match="no enabled Action with an Automation"):
+    with pytest.raises(
+        RuntimeError, match="no enabled Action using the Issue triage Playbook"
+    ):
         reset.reset(
             load_scenario(SCENARIO_PATH),
             work_dir=tmp_path,
@@ -491,7 +512,47 @@ def test_reset_ignores_archived_action(
         "require_admin",
         lambda repo: pytest.fail("archived Flow must be ignored before reset"),
     )
-    with pytest.raises(RuntimeError, match="no enabled Action with an Automation"):
+    with pytest.raises(
+        RuntimeError, match="no enabled Action using the Issue triage Playbook"
+    ):
+        reset.reset(
+            scenario,
+            work_dir=tmp_path,
+            session=unit_session,
+            devin_client=cast(Any, _valid_client()),
+        )
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"enabled": False},
+        {"event_action": "closed"},
+        {"playbook_id": "other-playbook"},
+        {"sync_status": "pending"},
+    ],
+)
+def test_reset_rejects_ineligible_action(
+    tmp_path: Path,
+    unit_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+    overrides: dict[str, Any],
+) -> None:
+    scenario = load_scenario(SCENARIO_PATH)
+    _add_connected_action(
+        unit_session,
+        scenario.repository,
+        "ineligible",
+        **overrides,
+    )
+    monkeypatch.setattr(
+        github,
+        "require_admin",
+        lambda repo: pytest.fail("ineligible Flow must be rejected first"),
+    )
+    with pytest.raises(
+        RuntimeError, match="no enabled Action using the Issue triage Playbook"
+    ):
         reset.reset(
             scenario,
             work_dir=tmp_path,
@@ -606,6 +667,7 @@ def test_reset_rejects_scenario_for_different_seed_repository(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     scenario = load_scenario(SCENARIO_PATH)
+    _add_connected_action(unit_session, scenario.repository, "auto")
     calls: list[str] = []
     monkeypatch.setattr(
         reset,
@@ -755,6 +817,7 @@ def test_reset_rejects_missing_poison_patch_before_destructive_work(
 ) -> None:
     scenario = load_scenario(SCENARIO_PATH)
     scenario.patch_dir = tmp_path / "patches"
+    _add_connected_action(unit_session, scenario.repository, "auto")
     calls: list[str] = []
     monkeypatch.setattr(
         reset,

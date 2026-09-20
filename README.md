@@ -102,8 +102,10 @@ Before running it, ensure that:
 - `SEED_REPOSITORY_FULL_NAME` is set to the Target repository. Reset rejects
   scenarios for any other repository.
 - A Canvas Flow is connected to a Trigger targeting the Target repository.
-  Reset requires at least one non-archived Action with an Automation connected
-  to that Trigger. `uv run seed` is an optional shortcut for creating one.
+  Reset requires at least one non-archived, enabled Action using the
+  `Issue triage` Playbook with an Automation connected to an opened Trigger.
+  Every other non-archived Action connected to a Target repository Trigger is
+  also reset. `uv run seed` is an optional shortcut for creating one.
 - The Devin GitHub connection's Automation scope is set to **All installed
   repos**, because the Target repository is public.
 
