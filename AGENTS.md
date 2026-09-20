@@ -45,6 +45,8 @@
   `/api/health` every 15 seconds, and FlowCanvas refreshes counts on every
   health tick. `src/api/schema.d.ts` is generated from the
   backend OpenAPI schema and also excluded from lint/format.
+- `backend/src/devin_flow/simulate/` - the packaged Scenario, Poisoned patches,
+  and the `simulate-issues` Reset, run, report, and CLI commands.
 - `pyproject.toml` - uv workspace root plus shared ruff, mypy (strict,
   pydantic plugin) and pytest config.
 - `package.json` / `pnpm-workspace.yaml` - pnpm workspace; root scripts
@@ -61,6 +63,7 @@ uv run alembic -c backend/alembic.ini upgrade head
 uv run alembic -c backend/alembic.ini revision --autogenerate -m "msg"
 uv run seed                    # idempotent seed against DATABASE_URL
 uv run sync-playbooks          # upsert playbooks/ to the Devin org
+uv run simulate-issues reset   # reset the Target repository for the simulator
 docker compose up -d db        # local postgres 18 on :5432
 docker compose run --rm seed   # seed the compose database
 uv run ruff check .            # python lint
