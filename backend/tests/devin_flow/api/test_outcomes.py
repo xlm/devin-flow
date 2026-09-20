@@ -45,6 +45,7 @@ def add_invocation(
     age_seconds: int = 0,
     pull_requests: list[dict[str, Any]] | None = None,
     structured_output: dict[str, Any] | None = None,
+    archived_at: datetime | None = None,
 ) -> Invocation:
     now = datetime.now(UTC)
     invocation = Invocation(
@@ -54,6 +55,7 @@ def add_invocation(
         status="exit",
         pull_requests=pull_requests or [],
         structured_output=structured_output,
+        archived_at=archived_at,
         session_created_at=now - timedelta(seconds=age_seconds),
         session_updated_at=now,
     )
@@ -140,6 +142,36 @@ def test_lists_matching_invocations_newest_first(
         {"url": "https://github.com/a/b/pull/1", "state": "merged"}
     ]
     assert rows[1]["duplicate_of"] == "s-0"
+
+
+def test_archived_invocations_are_not_listed(
+    unit_client: TestClient, unit_session: Session
+) -> None:
+    action_id = UUID(create_node(unit_client, "action"))
+    outcome = OutcomeNode(position_x=1, position_y=2, kind="duplicate")
+    unit_session.add(outcome)
+    unit_session.commit()
+    assert (
+        create_edge(
+            unit_client, str(action_id), "action", str(outcome.id), "outcome"
+        ).status_code
+        == 201
+    )
+    add_invocation(
+        unit_session,
+        action_id,
+        session_id="s-visible",
+        structured_output={"outcome": "duplicate"},
+    )
+    add_invocation(
+        unit_session,
+        action_id,
+        session_id="s-archived",
+        structured_output={"outcome": "duplicate"},
+        archived_at=datetime.now(UTC),
+    )
+    rows = unit_client.get(f"/api/outcome-nodes/{outcome.id}/invocations").json()
+    assert [row["session_id"] for row in rows] == ["s-visible"]
 
 
 def test_pull_request_outcome_lists_only_pr_invocations(

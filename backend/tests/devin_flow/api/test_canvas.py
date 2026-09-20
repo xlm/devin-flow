@@ -1023,6 +1023,17 @@ def test_canvas_counts_invocations_per_action(
                 session_updated_at=now,
             )
         )
+    unit_session.add(
+        Invocation(
+            session_id="s-archived",
+            automation_id="auto-1",
+            action_node_id=counted_id,
+            status="exit",
+            session_created_at=now,
+            session_updated_at=now,
+            archived_at=now,
+        )
+    )
     unit_session.commit()
     canvas = unit_client.get("/api/canvas").json()
     counts = {

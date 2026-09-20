@@ -147,6 +147,7 @@ def poll_once(session: Session, client: DevinClient) -> PollResult:
         select(Invocation).where(
             col(Invocation.status).not_in(TERMINAL_SESSION_STATUSES),
             col(Invocation.session_id).not_in(seen),
+            col(Invocation.archived_at).is_(None),
         )
     ).all()
     for invocation in stale:

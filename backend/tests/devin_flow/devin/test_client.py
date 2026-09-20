@@ -260,6 +260,36 @@ def test_create_session_posts_prompt() -> None:
     client.http.close()
 
 
+def test_archive_session_posts_to_archive_endpoint() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.url.path == "/organizations/org-test/sessions/session-9/archive"
+        return httpx.Response(
+            200,
+            json={
+                "session_id": "session-9",
+                "status": "exit",
+                "title": "Archived",
+            },
+        )
+
+    client = make_client(httpx.MockTransport(handler))
+    assert client.archive_session("session-9") == DevinSession(
+        session_id="session-9",
+        status="exit",
+        title="Archived",
+    )
+    client.http.close()
+
+
+def test_archive_session_rejects_malformed_success() -> None:
+    client = make_client(httpx.MockTransport(lambda _: httpx.Response(200, text="bad")))
+    with pytest.raises(DevinUpstreamError) as error:
+        client.archive_session("session-9")
+    assert error.value.detail == "malformed devin response"
+    client.http.close()
+
+
 @pytest.mark.parametrize("status_code", [400, 500])
 def test_upstream_http_errors_include_status(status_code: int) -> None:
     client = make_client(
