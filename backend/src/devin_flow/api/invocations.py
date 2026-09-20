@@ -4,6 +4,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response
+from pydantic import BaseModel
 from sqlmodel import Session, col, select
 
 from devin_flow.api.devin import DevinClientDep, ErrorResponse, upstream_error
@@ -19,6 +20,27 @@ from devin_flow.models import Invocation
 
 router = APIRouter(prefix="/invocations")
 SessionDep = Annotated[Session, Depends(get_session)]
+
+
+class InvocationRead(BaseModel):
+    id: UUID
+    session_id: str
+    status: str
+    title: str | None
+    url: str | None
+    pull_requests: list[dict[str, object]]
+    structured_output: dict[str, object] | None
+    session_created_at: datetime
+
+
+@router.get("", response_model=list[InvocationRead])
+def list_invocations(session: SessionDep) -> list[InvocationRead]:
+    return [
+        InvocationRead.model_validate(invocation, from_attributes=True)
+        for invocation in session.exec(
+            select(Invocation).order_by(col(Invocation.session_created_at))
+        )
+    ]
 
 
 @router.post(

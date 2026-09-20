@@ -93,8 +93,6 @@ def test_refresh_reports_upstream_failure(
     assert response.status_code == 502
     assert response.json() == {"detail": "devin api returned HTTP 500"}
     assert unit_session.get(PollerState, 1) is None
-
-
 def add_invocation(session: Session) -> Invocation:
     action = add_action(session, "auto-1")
     now = datetime.now(UTC)
@@ -241,3 +239,31 @@ def test_archive_invocation_reports_missing_configuration(
     )
     response = unit_client.post(f"/api/invocations/{invocation.id}/archive")
     assert response.status_code == 503
+
+
+def test_list_invocations_returns_report_fields(
+    unit_client: TestClient, unit_session: Session
+) -> None:
+    action = add_action(unit_session, "auto-1")
+    created = datetime.now(UTC)
+    unit_session.add(
+        Invocation(
+            session_id="session-1",
+            automation_id="auto-1",
+            action_node_id=action.id,
+            status="exit",
+            title="Fix issue #42",
+            url="https://devin.example/sessions/session-1",
+            pull_requests=[{"pr_url": "https://github.com/x/y/pull/1"}],
+            structured_output={"issue_number": 42, "outcome": "fixed"},
+            session_created_at=created,
+            session_updated_at=created,
+        )
+    )
+    unit_session.commit()
+
+    response = unit_client.get("/api/invocations")
+
+    assert response.status_code == 200
+    assert response.json()[0]["structured_output"]["issue_number"] == 42
+    assert response.json()[0]["pull_requests"][0]["pr_url"].endswith("/pull/1")

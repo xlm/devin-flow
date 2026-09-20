@@ -68,11 +68,14 @@ uv run alembic -c backend/alembic.ini upgrade head
 uv run alembic -c backend/alembic.ini downgrade -1
 ```
 
-Seed data is defined in `backend/src/devin_flow/seed.py`. `seed(session)`
-is idempotent, so `uv run seed` (locally) or `docker compose run --rm seed`
-(against the compose database) can run any number of times. Today the
-seeded state is an empty Canvas, so it inserts nothing. Test fixtures call
-the same function.
+Seed data is defined in `backend/src/devin_flow/seed.py`. `seed(session, *,
+playbook_id, repository_full_name)` is idempotent, so `uv run seed` (locally) or `docker compose run --rm seed`
+(against the compose database) can run any number of times. When
+`SEED_PLAYBOOK_ID` is set, it creates the Seed Flow: an issue-opened Trigger
+for `SEED_REPOSITORY_FULL_NAME`, the `Seed: Issue triage` Action, and one
+Outcome node for each Outcome kind. Existing Seed Flow rows are reused
+without changing their Automation. Leave `SEED_PLAYBOOK_ID` empty to keep the
+Canvas empty. Test fixtures pass no playbook and call the same function.
 
 ## Checks
 
