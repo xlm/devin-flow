@@ -28,6 +28,10 @@ GIT_IDENTITY_ARGS = (
 )
 
 
+def repo_dir(work_dir: Path) -> Path:
+    return work_dir / "repo"
+
+
 def _git(work_dir: Path, *args: str) -> str:
     result = subprocess.run(
         ["git", *GIT_CREDENTIAL_ARGS, *args],
@@ -48,6 +52,8 @@ def reset(
     wipe_invocations: bool = True,
 ) -> str:
     github.require_admin(scenario.repository)
+    work_dir.mkdir(parents=True, exist_ok=True)
+    checkout_dir = repo_dir(work_dir)
     terminated: set[str] = set()
     for invocation in session.exec(select(Invocation)).all():
         if invocation.status not in TERMINAL_SESSION_STATUSES:
@@ -71,31 +77,36 @@ def reset(
         github.delete_issue(scenario.repository, node_id)
     for pull_request in github.list_open_prs(scenario.repository):
         github.close_pr(scenario.repository, pull_request.number)
-    if not work_dir.exists():
-        work_dir.parent.mkdir(parents=True, exist_ok=True)
+    if not checkout_dir.exists():
         subprocess.run(
             [
                 "git",
                 *GIT_CREDENTIAL_ARGS,
                 "clone",
                 f"https://github.com/{scenario.repository}.git",
-                str(work_dir),
+                str(checkout_dir),
             ],
             check=True,
         )
-    for branch in _git_branches(scenario, work_dir):
+    for branch in _git_branches(scenario, checkout_dir):
         github.delete_branch(scenario.repository, branch)
-    _git(work_dir, "fetch", "origin")
-    _git(work_dir, "checkout", "-B", scenario.default_branch, scenario.baseline)
-    _git(work_dir, "reset", "--hard", scenario.baseline)
+    _git(checkout_dir, "fetch", "origin")
+    _git(checkout_dir, "checkout", "-B", scenario.default_branch, scenario.baseline)
+    _git(checkout_dir, "reset", "--hard", scenario.baseline)
     for poison in scenario.poisons:
         patch = Path(__file__).resolve().parent / "patches" / poison.patch
-        _git(work_dir, "apply", str(patch))
-        _git(work_dir, "add", "-A")
-        _git(work_dir, *GIT_IDENTITY_ARGS, "commit", "-m", f"chore: {poison.id}")
-    reset_sha = _git(work_dir, "rev-parse", "HEAD")
+        _git(checkout_dir, "apply", str(patch))
+        _git(checkout_dir, "add", "-A")
+        _git(
+            checkout_dir,
+            *GIT_IDENTITY_ARGS,
+            "commit",
+            "-m",
+            f"chore: {poison.id}",
+        )
+    reset_sha = _git(checkout_dir, "rev-parse", "HEAD")
     _git(
-        work_dir,
+        checkout_dir,
         "push",
         "--force",
         "origin",
