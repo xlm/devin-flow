@@ -361,6 +361,7 @@ describe('FlowCanvas', () => {
   it('configures manual change application', async () => {
     const wrapper = mount(FlowCanvas)
     await flushPromises()
+    expect(vueFlow(wrapper).props('applyDefault')).toBe(false)
     const node = {
       id: 'action',
       position: { x: 101, y: 51 },
