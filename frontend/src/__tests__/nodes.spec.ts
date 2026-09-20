@@ -163,6 +163,12 @@ describe('canvas nodes', () => {
           ]),
       ).toEqual(handles)
       expect(wrapper.find('[data-testid="delete-node"]').text()).toBe('Delete')
+      expect(
+        (
+          wrapper.find('[data-testid="delete-node"]')
+            .element as HTMLButtonElement
+        ).disabled,
+      ).toBe(false)
       await wrapper.find('[data-testid="delete-node"]').trigger('click')
       expect(mocks.removeNodes).toHaveBeenCalledWith(['n1'])
       wrapper.unmount()

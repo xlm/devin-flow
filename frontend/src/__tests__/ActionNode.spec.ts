@@ -190,9 +190,7 @@ describe('ActionNode', () => {
     ).toBe('true')
     expect(wrapper.text()).toContain('No Trigger')
     expect(wrapper.text()).toContain('Connect a Trigger to this Action')
-    const button = wrapper.get('[data-testid="enable-switch"]')
-    expect((button.element as HTMLButtonElement).disabled).toBe(true)
-    expect(button.text()).toBe('No Trigger')
+    expect(wrapper.find('[data-testid="enable-switch"]').exists()).toBe(false)
   })
 
   it('labels removal as archive for a provisioned action', async () => {
@@ -209,7 +207,7 @@ describe('ActionNode', () => {
     expect(wrapper.get('[data-testid="delete-node"]').text()).toBe('Delete')
   })
 
-  it('disables the switch for an incomplete connected trigger', async () => {
+  it('hides the switch for an incomplete connected trigger', async () => {
     GET.mockResolvedValue({ data: [], error: undefined })
     edges.value = [
       {
@@ -230,9 +228,7 @@ describe('ActionNode', () => {
     })
     const wrapper = mountAction({ name: 'Triage', playbookId: 'pb-1' })
     await flushPromises()
-    const button = wrapper.get('[data-testid="enable-switch"]')
-    expect((button.element as HTMLButtonElement).disabled).toBe(true)
-    expect(button.attributes('title')).toBe('Complete the connected Trigger')
+    expect(wrapper.find('[data-testid="enable-switch"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('Trigger incomplete')
   })
 
@@ -290,17 +286,11 @@ describe('ActionNode', () => {
     expect(GET).toHaveBeenCalledTimes(2)
   })
 
-  it('disables the switch when the action is invalid', async () => {
+  it('hides the switch when the action is invalid', async () => {
     GET.mockResolvedValue({ data: [], error: undefined })
     const wrapper = mountAction()
     await flushPromises()
-    const button = wrapper.get('[data-testid="enable-switch"]')
-    expect((button.element as HTMLButtonElement).disabled).toBe(true)
-    expect(button.attributes('aria-checked')).toBe('false')
-    expect(button.attributes('title')).toBe(
-      'Enter a name and choose a Playbook',
-    )
-    expect(button.text()).toBe('No Trigger')
+    expect(wrapper.find('[data-testid="enable-switch"]').exists()).toBe(false)
   })
 
   it('enables a complete action and reports save failures', async () => {
@@ -335,6 +325,7 @@ describe('ActionNode', () => {
       },
     })
     await flushPromises()
+    expect(wrapper.get('[data-testid="enable-switch"]').text()).toBe('Enable')
     await wrapper.get('[data-testid="enable-switch"]').trigger('click')
     await flushPromises()
     expect(save).toHaveBeenCalledWith('n1', { enabled: true })
@@ -350,6 +341,17 @@ describe('ActionNode', () => {
     await flushPromises()
     expect(save).toHaveBeenLastCalledWith('n1', { enabled: false })
     expect(wrapper.find('[data-testid="save-error"]').exists()).toBe(true)
+  })
+
+  it('shows disable for an enabled invalid action', async () => {
+    GET.mockResolvedValue({ data: [], error: undefined })
+    const wrapper = mountAction({
+      name: 'Triage',
+      playbookId: 'pb-1',
+      enabled: true,
+    })
+    await flushPromises()
+    expect(wrapper.get('[data-testid="enable-switch"]').text()).toBe('Disable')
   })
 
   it('shows sync status and error on the badge', async () => {
