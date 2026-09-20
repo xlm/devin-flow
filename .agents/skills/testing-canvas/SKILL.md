@@ -42,8 +42,12 @@ when necessary and remove them along with the temporary Invocation rows.
 
 ## Browser gestures and assertions
 
-- Use rendered handle positions. Current custom nodes have left target and
-  right source handles. Older default Vue Flow nodes can use top/bottom.
+- Use rendered handle positions rather than assuming horizontal connections.
+  Custom nodes have top target and bottom source handles. Trigger has only a
+  source, Action has both, and Outcome has only a target. Trigger source and
+  Action target are sky-500. Action source and Outcome target are violet-500.
+  Check computed background colors as well as visible dots, because Vue Flow's
+  default handle styles can override non-important Tailwind classes.
 - A target-to-source drag normalizes to source->target. It does not establish
   an invalid reversed direction. Test forbidden kinds with compatible handles,
   such as Trigger source to Outcome target.
