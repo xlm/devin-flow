@@ -4,10 +4,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   GET: vi.fn(),
+  POST: vi.fn(),
 }))
 
 vi.mock('@/api/client', () => ({
-  client: { GET: mocks.GET },
+  client: { GET: mocks.GET, POST: mocks.POST },
 }))
 
 vi.mock('@/components/ui/sheet', () => ({
@@ -87,6 +88,7 @@ function mountSheet(props: {
 describe('OutcomeInvocationsSheet', () => {
   beforeEach(() => {
     mocks.GET.mockReset()
+    mocks.POST.mockReset()
     mocks.GET.mockResolvedValue({ data: [invocation()], error: undefined })
   })
 
@@ -229,6 +231,35 @@ describe('OutcomeInvocationsSheet', () => {
     const wrapper = mountSheet({})
     await flushPromises()
     expect(wrapper.find('[data-testid="outcome-error"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('archives an invocation and emits success', async () => {
+    mocks.GET.mockResolvedValueOnce({ data: [invocation()], error: undefined })
+    mocks.GET.mockResolvedValueOnce({ data: [], error: undefined })
+    mocks.POST.mockResolvedValue({ data: undefined, error: undefined })
+    const wrapper = mountSheet({})
+    await flushPromises()
+    await wrapper.find('[data-testid="archive-invocation"]').trigger('click')
+    await flushPromises()
+    expect(mocks.POST).toHaveBeenCalledWith(
+      '/api/invocations/{invocation_id}/archive',
+      { params: { path: { invocation_id: 'inv-1' } } },
+    )
+    expect(wrapper.emitted('archived')).toEqual([[]])
+    wrapper.unmount()
+  })
+
+  it('shows an archive error when archiving fails', async () => {
+    mocks.POST.mockResolvedValue({ data: undefined, error: { detail: 'down' } })
+    const wrapper = mountSheet({})
+    await flushPromises()
+    await wrapper.find('[data-testid="archive-invocation"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="archive-error"]').text()).toBe(
+      'Could not archive session',
+    )
+    expect(wrapper.emitted('archived')).toBeUndefined()
     wrapper.unmount()
   })
 

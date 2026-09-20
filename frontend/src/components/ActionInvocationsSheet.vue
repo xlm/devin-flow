@@ -2,6 +2,7 @@
 import { computed, watch } from 'vue'
 import { client } from '@/api/client'
 import InvocationsSheet from '@/components/InvocationsSheet.vue'
+import { Button } from '@/components/ui/button'
 import { useInvocationList } from '@/composables/useInvocationList'
 import type { ActionInvocationRead, IssueRef } from '@/lib/connectRules'
 import { formatDate } from '@/lib/formatDate'
@@ -12,19 +13,29 @@ const props = defineProps<{
   nodeId: string | null
   actionName: string | null
 }>()
-const emit = defineEmits<{ 'update:open': [value: boolean] }>()
+const emit = defineEmits<{
+  'update:open': [value: boolean]
+  archived: []
+}>()
 
 const {
   items: invocations,
   loading,
   loadError,
   load,
+  archivingIds,
+  archiveErrors,
+  archive,
 } = useInvocationList<ActionInvocationRead>(() =>
   client.GET('/api/action-nodes/{node_id}/invocations', {
     // `load` only runs while nodeId is set; the watch below guards it.
     params: { path: { node_id: props.nodeId as string } },
   }),
 )
+
+async function archiveInvocation(id: string) {
+  if (await archive(id)) emit('archived')
+}
 
 const title = computed(
   () => `${props.actionName?.trim() || 'Action'} invocations`,
@@ -96,6 +107,24 @@ watch(
           <span
             >{{ invocation.status }} -
             {{ formatDate(invocation.session_created_at) }}</span
+          >
+        </div>
+        <div class="mt-2 flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            data-testid="archive-invocation"
+            aria-label="Archive session"
+            :disabled="archivingIds.has(invocation.id)"
+            @click="archiveInvocation(invocation.id)"
+          >
+            Archive
+          </Button>
+          <span
+            v-if="archiveErrors.has(invocation.id)"
+            data-testid="archive-error"
+            class="text-xs text-destructive"
+            >Could not archive session</span
           >
         </div>
         <ul v-if="invocation.pull_requests.length" class="mt-1">
