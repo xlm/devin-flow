@@ -198,7 +198,7 @@ describe('ActionInvocationsSheet', () => {
     const dots = items.map((item) =>
       item.find('[data-testid="session-status-dot"]'),
     )
-    expect(dots[0].classes()).toContain('bg-blue-500')
+    expect(dots[0].classes()).toContain('bg-amber-500')
     expect(dots[1].classes()).toContain('bg-destructive')
     expect(items[0].text()).toContain('running')
     expect(items[1].text()).toContain('error')

@@ -1,4 +1,4 @@
-const inProgress = 'bg-blue-500'
+const inProgress = 'bg-amber-500'
 const statusClasses: Record<string, string> = {
   running: inProgress,
   claimed: inProgress,
