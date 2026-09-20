@@ -62,6 +62,7 @@ requests, deletes non-`master` branches, and force-pushes `master` to the
 pinned baseline plus three poisoned backend bugs.
 
 ```sh
+# Ensure you have an enabled Action per step 3 first before running reset
 uv run simulate-issues reset
 uv run simulate-issues run --report
 ```
