@@ -87,6 +87,17 @@ const components = [
 ] as const
 
 function mountNode(component: Component) {
+  const nodeProps = {
+    type: 'custom',
+    selected: false,
+    connectable: true,
+    position: { x: 0, y: 0 },
+    dimensions: { width: 0, height: 0 },
+    dragging: false,
+    resizing: false,
+    zIndex: 0,
+    events: {},
+  }
   const props =
     component === TriggerNode
       ? {
@@ -113,7 +124,9 @@ function mountNode(component: Component) {
             id: 'n1',
             data: { kind: 'outcome', label: 'Outcome' },
           }
-  return mount(component, { props } as never)
+  return mount(component, {
+    props: { ...nodeProps, ...props, onUpdateNodeInternals: () => {} },
+  } as never)
 }
 
 describe('canvas nodes', () => {
@@ -145,6 +158,18 @@ describe('canvas nodes', () => {
       await wrapper.find('[data-testid="delete-node"]').trigger('click')
       expect(mocks.removeNodes).toHaveBeenCalledWith(['n1'])
       wrapper.unmount()
+    },
+  )
+
+  it.each(components)(
+    'mounts the $kind node without Vue warnings',
+    async ({ component }) => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const wrapper = mountNode(component)
+      await flushPromises()
+      expect(warn).not.toHaveBeenCalled()
+      wrapper.unmount()
+      warn.mockRestore()
     },
   )
 
