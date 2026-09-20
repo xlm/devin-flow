@@ -1374,7 +1374,7 @@ def test_restore_action_keeps_sync_state(
     assert stored.automation_id == "auto-9"
 
 
-def test_action_delete_archives_without_automation(
+def test_action_delete_removes_without_automation(
     unit_client: TestClient,
     unit_session: Session,
     mock_devin: tuple[DevinClient, list[httpx.Request]],
@@ -1385,19 +1385,13 @@ def test_action_delete_archives_without_automation(
     response = unit_client.delete(f"/api/canvas/nodes/action/{action.id}")
     assert response.status_code == 204
     assert mock_devin[1] == []
-    stored = unit_session.get(ActionNode, action.id)
-    assert stored is not None
-    assert stored.archived_at is not None
-    assert stored.sync_status == "unprovisioned"
-    assert stored.sync_error is None
-    rows = unit_client.get("/api/canvas/archived-actions").json()
-    assert [row["id"] for row in rows] == [str(action.id)]
-    assert rows[0]["sync_status"] == "unprovisioned"
-    assert unit_client.get("/api/canvas").json()["action_nodes"] == []
-    restored = unit_client.post(f"/api/canvas/nodes/action/{action.id}/restore")
-    assert restored.status_code == 200
-    assert restored.json()["sync_status"] == "unprovisioned"
+    assert unit_session.get(ActionNode, action.id) is None
     assert unit_client.get("/api/canvas/archived-actions").json() == []
+    assert unit_client.get("/api/canvas").json()["action_nodes"] == []
+    assert (
+        unit_client.post(f"/api/canvas/nodes/action/{action.id}/restore").status_code
+        == 404
+    )
 
 
 def test_action_delete_and_restore_keep_enabled_switch(

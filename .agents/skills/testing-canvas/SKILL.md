@@ -127,9 +127,11 @@ to `FlowCanvas.vue` as unverified until it has run in the real browser.
 
 ## Archived Actions
 
-Deleting an Action node archives it (DELETE `/api/canvas/nodes/action/{id}`
-always sets `archived_at`; the Automation is disabled upstream only when
-the Action has an `automation_id`). Archived Actions keep their
+Deleting an Action node archives it when it has an `automation_id`
+(DELETE `/api/canvas/nodes/action/{id}` sets `archived_at` and disables
+the Automation upstream). An Action with no `automation_id` owns no
+Invocations and is hard deleted like the other node kinds, so seed a
+configured Action for archive fixtures. Archived Actions keep their
 Invocations, their enabled switch and keep being polled.
 
 1. Open the sheet with the `archived-actions-button` in the top-right
