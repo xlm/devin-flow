@@ -138,6 +138,7 @@ def reset(
                 devin_client.terminate_session(upstream_session.session_id)
                 terminated.add(upstream_session.session_id)
     github.enable_issues(scenario.repository)
+    github.ensure_labels(scenario.repository)
     for node_id in github.list_issue_node_ids(scenario.repository):
         github.delete_issue(scenario.repository, node_id)
     for pull_request in github.list_open_prs(scenario.repository):

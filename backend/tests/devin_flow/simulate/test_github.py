@@ -30,6 +30,7 @@ def test_github_wrappers_use_expected_commands(
     monkeypatch.setattr(subprocess, "run", fake_run)
     github.require_admin("xlm/superset")
     github.enable_issues("xlm/superset")
+    github.ensure_labels("xlm/superset")
     assert github.list_issue_node_ids("xlm/superset") == ["node-1", "node-2"]
     github.delete_issue("xlm/superset", "node-1")
     assert github.list_open_prs("xlm/superset")[0].branch == "fix/3"
@@ -46,6 +47,19 @@ def test_github_wrappers_use_expected_commands(
         "repos/xlm/superset/pulls?state=open",
         "--jq",
         ".[] | [.number, .head.ref] | @tsv",
+    ] in calls
+    assert [
+        "gh",
+        "label",
+        "create",
+        "bug",
+        "--repo",
+        "xlm/superset",
+        "--color",
+        "d73a4a",
+        "--description",
+        "Something isn't working",
+        "--force",
     ] in calls
 
 

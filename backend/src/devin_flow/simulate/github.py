@@ -6,6 +6,15 @@ class GitHubError(RuntimeError):
     pass
 
 
+TRIAGE_LABELS: dict[str, tuple[str, str]] = {
+    "bug": ("d73a4a", "Something isn't working"),
+    "duplicate": ("cfd3d7", "This issue or pull request already exists"),
+    "enhancement": ("a2eeef", "New feature or request"),
+    "question": ("d876e3", "Further information is requested"),
+    "needs-repro": ("e4e669", "Closed pending reproducible steps, reopen with them"),
+}
+
+
 def _run(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
     result = subprocess.run(
         ["gh", *args],
@@ -34,6 +43,22 @@ def require_admin(repo: str) -> None:
 
 def enable_issues(repo: str) -> None:
     _run("api", "--method", "PATCH", f"repos/{repo}", "-f", "has_issues=true")
+
+
+def ensure_labels(repo: str) -> None:
+    for name, (color, description) in TRIAGE_LABELS.items():
+        _run(
+            "label",
+            "create",
+            name,
+            "--repo",
+            repo,
+            "--color",
+            color,
+            "--description",
+            description,
+            "--force",
+        )
 
 
 def list_issue_node_ids(repo: str) -> list[str]:
