@@ -116,7 +116,7 @@ def test_invocation_outcome_backfill(postgres_engine: Engine) -> None:
     first_id, second_id = uuid4(), uuid4()
     with postgres_engine.begin() as connection:
         config.attributes["connection"] = connection
-        command.downgrade(config, "e5f1a2c3d4b6")
+        command.downgrade(config, "a1f3e5c7d9b2")
     try:
         with postgres_engine.begin() as connection:
             connection.execute(
