@@ -25,6 +25,7 @@ def report(
     deadline = now() + timeout
     client = http or httpx.Client(base_url=flow_url)
     try:
+        timed_out = False
         while True:
             response = client.get("/api/invocations")
             response.raise_for_status()
@@ -42,19 +43,25 @@ def report(
             if all(item["number"] in by_issue for item in run["issues"]):
                 break
             if now() >= deadline:
-                print("report timed out")
-                return 1
+                timed_out = True
+                break
             sleep(min(30, max(0, deadline - now())))
         mismatches = 0
+        if timed_out:
+            print("report timed out")
         print("issue  expected           actual             session")
         for item in run["issues"]:
-            invocation = by_issue[item["number"]]
+            invocation = by_issue.get(item["number"])
             actual = (
-                "fixed"
-                if invocation.get("pull_requests")
-                else (invocation.get("structured_output") or {}).get("outcome")
+                "pending"
+                if invocation is None
+                else (
+                    "fixed"
+                    if invocation.get("pull_requests")
+                    else (invocation.get("structured_output") or {}).get("outcome")
+                )
             )
-            session_url = invocation.get("url") or ""
+            session_url = invocation.get("url") or "" if invocation is not None else ""
             print(
                 f"#{item['number']:<5} {item['expected_outcome']:<17} "
                 f"{str(actual):<18} {session_url}"

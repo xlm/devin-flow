@@ -88,12 +88,14 @@ def test_report_waits_for_running_invocation_without_outcome(tmp_path: Path) -> 
 
 def test_report_times_out(tmp_path: Path, capsys: Any) -> None:
     (tmp_path / ".simulate-run.json").write_text(
-        json.dumps({"issues": [{"number": 1}]})
+        json.dumps({"issues": [{"number": 1, "expected_outcome": "fixed"}]})
     )
     transport = httpx.MockTransport(lambda request: httpx.Response(200, json=[]))
     with httpx.Client(transport=transport, base_url="http://flow") as client:
         assert report.report(work_dir=tmp_path, timeout=0, http=client) == 1
-    assert "timed out" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "report timed out" in output
+    assert "#1     fixed             pending" in output
 
 
 def test_report_waits_and_closes_owned_client(
