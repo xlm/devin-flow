@@ -1,3 +1,4 @@
+from contextlib import suppress
 from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
@@ -61,16 +62,16 @@ def archive_invocation(
     ).first()
     if invocation is None:
         raise HTTPException(404, "invocation not found")
+    now = datetime.now(UTC)
     try:
-        now = datetime.now(UTC)
         client.archive_session(invocation.session_id)
-        devin_session = client.get_session(invocation.session_id)
-        apply_session(invocation, devin_session, now)
-        invocation.archived_at = now
-        session.add(invocation)
-        record_outcomes(session, invocation)
-        session.commit()
     except DevinUpstreamError as exc:
         session.rollback()
         raise upstream_error(exc) from exc
+    invocation.archived_at = now
+    with suppress(DevinUpstreamError):
+        apply_session(invocation, client.get_session(invocation.session_id), now)
+    session.add(invocation)
+    record_outcomes(session, invocation)
+    session.commit()
     return Response(status_code=204)
