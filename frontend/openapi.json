@@ -3,6 +3,18 @@
     "schemas": {
       "ActionInvocationRead": {
         "properties": {
+          "archived_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived At"
+          },
           "duplicate_of": {
             "anyOf": [
               {
@@ -81,6 +93,7 @@
           "session_created_at",
           "pull_requests",
           "duplicate_of",
+          "archived_at",
           "issue"
         ],
         "title": "ActionInvocationRead",
@@ -814,6 +827,18 @@
       },
       "OutcomeInvocationRead": {
         "properties": {
+          "archived_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived At"
+          },
           "duplicate_of": {
             "anyOf": [
               {
@@ -881,7 +906,8 @@
           "status",
           "session_created_at",
           "pull_requests",
-          "duplicate_of"
+          "duplicate_of",
+          "archived_at"
         ],
         "title": "OutcomeInvocationRead",
         "type": "object"

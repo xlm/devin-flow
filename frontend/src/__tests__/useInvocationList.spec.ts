@@ -36,7 +36,7 @@ describe('useInvocationList archive', () => {
     const fetcher = vi
       .fn()
       .mockResolvedValueOnce({ data: ['one'] })
-      .mockResolvedValueOnce({ data: [] })
+      .mockResolvedValueOnce({ data: ['archived'] })
     post.mockResolvedValue({ data: undefined, error: undefined })
     const { wrapper, list } = mountList(fetcher)
     await list.load()
@@ -45,7 +45,7 @@ describe('useInvocationList archive', () => {
       '/api/invocations/{invocation_id}/archive',
       { params: { path: { invocation_id: 'inv-1' } } },
     )
-    expect(list.items.value).toEqual([])
+    expect(list.items.value).toEqual(['archived'])
     expect(list.archivingIds.value).not.toContain('inv-1')
     wrapper.unmount()
   })

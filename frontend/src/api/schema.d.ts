@@ -267,6 +267,8 @@ export interface components {
     schemas: {
         /** ActionInvocationRead */
         ActionInvocationRead: {
+            /** Archived At */
+            archived_at: string | null;
             /** Duplicate Of */
             duplicate_of: string | null;
             /**
@@ -511,6 +513,8 @@ export interface components {
         };
         /** OutcomeInvocationRead */
         OutcomeInvocationRead: {
+            /** Archived At */
+            archived_at: string | null;
             /** Duplicate Of */
             duplicate_of: string | null;
             /**

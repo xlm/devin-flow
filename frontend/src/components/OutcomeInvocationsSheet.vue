@@ -103,10 +103,12 @@ watch(
             variant="outline"
             data-testid="archive-invocation"
             aria-label="Archive session"
-            :disabled="archivingIds.has(invocation.id)"
+            :disabled="
+              archivingIds.has(invocation.id) || invocation.archived_at !== null
+            "
             @click="archiveInvocation(invocation.id)"
           >
-            Archive
+            {{ invocation.archived_at ? 'Archived' : 'Archive' }}
           </Button>
           <span
             v-if="archiveErrors.has(invocation.id)"
