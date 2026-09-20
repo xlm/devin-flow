@@ -11,7 +11,7 @@ from sqlmodel import Session, select
 
 from devin_flow import automations, invocations
 from devin_flow.config import Settings
-from devin_flow.devin.client import Automation, DevinSession
+from devin_flow.devin.client import Automation, DevinSession, Playbook
 from devin_flow.models import ActionNode, Edge, Invocation, TriggerNode
 from devin_flow.seed import SEED_ACTION_ID, SEED_TRIGGER_ID
 from devin_flow.simulate import github, reset
@@ -20,6 +20,26 @@ from devin_flow.simulate.scenario import load_scenario
 from .conftest import SCENARIO_PATH
 
 REAL_SYNC_ACTION = automations.sync_action
+
+
+def _valid_client(**kwargs: Any) -> SimpleNamespace:
+    defaults = {
+        "list_playbooks": lambda: [
+            Playbook(
+                playbook_id="playbook-1",
+                title="Issue triage",
+                body="body",
+                structured_output_schema={
+                    "type": "object",
+                    "properties": {"issue_number": {"type": "integer"}},
+                },
+            )
+        ],
+        "list_sessions": lambda **session_kwargs: [],
+        "terminate_session": lambda session_id: None,
+    }
+    defaults.update(kwargs)
+    return SimpleNamespace(**defaults)
 
 
 def _seed_enabled_action(session: Session, **kwargs: Any) -> None:
@@ -31,6 +51,7 @@ def _seed_enabled_action(session: Session, **kwargs: Any) -> None:
             position_y=0,
             enabled=True,
             sync_status="enabled",
+            automation_id="seed-automation",
         )
     )
     session.commit()
@@ -102,6 +123,7 @@ def test_reset_cleans_state_and_seeds(
                 position_y=0,
                 enabled=True,
                 sync_status="pending",
+                automation_id="seed-automation",
             )
         )
         session.commit()
@@ -139,6 +161,7 @@ def test_reset_cleans_state_and_seeds(
         action = session.get(ActionNode, action_id)
         assert action is not None
         action.sync_status = "enabled"
+        action.automation_id = "seed-automation"
         session.add(action)
         session.commit()
 
@@ -151,7 +174,7 @@ def test_reset_cleans_state_and_seeds(
         scenario,
         work_dir=tmp_path,
         session=unit_session,
-        devin_client=cast(Any, SimpleNamespace()),
+        devin_client=cast(Any, _valid_client()),
     )
     assert result == "result-sha"
     assert (
@@ -248,6 +271,9 @@ def test_reset_terminates_upstream_sessions(
     terminated: list[str] = []
 
     class FakeClient:
+        def list_playbooks(self) -> list[Playbook]:
+            return cast(list[Playbook], _valid_client().list_playbooks())
+
         def list_sessions(self, **kwargs: Any) -> list[DevinSession]:
             assert kwargs == {
                 "automation_ids": ["automation-1"],
@@ -349,6 +375,9 @@ def test_reset_syncs_displaced_action(
     updates: list[tuple[str, bool | None]] = []
 
     class FakeClient:
+        def list_playbooks(self) -> list[Playbook]:
+            return cast(list[Playbook], _valid_client().list_playbooks())
+
         def list_sessions(self, **kwargs: Any) -> list[DevinSession]:
             return []
 
@@ -402,9 +431,9 @@ def test_reset_rejects_checkout_for_different_repository(
             scenario,
             work_dir=tmp_path,
             session=unit_session,
-            devin_client=cast(Any, SimpleNamespace()),
+            devin_client=cast(Any, _valid_client()),
         )
-    assert calls == ["admin"]
+    assert calls == []
 
 
 def test_reset_rejects_scenario_for_different_seed_repository(
@@ -440,7 +469,7 @@ def test_reset_rejects_scenario_for_different_seed_repository(
             scenario,
             work_dir=tmp_path,
             session=unit_session,
-            devin_client=cast(Any, SimpleNamespace()),
+            devin_client=cast(Any, _valid_client()),
         )
     assert calls == []
 
@@ -474,7 +503,7 @@ def test_reset_rejects_checkout_without_origin(
             scenario,
             work_dir=tmp_path,
             session=unit_session,
-            devin_client=cast(Any, SimpleNamespace()),
+            devin_client=cast(Any, _valid_client()),
         )
 
 
@@ -521,10 +550,10 @@ def test_reset_deletes_state_before_failing_seed(
             scenario,
             work_dir=tmp_path,
             session=unit_session,
-            devin_client=cast(Any, SimpleNamespace()),
+            devin_client=cast(Any, _valid_client()),
         )
-    assert not state_path.exists()
-    assert not (tmp_path / ".simulate-run.json").exists()
+    assert state_path.exists()
+    assert (tmp_path / ".simulate-run.json").exists()
 
 
 def test_reset_fails_when_seed_action_sync_is_not_enabled(
@@ -586,7 +615,7 @@ def test_reset_fails_when_seed_action_sync_is_not_enabled(
             scenario,
             work_dir=tmp_path,
             session=unit_session,
-            devin_client=cast(Any, SimpleNamespace()),
+            devin_client=cast(Any, _valid_client()),
         )
     assert sync_calls == [SEED_ACTION_ID]
     assert not (tmp_path / ".simulate-state.json").exists()
@@ -613,10 +642,59 @@ def test_reset_requires_playbook_before_destructive_work(
             load_scenario(SCENARIO_PATH),
             work_dir=tmp_path,
             session=unit_session,
-            devin_client=cast(Any, SimpleNamespace()),
+            devin_client=cast(Any, _valid_client()),
         )
     assert calls == []
     assert not (tmp_path / ".simulate-run.json").exists()
+
+
+def test_reset_rejects_playbook_without_issue_number(
+    tmp_path: Path,
+    unit_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr(
+        reset,
+        "get_settings",
+        lambda: Settings(
+            devin_api_token="token",
+            devin_org_id="org",
+            seed_playbook_id="playbook-1",
+        ),
+    )
+    monkeypatch.setattr(
+        github,
+        "require_admin",
+        lambda repo: calls.append("require_admin"),
+    )
+    client = SimpleNamespace(
+        list_playbooks=lambda: [
+            Playbook(
+                playbook_id="playbook-1",
+                title="Issue triage",
+                body="body",
+                structured_output_schema={
+                    "type": "object",
+                    "properties": {"outcome": {"type": "string"}},
+                },
+            )
+        ]
+    )
+    with pytest.raises(
+        RuntimeError,
+        match=(
+            "playbook playbook-1 structured output schema lacks issue_number, "
+            "run uv run sync-playbooks"
+        ),
+    ):
+        reset.reset(
+            load_scenario(SCENARIO_PATH),
+            work_dir=tmp_path,
+            session=unit_session,
+            devin_client=cast(Any, client),
+        )
+    assert calls == []
 
 
 def test_reset_rejects_missing_poison_patch_before_destructive_work(
@@ -649,7 +727,7 @@ def test_reset_rejects_missing_poison_patch_before_destructive_work(
             scenario,
             work_dir=tmp_path / "work",
             session=unit_session,
-            devin_client=cast(Any, SimpleNamespace()),
+            devin_client=cast(Any, _valid_client()),
         )
     assert calls == []
 
@@ -741,7 +819,7 @@ def test_reset_clones_missing_worktree(
         scenario,
         work_dir=work_dir,
         session=unit_session,
-        devin_client=cast(Any, SimpleNamespace()),
+        devin_client=cast(Any, _valid_client()),
     )
     assert clone_calls[0][0][0] == "git"
     assert clone_calls[0][0][1 : 1 + len(reset.GIT_CREDENTIAL_ARGS)] == list(
@@ -808,7 +886,7 @@ def test_reset_handles_session_termination_without_wiping(
     )
     unit_session.commit()
     monkeypatch.setattr(reset, "seed", lambda session, **kwargs: None)
-    client = SimpleNamespace(
+    client = _valid_client(
         list_sessions=lambda **kwargs: [],
         terminate_session=lambda session_id: terminated.append(session_id),
     )

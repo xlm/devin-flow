@@ -93,7 +93,8 @@ Before running it, ensure that:
   credential helper automatically when `GH_TOKEN` is set.
 - `SEED_PLAYBOOK_ID` is set to the issue triage Playbook id. Devin's UI shows
   the bare id, which is accepted and normalized to the required `playbook-`
-  prefixed value.
+  prefixed value. Sync the Playbook with `uv run sync-playbooks` after changing
+  its structured output schema.
 - `SEED_REPOSITORY_FULL_NAME` is set to the Target repository. Reset rejects
   scenarios for any other repository.
 - The Devin GitHub connection's Automation scope is set to **All installed
