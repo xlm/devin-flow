@@ -1,0 +1,13 @@
+diff --git a/superset/sql/parse.py b/superset/sql/parse.py
+index c7951e85c9..53b2a90f35 100644
+--- a/superset/sql/parse.py
++++ b/superset/sql/parse.py
+@@ -2800,7 +2800,7 @@ def remove_quotes(val: T) -> T:
+     if val is None:
+         return None
+ 
+-    if val[0] in {'"', "'", "`"} and val[0] == val[-1]:
++    if val[0] in {'"', "'", "`"} or val[0] == val[-1]:
+         val = val[1:-1]
+ 
+     return val

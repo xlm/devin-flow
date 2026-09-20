@@ -1,0 +1,13 @@
+diff --git a/superset/utils/core.py b/superset/utils/core.py
+index a2d6260cf2..e2bd4ce236 100644
+--- a/superset/utils/core.py
++++ b/superset/utils/core.py
+@@ -135,7 +135,7 @@ def build_email_attachment(name: str, body: bytes | str) -> MIMEApplication:
+     payload = body.encode("utf-8") if isinstance(body, str) else body
+     attachment = MIMEApplication(
+         payload,
+-        _subtype=subtype or "octet-stream",
++        _subtype=subtype or "plain",
+         Name=name,
+     )
+     attachment.add_header("Content-Disposition", "attachment", filename=name)

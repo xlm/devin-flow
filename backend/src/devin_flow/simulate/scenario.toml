@@ -1,0 +1,301 @@
+repository = "xlm/superset"
+default_branch = "master"
+baseline = "3cc432d2e64899c78f162e2b897d712e6fc2ae40"
+window_seconds = 180
+
+[[poisons]]
+id = "date-parser-offset"
+patch = "patches/date-parser-offset.patch"
+failing_test = "tests/unit_tests/utils/date_parser_tests.py::test_normalize_time_delta"
+
+[[poisons]]
+id = "email-attachment-default"
+patch = "patches/email-attachment-default.patch"
+failing_test = "tests/unit_tests/utils/test_core.py::test_build_email_attachment"
+
+[[poisons]]
+id = "sql-identifier-quotes"
+patch = "patches/sql-identifier-quotes.patch"
+failing_test = "tests/unit_tests/sql/parse_tests.py::test_remove_quotes"
+
+[[issues]]
+id = "date-parser-offset"
+phase = "original"
+expected_outcome = "fixed"
+title = "Relative time filters move in the wrong direction"
+body = """### Bug description
+Relative time filters such as `30 seconds ago` move the query window forward instead of backward.
+
+### How to reproduce the bug
+1. Open a chart with a time range filter.
+2. Use `30 seconds ago` as the range.
+3. Compare the generated start time with the current time.
+
+### Screenshots/recordings
+Not available.
+
+### Superset version
+0.0.0-dev
+
+### Python version
+3.11
+
+### Node version
+20
+
+### Browser
+Chrome 120
+
+### Additional context
+The same behavior affects minutes, hours, days, and quarters when the expression uses `ago`.
+
+### Checklist
+- [x] I have searched existing issues.
+- [x] I have reproduced this on the default branch.
+"""
+
+[[issues]]
+id = "email-attachment-default"
+phase = "original"
+expected_outcome = "fixed"
+title = "Attachments without a recognized extension have the wrong MIME type"
+body = """### Bug description
+An exported attachment with an extension that Superset does not recognize is labelled as `application/plain` instead of a generic binary attachment.
+
+### How to reproduce the bug
+1. Export content using an unrecognized extension such as `.csv`.
+2. Inspect the MIME type in the generated email.
+3. Observe that it is reported as `application/plain`.
+
+### Screenshots/recordings
+Not available.
+
+### Superset version
+0.0.0-dev
+
+### Python version
+3.11
+
+### Node version
+20
+
+### Browser
+Chrome 120
+
+### Additional context
+Known extensions such as `.zip` and `.xlsx` keep their expected MIME types.
+
+### Checklist
+- [x] I have searched existing issues.
+- [x] I have reproduced this on the default branch.
+"""
+
+[[issues]]
+id = "sql-identifier-quotes"
+phase = "original"
+expected_outcome = "fixed"
+title = "Malformed quoted identifiers are silently changed"
+body = """### Bug description
+SQL identifier cleanup removes the first and last character from a malformed identifier when only one side is quoted.
+
+### How to reproduce the bug
+1. Pass an identifier containing an unmatched quote to SQL parsing.
+2. Inspect the identifier used for validation or display.
+3. Observe that its boundary characters have been removed even though they do not form a pair.
+
+### Screenshots/recordings
+Not available.
+
+### Superset version
+0.0.0-dev
+
+### Python version
+3.11
+
+### Node version
+20
+
+### Browser
+Chrome 120
+
+### Additional context
+Balanced single, double, and backtick quotes should continue to be removed as before.
+
+### Checklist
+- [x] I have searched existing issues.
+- [x] I have reproduced this on the default branch.
+"""
+
+[[issues]]
+id = "feature-request"
+phase = "filler"
+expected_outcome = "not_a_bug"
+title = "Add a compact export history panel"
+body = """### Bug description
+Please add a compact export history panel to the chart page.
+
+### How to reproduce the bug
+This is a product suggestion, not a reproducible bug.
+
+### Screenshots/recordings
+Not available.
+
+### Superset version
+0.0.0-dev
+
+### Python version
+3.11
+
+### Node version
+20
+
+### Browser
+Chrome 120
+
+### Additional context
+A small panel showing recent exports would make repeated downloads easier to find.
+
+### Checklist
+- [x] I have searched existing issues.
+- [x] I have confirmed this is a feature request.
+"""
+
+[[issues]]
+id = "stale-cache"
+phase = "filler"
+expected_outcome = "not_reproducible"
+title = "Dashboard title changes are lost after refresh"
+body = """### Bug description
+A dashboard title sometimes appears to revert after refreshing the page.
+
+### How to reproduce the bug
+1. Edit a dashboard title.
+2. Save the dashboard.
+3. Refresh the browser.
+
+### Screenshots/recordings
+Not available.
+
+### Superset version
+0.0.0-dev
+
+### Python version
+3.11
+
+### Node version
+20
+
+### Browser
+Chrome 120
+
+### Additional context
+I could not reproduce this consistently and have no server logs.
+
+### Checklist
+- [x] I have searched existing issues.
+- [x] I have reproduced this on the default branch.
+"""
+
+[[issues]]
+id = "timezone-filter"
+phase = "filler"
+expected_outcome = "not_reproducible"
+title = "Timezone selector disappears from saved charts"
+body = """### Bug description
+The timezone selector may disappear when reopening a saved chart.
+
+### How to reproduce the bug
+1. Create a chart with a timezone selection.
+2. Save it.
+3. Reopen the chart later.
+
+### Screenshots/recordings
+Not available.
+
+### Superset version
+0.0.0-dev
+
+### Python version
+3.11
+
+### Node version
+20
+
+### Browser
+Chrome 120
+
+### Additional context
+The report is based on one older deployment and does not reproduce against a clean checkout.
+
+### Checklist
+- [x] I have searched existing issues.
+- [x] I have reproduced this on the default branch.
+"""
+
+[[issues]]
+id = "date-parser-offset-duplicate"
+phase = "duplicate"
+expected_outcome = "duplicate"
+duplicate_of = "date-parser-offset"
+title = "Past-relative ranges point after the current time"
+body = """### Bug description
+Past-relative ranges are landing on the future side of the selected time.
+
+### How to reproduce the bug
+Choose a range expressed as a number of seconds ago and compare it with the current time.
+
+### Screenshots/recordings
+Not available.
+
+### Superset version
+0.0.0-dev
+
+### Python version
+3.11
+
+### Node version
+20
+
+### Browser
+Chrome 120
+
+### Additional context
+This appears to be the same symptom as another report, but the example uses a different chart.
+
+### Checklist
+- [x] I have searched existing issues.
+"""
+
+[[issues]]
+id = "sql-identifier-quotes-duplicate"
+phase = "duplicate"
+expected_outcome = "duplicate"
+duplicate_of = "sql-identifier-quotes"
+title = "Quoted table text is truncated when quotes do not match"
+body = """### Bug description
+A table identifier with an unmatched quote loses both boundary characters during SQL handling.
+
+### How to reproduce the bug
+Use an identifier with a single leading quote and inspect the value after parsing.
+
+### Screenshots/recordings
+Not available.
+
+### Superset version
+0.0.0-dev
+
+### Python version
+3.11
+
+### Node version
+20
+
+### Browser
+Chrome 120
+
+### Additional context
+Balanced identifiers are unaffected. This report is written separately because the symptom was first noticed in SQL Lab.
+
+### Checklist
+- [x] I have searched existing issues.
+"""
