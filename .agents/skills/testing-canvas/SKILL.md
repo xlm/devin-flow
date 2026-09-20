@@ -1,6 +1,6 @@
 ---
 name: testing-canvas
-description: Test devin-flow Canvas persistence, connection rules, deletion cascades, and Outcome kinds, counts and invocation sheets through the browser and local API.
+description: Test devin-flow Canvas persistence, connection rules, deletion cascades, Outcome invocation sheets, and API/polling status through the browser and local API.
 ---
 
 # Canvas runtime testing
@@ -72,7 +72,7 @@ to `FlowCanvas.vue` as unverified until it has run in the real browser.
 
 1. Run `pnpm e2e` (after `pnpm e2e:install` once). It brings up a throwaway
    Postgres, the stub Devin upstream in `frontend/e2e/harness/`, the backend
-   and Vite, and runs specs 1-9 against the real Vue Flow renderer. Use
+   and Vite, and runs specs 1-10 against the real Vue Flow renderer. Use
    `pnpm e2e -- --grep "spec 5"` for one spec. Only fall back to the manual
    steps below for gestures the suite does not cover.
 2. Populate the Canvas with a configured Trigger connected to an Action that
@@ -135,7 +135,25 @@ reloading the page. Finish when the alert disappears and the persisted graph
 returns unchanged. Separately load an empty successful response and verify no
 alert, which distinguishes failure from a legitimate empty board.
 
-Observe the page-level API health badge separately from Canvas recovery.
-It is checked once on mount (issue #27), so it can still say error after a
-successful Canvas retry. Record both states rather than reading the badge
-as proof that the Canvas reload failed.
+## API/polling status
+
+The page-level badge (`data-testid="api-status"`, `data-tone`) checks health
+every 15 seconds. Canvas Retry and Refresh invocations also refresh health.
+Verify visible label and dot color as well as the data attribute.
+
+E2E spec 10 already covers `Polling off`, `API error` after a backend stop,
+and recovery through Refresh and Retry. The stack there runs with
+`POLL_INTERVAL_SECONDS=0`, so `Polling stale` and `Live` need the manual
+steps below.
+
+1. Start with `POLL_INTERVAL_SECONDS=0`. Expect amber `Polling off`.
+2. Restart with interval 60, then set `poller_state.last_success_at` to null
+   (upsert id 1 if absent). Expect amber `Polling stale` on the next tick.
+   An empty Canvas can poll successfully without calling Devin, even with
+   dummy credentials. Clear the timestamp after startup and inspect before
+   the next backend poll, or configure an owner whose upstream call fails.
+3. Set the timestamp to `now()` and click Refresh invocations. Expect green
+   `Live`. This fixture proves indicator rendering, not actual Devin sync.
+4. Stop the backend and confirm its port is closed. Expect red `API error`
+   on the next tick. Restart and keep the page untouched. Expect recovery
+   within the next 15-second tick, without a reload.
