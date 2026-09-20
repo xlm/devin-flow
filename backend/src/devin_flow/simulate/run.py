@@ -19,6 +19,11 @@ def run(
     rng: Random | None = None,
 ) -> dict[str, Any]:
     work_dir.mkdir(parents=True, exist_ok=True)
+    for key in ("repository", "default_branch", "baseline"):
+        if state.get(key) != getattr(scenario, key):
+            raise RuntimeError(
+                "reset was run for a different Scenario, run reset again"
+            )
     expected_sha = state["reset_sha"]
     actual_sha = github.get_branch_sha(scenario.repository, scenario.default_branch)
     if actual_sha != expected_sha:

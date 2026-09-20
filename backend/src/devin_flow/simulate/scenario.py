@@ -53,6 +53,11 @@ class Scenario(BaseModel):
             elif issue.duplicate_of is not None:
                 raise ValueError("duplicate_of is only valid for duplicate issues")
         poison_by_id = set(poison_ids)
+        fixed_original_ids = {
+            issue.id
+            for issue in self.issues
+            if issue.phase == "original" and issue.expected_outcome == "fixed"
+        }
         for issue in self.issues:
             if (
                 issue.phase == "original"
@@ -60,6 +65,8 @@ class Scenario(BaseModel):
                 and issue.id not in poison_by_id
             ):
                 raise ValueError("fixed originals require a poison with the same id")
+        if poison_by_id - fixed_original_ids:
+            raise ValueError("poisons require fixed original issues")
         return self
 
 

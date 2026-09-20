@@ -51,9 +51,26 @@ def reset(
     devin_client: DevinClient,
     wipe_invocations: bool = True,
 ) -> str:
+    state_path = work_dir / ".simulate-state.json"
+    if work_dir.exists():
+        state_path.unlink(missing_ok=True)
     github.require_admin(scenario.repository)
     work_dir.mkdir(parents=True, exist_ok=True)
     checkout_dir = repo_dir(work_dir)
+    if checkout_dir.exists():
+        try:
+            origin_url = _git(checkout_dir, "config", "--get", "remote.origin.url")
+        except subprocess.CalledProcessError as exc:
+            raise RuntimeError(
+                "simulator checkout repository mismatch: "
+                f"expected {scenario.repository}, got unavailable origin"
+            ) from exc
+        actual_repository = _normalize_repository(origin_url)
+        if actual_repository != scenario.repository:
+            raise RuntimeError(
+                "simulator checkout repository mismatch: "
+                f"expected {scenario.repository}, got {actual_repository}"
+            )
     terminated: set[str] = set()
     for invocation in session.exec(select(Invocation)).all():
         if invocation.status not in TERMINAL_SESSION_STATUSES:
@@ -112,10 +129,6 @@ def reset(
         "origin",
         f"HEAD:{scenario.default_branch}",
     )
-    (work_dir / ".simulate-state.json").write_text(
-        json.dumps({"baseline": scenario.baseline, "reset_sha": reset_sha}, indent=2)
-        + "\n"
-    )
     if wipe_invocations:
         session.exec(delete(Invocation))
         poller_state = invocations.get_poller_state(session)
@@ -128,7 +141,27 @@ def reset(
         playbook_id=settings.seed_playbook_id,
         repository_full_name=scenario.repository,
     )
+    state_path.write_text(
+        json.dumps(
+            {
+                "repository": scenario.repository,
+                "default_branch": scenario.default_branch,
+                "baseline": scenario.baseline,
+                "reset_sha": reset_sha,
+            },
+            indent=2,
+        )
+        + "\n"
+    )
     return reset_sha
+
+
+def _normalize_repository(origin_url: str) -> str:
+    normalized = origin_url.strip().removesuffix(".git").rstrip("/")
+    for marker in ("github.com/", "github.com:"):
+        if marker in normalized:
+            return normalized.rsplit(marker, 1)[1]
+    return normalized
 
 
 def _git_branches(scenario: Scenario, work_dir: Path) -> list[str]:

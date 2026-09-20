@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import Engine
-from sqlmodel import Session, select, text
+from sqlmodel import Session, col, delete, select, text
 
 from devin_flow import db, seed
 from devin_flow.models import ActionNode, Edge, OutcomeNode, TriggerNode
@@ -115,6 +115,56 @@ def test_seed_restores_tombstoned_action(unit_session: Session) -> None:
     assert action.sync_status == "pending"
     assert action.sync_error is None
     assert action.automation_id == "automation-1"
+
+
+def test_seed_removes_conflicting_trigger_edge(unit_session: Session) -> None:
+    seed.seed(
+        unit_session,
+        playbook_id="playbook-1",
+        repository_full_name="xlm/superset",
+    )
+    unit_session.exec(delete(Edge).where(col(Edge.source_id) == seed.SEED_TRIGGER_ID))
+    conflicting = ActionNode(
+        name="Other action",
+        position_x=450,
+        position_y=0,
+        sync_status="disabled",
+    )
+    unit_session.add(conflicting)
+    unit_session.flush()
+    unit_session.add(
+        Edge(
+            source_id=seed.SEED_TRIGGER_ID,
+            source_kind="trigger",
+            target_id=conflicting.id,
+            target_kind="action",
+        )
+    )
+    unit_session.commit()
+
+    seed.seed(
+        unit_session,
+        playbook_id="playbook-1",
+        repository_full_name="xlm/superset",
+    )
+
+    edge = unit_session.exec(
+        select(Edge).where(
+            Edge.source_id == seed.SEED_TRIGGER_ID,
+            Edge.target_id == conflicting.id,
+        )
+    ).first()
+    assert edge is None
+    assert conflicting.sync_status == "pending"
+    assert (
+        unit_session.exec(
+            select(Edge).where(
+                Edge.source_id == seed.SEED_TRIGGER_ID,
+                Edge.target_id == seed.SEED_ACTION_ID,
+            )
+        ).first()
+        is not None
+    )
 
 
 def test_seed_playbook_none_inserts_nothing(unit_session: Session) -> None:
