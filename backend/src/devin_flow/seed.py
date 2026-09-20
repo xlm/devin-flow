@@ -45,12 +45,14 @@ def seed(
     """Bring the database to its seeded state. Safe to run repeatedly or concurrently.
 
     When a playbook is configured, the Seed Flow is inserted one missing row at
-    a time. Existing rows are never changed, including the Action automation.
+    a time. Existing rows are reused, with a changed Trigger repository or a
+    tombstoned Action restored without changing the Action automation.
     Caller work already pending on the session is committed so the seeded
     database is always in a consistent, committed state.
     """
     if playbook_id is not None:
         trigger = session.get(TriggerNode, SEED_TRIGGER_ID)
+        trigger_changed = False
         if trigger is None:
             trigger = TriggerNode(
                 id=SEED_TRIGGER_ID,
@@ -60,6 +62,10 @@ def seed(
                 repository_full_name=repository_full_name,
             )
             session.add(trigger)
+        elif trigger.repository_full_name != repository_full_name:
+            trigger.repository_full_name = repository_full_name
+            session.add(trigger)
+            trigger_changed = True
         action = session.get(ActionNode, SEED_ACTION_ID)
         if action is None:
             action = ActionNode(
@@ -71,6 +77,15 @@ def seed(
                 enabled=True,
                 sync_status="pending",
             )
+            session.add(action)
+        else:
+            if action.deleted_at is not None:
+                action.deleted_at = None
+                action.enabled = True
+                action.sync_status = "pending"
+                action.sync_error = None
+            if trigger_changed:
+                action.sync_status = "pending"
             session.add(action)
         for index, (kind, outcome_id) in enumerate(SEED_OUTCOME_IDS.items()):
             if session.get(OutcomeNode, outcome_id) is None:

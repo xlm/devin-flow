@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 DEFAULT_STATIC_DIR = Path(__file__).resolve().parents[3] / "frontend" / "dist"
@@ -18,6 +18,14 @@ class Settings(BaseSettings):
     poll_interval_seconds: float = Field(default=15, ge=0)
     seed_playbook_id: str | None = None
     seed_repository_full_name: str = "xlm/superset"
+
+    @field_validator("seed_playbook_id", mode="before")
+    @classmethod
+    def normalize_seed_playbook_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
 
 
 @lru_cache

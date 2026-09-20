@@ -5,17 +5,17 @@ window_seconds = 180
 
 [[poisons]]
 id = "date-parser-offset"
-patch = "patches/date-parser-offset.patch"
+patch = "date-parser-offset.patch"
 failing_test = "tests/unit_tests/utils/date_parser_tests.py::test_normalize_time_delta"
 
 [[poisons]]
 id = "email-attachment-default"
-patch = "patches/email-attachment-default.patch"
+patch = "email-attachment-default.patch"
 failing_test = "tests/unit_tests/utils/test_core.py::test_build_email_attachment"
 
 [[poisons]]
 id = "sql-identifier-quotes"
-patch = "patches/sql-identifier-quotes.patch"
+patch = "sql-identifier-quotes.patch"
 failing_test = "tests/unit_tests/sql/parse_tests.py::test_remove_quotes"
 
 [[issues]]

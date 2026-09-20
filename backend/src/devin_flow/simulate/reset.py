@@ -1,13 +1,15 @@
 import json
 import subprocess
+from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlmodel import Session, delete, select
 
+from devin_flow import invocations
 from devin_flow.config import get_settings
 from devin_flow.devin import DevinClient
 from devin_flow.devin.client import TERMINAL_SESSION_STATUSES
-from devin_flow.models import Invocation, PollerState
+from devin_flow.models import Invocation
 from devin_flow.seed import seed
 from devin_flow.simulate import github
 from devin_flow.simulate.scenario import Scenario
@@ -46,9 +48,24 @@ def reset(
     wipe_invocations: bool = True,
 ) -> str:
     github.require_admin(scenario.repository)
+    terminated: set[str] = set()
     for invocation in session.exec(select(Invocation)).all():
         if invocation.status not in TERMINAL_SESSION_STATUSES:
             devin_client.terminate_session(invocation.session_id)
+            terminated.add(invocation.session_id)
+    owners = invocations.automation_owners(session)
+    if owners:
+        for upstream_session in devin_client.list_sessions(
+            automation_ids=sorted(owners),
+            created_after=None,
+            paginate=True,
+        ):
+            if (
+                upstream_session.status not in TERMINAL_SESSION_STATUSES
+                and upstream_session.session_id not in terminated
+            ):
+                devin_client.terminate_session(upstream_session.session_id)
+                terminated.add(upstream_session.session_id)
     github.enable_issues(scenario.repository)
     for node_id in github.list_issue_node_ids(scenario.repository):
         github.delete_issue(scenario.repository, node_id)
@@ -72,7 +89,7 @@ def reset(
     _git(work_dir, "checkout", "-B", scenario.default_branch, scenario.baseline)
     _git(work_dir, "reset", "--hard", scenario.baseline)
     for poison in scenario.poisons:
-        patch = Path(__file__).resolve().parent / poison.patch
+        patch = Path(__file__).resolve().parent / "patches" / poison.patch
         _git(work_dir, "apply", str(patch))
         _git(work_dir, "add", "-A")
         _git(work_dir, *GIT_IDENTITY_ARGS, "commit", "-m", f"chore: {poison.id}")
@@ -90,13 +107,15 @@ def reset(
     )
     if wipe_invocations:
         session.exec(delete(Invocation))
-        session.exec(delete(PollerState))
+        poller_state = invocations.get_poller_state(session)
+        poller_state.last_success_at = datetime.now(UTC) + invocations.SAFETY_MARGIN
+        session.add(poller_state)
         session.commit()
     settings = get_settings()
     seed(
         session,
         playbook_id=settings.seed_playbook_id,
-        repository_full_name=settings.seed_repository_full_name,
+        repository_full_name=scenario.repository,
     )
     return reset_sha
 
