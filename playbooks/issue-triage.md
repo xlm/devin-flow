@@ -15,25 +15,35 @@ structured output.
 2. Check for duplicates. Search open and recently closed issues in the same
    repository for the same symptom, error message or stack trace. If you
    find an existing issue describing the same problem, comment on the new
-   issue linking the existing one, close the new issue as a duplicate, and
-   stop with outcome `duplicate` and `duplicate_of` set to the existing
-   issue URL.
+   issue linking the existing one, add the `duplicate` label, close the new
+   issue as a duplicate, and stop with outcome `duplicate` and
+   `duplicate_of` set to the existing issue URL.
 3. Classify the issue. If it is not a bug report (feature request,
-   question, discussion), comment briefly explaining that this triage only
-   handles bug reports and stop with outcome `not_a_bug`.
+   question, discussion), add the `enhancement` label for a feature request
+   or `question` otherwise, comment briefly explaining that this triage only
+   handles bug reports and that a maintainer will follow up, leave the issue
+   open, and stop with outcome `not_a_bug`.
 4. Reproduce the bug. Follow the steps in the issue against the default
    branch. Write a failing test or a minimal script that demonstrates the
    problem. Time-box this to a reasonable effort.
 5. If you cannot reproduce it, comment on the issue with exactly what you
-   tried (commands, versions, branch, observed behaviour) and what extra
-   information would help. Stop with outcome `not_reproducible`.
-6. If you can reproduce it, fix the root cause, keep the reproduction as a
-   regression test, run the repository's lint and test commands, and open
-   a pull request that references the issue. Comment on the issue linking
-   the pull request. Finish with outcome `fixed` and `pr_url` set.
+   tried (commands, versions, branch, observed behaviour), ask the reporter
+   to reopen or file a new issue with reproducible steps, add the
+   `needs-repro` label, and close the issue. Stop with outcome
+   `not_reproducible`.
+6. If you can reproduce it, add the `bug` label, fix the root cause, keep
+   the reproduction as a regression test, run the repository's lint and
+   test commands, and open a pull request whose description contains
+   `Fixes #<issue number>`. Comment on the issue linking the pull request
+   and leave it open so the merge closes it. Finish with outcome `fixed`
+   and `pr_url` set.
 
 ## Rules
 
-- Never close an issue for any reason other than being a duplicate.
+- Close an issue only when it is a duplicate or not reproducible. Never
+  close a feature request, question, or a bug you fixed.
+- Apply exactly one label per issue: `duplicate`, `enhancement` or
+  `question`, `needs-repro`, or `bug`. Use `gh issue edit --add-label`.
+  The labels exist in the repository, do not create new ones.
 - Keep comments factual and short; include the evidence, not the process.
 - Do not open a pull request without a reproduction.
