@@ -816,8 +816,6 @@ onUnmounted(() => {
         :nodes="nodes"
         :edges="edges"
         :node-types="nodeTypes"
-        :default-edge-options="{ type: 'smoothstep' }"
-        :apply-default="false"
         fit-view-on-init
         :is-valid-connection="validConnection"
       >
