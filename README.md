@@ -85,7 +85,8 @@ must target the Scenario repository, and every non-archived Action wired to
 that Trigger is reset. It then resets the Target repository to the Scenario's
 pinned Baseline plus its Poisoned bugs and files the ordered Simulated issues
 across the configured run window. `uv run seed` is an optional shortcut for
-building the Flow.
+building the Flow. `DEMO.md` walks through a full demonstration against
+`xlm/superset`.
 
 Before running it, ensure that:
 
