@@ -434,6 +434,41 @@ def test_reset_requires_playbook_before_destructive_work(
     assert not (tmp_path / ".simulate-run.json").exists()
 
 
+def test_reset_rejects_missing_poison_patch_before_destructive_work(
+    tmp_path: Path,
+    unit_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scenario = load_scenario(SCENARIO_PATH)
+    scenario.patch_dir = tmp_path / "patches"
+    calls: list[str] = []
+    monkeypatch.setattr(
+        reset,
+        "get_settings",
+        lambda: Settings(
+            devin_api_token="token",
+            devin_org_id="org",
+            seed_playbook_id="playbook-1",
+        ),
+    )
+    monkeypatch.setattr(
+        github,
+        "require_admin",
+        lambda repo: calls.append("require_admin"),
+    )
+    with pytest.raises(
+        RuntimeError,
+        match=r"missing poison patch: .*patches/date-parser-offset\.patch",
+    ):
+        reset.reset(
+            scenario,
+            work_dir=tmp_path / "work",
+            session=unit_session,
+            devin_client=cast(Any, SimpleNamespace()),
+        )
+    assert calls == []
+
+
 def test_git_and_branch_helpers(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

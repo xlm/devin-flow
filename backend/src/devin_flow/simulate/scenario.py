@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, model_validator
 
 Phase = Literal["original", "filler", "duplicate"]
 ExpectedOutcome = Literal["fixed", "duplicate", "not_a_bug", "not_reproducible"]
+DEFAULT_PATCH_DIR = Path(__file__).resolve().parent / "patches"
 
 
 class Poison(BaseModel):
@@ -30,6 +31,10 @@ class Scenario(BaseModel):
     window_seconds: int = Field(gt=0)
     poisons: list[Poison]
     issues: list[Issue]
+    patch_dir: Path = DEFAULT_PATCH_DIR
+
+    def patch_path(self, poison: Poison) -> Path:
+        return self.patch_dir / poison.patch
 
     @model_validator(mode="after")
     def validate_consistency(self) -> "Scenario":
@@ -72,4 +77,6 @@ class Scenario(BaseModel):
 
 def load_scenario(path: Path) -> Scenario:
     with path.open("rb") as file:
-        return Scenario.model_validate(tomllib.load(file))
+        scenario = Scenario.model_validate(tomllib.load(file))
+    scenario.patch_dir = path.resolve().parent / "patches"
+    return scenario
