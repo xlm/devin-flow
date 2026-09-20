@@ -34,14 +34,14 @@ def add_action(
     session: Session,
     automation_id: str | None,
     *,
-    deleted: bool = False,
+    archived: bool = False,
 ) -> ActionNode:
     action = ActionNode(
         position_x=0,
         position_y=0,
         name=f"Action {automation_id}",
         automation_id=automation_id,
-        deleted_at=datetime.now(UTC) if deleted else None,
+        archived_at=datetime.now(UTC) if archived else None,
     )
     session.add(action)
     session.commit()
@@ -69,7 +69,7 @@ def session_payload(
 def test_first_poll_lists_all_owned_automations(unit_session: Session) -> None:
     live = add_action(unit_session, "auto-1")
     add_action(unit_session, "auto-2")
-    tombstoned = add_action(unit_session, "auto-deleted", deleted=True)
+    archived = add_action(unit_session, "auto-archived", archived=True)
     add_action(unit_session, None)
     requests: list[httpx.Request] = []
 
@@ -79,7 +79,7 @@ def test_first_poll_lists_all_owned_automations(unit_session: Session) -> None:
         assert request.url.params.get_list("automation_ids") == [
             "auto-1",
             "auto-2",
-            "auto-deleted",
+            "auto-archived",
         ]
         assert "created_after" not in request.url.params
         return httpx.Response(
@@ -94,7 +94,7 @@ def test_first_poll_lists_all_owned_automations(unit_session: Session) -> None:
                         ],
                     ),
                     session_payload("s-2", "auto-1", status="exit"),
-                    session_payload("s-3", "auto-deleted", status="exit"),
+                    session_payload("s-3", "auto-archived", status="exit"),
                     session_payload("s-unknown", "auto-gone"),
                 ],
                 "has_next_page": False,
@@ -111,7 +111,7 @@ def test_first_poll_lists_all_owned_automations(unit_session: Session) -> None:
     assert [(i.session_id, i.action_node_id) for i in invocations] == [
         ("s-1", live.id),
         ("s-2", live.id),
-        ("s-3", tombstoned.id),
+        ("s-3", archived.id),
     ]
     first = invocations[0]
     assert first.automation_id == "auto-1"

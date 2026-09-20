@@ -124,7 +124,7 @@ def test_connected_nodes_and_payload(unit_session: Session) -> None:
     connect(unit_session, source, node)
     assert connected_trigger(unit_session, node.id) == source
     assert connected_action(unit_session, source.id) == node
-    node.deleted_at = datetime.now(UTC)
+    node.archived_at = datetime.now(UTC)
     unit_session.add(node)
     unit_session.commit()
     assert connected_trigger(unit_session, node.id) is None
@@ -407,11 +407,11 @@ def test_retry_syncs_errored_action(unit_session: Session) -> None:
     assert stored.sync_error is None
 
 
-def test_retry_syncs_tombstoned_action_disables(unit_session: Session) -> None:
+def test_retry_syncs_archived_action_disables(unit_session: Session) -> None:
     node = action()
     node.automation_id = "auto-1"
     node.sync_status = "error"
-    node.deleted_at = datetime.now(UTC)
+    node.archived_at = datetime.now(UTC)
     unit_session.add(node)
     unit_session.commit()
     calls: list[httpx.Request] = []
@@ -472,10 +472,10 @@ def test_actions_to_sync_skips_settled_statuses(unit_session: Session) -> None:
         node = action()
         node.sync_status = status
         unit_session.add(node)
-    tombstoned = action()
-    tombstoned.deleted_at = datetime.now(UTC)
-    tombstoned.sync_status = "error"
-    unit_session.add(tombstoned)
+    archived = action()
+    archived.archived_at = datetime.now(UTC)
+    archived.sync_status = "error"
+    unit_session.add(archived)
     unit_session.commit()
 
     def handler(request: httpx.Request) -> httpx.Response:

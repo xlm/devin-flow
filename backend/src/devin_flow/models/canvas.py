@@ -51,7 +51,7 @@ class ActionNode(NodeBase, table=True):
     automation_id: str | None = None
     sync_status: str = "unprovisioned"
     sync_error: str | None = None
-    deleted_at: datetime | None = Field(default=None, sa_type=TIMESTAMP, nullable=True)
+    archived_at: datetime | None = Field(default=None, sa_type=TIMESTAMP, nullable=True)
 
 
 class OutcomeNode(NodeBase, table=True):

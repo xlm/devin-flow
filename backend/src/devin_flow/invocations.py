@@ -52,7 +52,7 @@ def get_poller_state(session: Session) -> PollerState:
 
 
 def automation_owners(session: Session) -> dict[str, UUID]:
-    # tombstoned Actions keep their automation_id so sessions started before
+    # archived Actions keep their automation_id so sessions started before
     # the delete are still mirrored
     actions = session.exec(
         select(ActionNode).where(col(ActionNode.automation_id).is_not(None))

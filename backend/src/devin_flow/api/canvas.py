@@ -225,7 +225,7 @@ def get_node(
     if kind == "action":
         query = select(ActionNode).where(
             ActionNode.id == node_id,
-            col(ActionNode.deleted_at).is_(None),
+            col(ActionNode.archived_at).is_(None),
         )
         if for_update:
             query = query.with_for_update()
@@ -283,7 +283,7 @@ def get_canvas(session: SessionDep) -> CanvasRead:
             node_read(node, "action", counts.get(node.id, 0))
             for node in session.exec(
                 select(ActionNode)
-                .where(col(ActionNode.deleted_at).is_(None))
+                .where(col(ActionNode.archived_at).is_(None))
                 .order_by(col(ActionNode.created_at))
             ).all()
         ],
@@ -432,7 +432,7 @@ def delete_node(
         node.enabled = False
         node.sync_status = "error" if disable_error is not None else "disabled"
         node.sync_error = disable_error
-        node.deleted_at = datetime.now(UTC)
+        node.archived_at = datetime.now(UTC)
         session.add(node)
         session.commit()
         return Response(status_code=204)

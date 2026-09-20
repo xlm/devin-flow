@@ -496,7 +496,7 @@ def test_action_node_defaults_sync_status(unit_session: Session) -> None:
     assert node.sync_status == "unprovisioned"
     assert node.automation_id is None
     assert node.sync_error is None
-    assert node.deleted_at is None
+    assert node.archived_at is None
 
 
 def test_unknown_node_kind_is_unprocessable(unit_client: TestClient) -> None:
@@ -862,7 +862,7 @@ def test_trigger_delete_disables_connected_action(
     assert unit_session.exec(select(Invocation)).one().session_id == "s-1"
 
 
-def test_action_delete_tombstones_on_upstream_failure(
+def test_action_delete_archives_on_upstream_failure(
     unit_client: TestClient,
     unit_session: Session,
 ) -> None:
@@ -906,7 +906,7 @@ def test_action_delete_tombstones_on_upstream_failure(
     assert len(calls) == 1
     stored = unit_session.get(ActionNode, action.id)
     assert stored is not None
-    assert stored.deleted_at is not None
+    assert stored.archived_at is not None
     assert stored.automation_id == "auto-1"
     assert stored.enabled is False
     assert stored.sync_status == "error"
@@ -923,7 +923,7 @@ def test_action_delete_tombstones_on_upstream_failure(
     client.http.close()
 
 
-def test_action_delete_tombstones_after_upstream_success(
+def test_action_delete_archives_after_upstream_success(
     unit_client: TestClient,
     unit_session: Session,
     mock_devin: tuple[DevinClient, list[httpx.Request]],
@@ -939,7 +939,7 @@ def test_action_delete_tombstones_after_upstream_success(
     assert response.status_code == 204
     stored = unit_session.get(ActionNode, action.id)
     assert stored is not None
-    assert stored.deleted_at is not None
+    assert stored.archived_at is not None
     assert stored.automation_id == "auto-1"
     assert stored.enabled is False
     assert stored.sync_status == "disabled"
@@ -947,7 +947,7 @@ def test_action_delete_tombstones_after_upstream_success(
     assert json_body(mock_devin[1][0]) == {"enabled": False}
 
 
-def test_action_delete_tombstones_when_devin_is_not_configured(
+def test_action_delete_archives_when_devin_is_not_configured(
     unit_client: TestClient,
     unit_session: Session,
 ) -> None:
@@ -974,7 +974,7 @@ def test_action_delete_tombstones_when_devin_is_not_configured(
     assert response.status_code == 204
     stored = unit_session.get(ActionNode, action.id)
     assert stored is not None
-    assert stored.deleted_at is not None
+    assert stored.archived_at is not None
     assert stored.sync_status == "error"
     assert stored.sync_error == "devin api not configured"
     client.http.close()
