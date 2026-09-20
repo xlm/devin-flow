@@ -55,6 +55,11 @@ def reset(
     playbook_id = settings.seed_playbook_id
     if playbook_id is None:
         raise RuntimeError("SEED_PLAYBOOK_ID is required for reset")
+    if scenario.repository != settings.seed_repository_full_name:
+        raise RuntimeError(
+            f"scenario repository {scenario.repository} does not match "
+            f"SEED_REPOSITORY_FULL_NAME {settings.seed_repository_full_name}"
+        )
     patch_paths = [scenario.patch_path(poison) for poison in scenario.poisons]
     for patch_path in patch_paths:
         if not patch_path.exists():
@@ -81,15 +86,20 @@ def reset(
                 "simulator checkout repository mismatch: "
                 f"expected {scenario.repository}, got {actual_repository}"
             )
+    seed_action = session.get(ActionNode, SEED_ACTION_ID)
+    seed_automation = seed_action.automation_id if seed_action is not None else None
     terminated: set[str] = set()
-    for invocation in session.exec(select(Invocation)).all():
-        if invocation.status not in TERMINAL_SESSION_STATUSES:
-            devin_client.terminate_session(invocation.session_id)
-            terminated.add(invocation.session_id)
-    owners = invocations.automation_owners(session)
-    if owners:
+    if seed_automation is not None:
+        for invocation in session.exec(
+            select(Invocation).where(
+                Invocation.automation_id == seed_automation,
+            )
+        ).all():
+            if invocation.status not in TERMINAL_SESSION_STATUSES:
+                devin_client.terminate_session(invocation.session_id)
+                terminated.add(invocation.session_id)
         for upstream_session in devin_client.list_sessions(
-            automation_ids=sorted(owners),
+            automation_ids=[seed_automation],
             created_after=None,
             paginate=True,
         ):
@@ -139,8 +149,8 @@ def reset(
         f"HEAD:{scenario.default_branch}",
     )
     if wipe_invocations:
-        session.exec(delete(Invocation))
         poller_state = invocations.get_poller_state(session)
+        session.exec(delete(Invocation))
         poller_state.last_success_at = datetime.now(UTC) + invocations.SAFETY_MARGIN
         session.add(poller_state)
         session.commit()
@@ -149,7 +159,7 @@ def reset(
         playbook_id=playbook_id,
         repository_full_name=scenario.repository,
     )
-    automations.sync_action(session, devin_client, SEED_ACTION_ID)
+    automations.retry_syncs(session, devin_client)
     action = session.get(ActionNode, SEED_ACTION_ID)
     sync_error = action.sync_error if action is not None else None
     if action is None or action.sync_status != "enabled":

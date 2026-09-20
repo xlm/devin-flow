@@ -7,17 +7,19 @@ from typing import Any, cast
 from uuid import uuid4
 
 import pytest
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from devin_flow import automations, invocations
 from devin_flow.config import Settings
-from devin_flow.devin.client import DevinSession
-from devin_flow.models import ActionNode
-from devin_flow.seed import SEED_ACTION_ID
+from devin_flow.devin.client import Automation, DevinSession
+from devin_flow.models import ActionNode, Edge, Invocation, TriggerNode
+from devin_flow.seed import SEED_ACTION_ID, SEED_TRIGGER_ID
 from devin_flow.simulate import github, reset
 from devin_flow.simulate.scenario import load_scenario
 
 from .conftest import SCENARIO_PATH
+
+REAL_SYNC_ACTION = automations.sync_action
 
 
 def _seed_enabled_action(session: Session, **kwargs: Any) -> None:
@@ -86,7 +88,7 @@ def test_reset_cleans_state_and_seeds(
         DEVIN_API_TOKEN="token",
         DEVIN_ORG_ID="org",
         seed_playbook_id="playbook-1",
-        seed_repository_full_name="wrong/repository",
+        seed_repository_full_name="xlm/superset",
     )
     monkeypatch.setattr(reset, "get_settings", lambda: settings)
 
@@ -99,17 +101,51 @@ def test_reset_cleans_state_and_seeds(
                 position_x=450,
                 position_y=0,
                 enabled=True,
-                sync_status="enabled",
+                sync_status="pending",
             )
         )
         session.commit()
 
     monkeypatch.setattr(reset, "seed", fake_seed)
+    poller_events: list[str] = []
+    original_get_poller_state = invocations.get_poller_state
+
+    def get_poller_state_spy(session: Session) -> Any:
+        poller_events.append("lock")
+        return original_get_poller_state(session)
+
+    monkeypatch.setattr(
+        invocations,
+        "get_poller_state",
+        get_poller_state_spy,
+    )
+
+    original_delete = cast(Any, reset).delete
+
+    def delete_spy(model: Any) -> Any:
+        if model is Invocation:
+            poller_events.append("delete")
+        return original_delete(model)
+
+    monkeypatch.setattr(
+        cast(Any, reset),
+        "delete",
+        delete_spy,
+    )
     sync_calls: list[Any] = []
+
+    def fake_sync(session: Session, client: Any, action_id: Any) -> None:
+        sync_calls.append(action_id)
+        action = session.get(ActionNode, action_id)
+        assert action is not None
+        action.sync_status = "enabled"
+        session.add(action)
+        session.commit()
+
     monkeypatch.setattr(
         automations,
         "sync_action",
-        lambda session, client, action_id: sync_calls.append(action_id),
+        fake_sync,
     )
     result = reset.reset(
         scenario,
@@ -141,6 +177,7 @@ def test_reset_cleans_state_and_seeds(
     }
     assert not (tmp_path / ".simulate-run.json").exists()
     assert sync_calls == [SEED_ACTION_ID]
+    assert poller_events[:2] == ["lock", "delete"]
 
 
 def test_reset_terminates_upstream_sessions(
@@ -154,9 +191,12 @@ def test_reset_terminates_upstream_sessions(
     reset.repo_dir(tmp_path).mkdir(parents=True)
     unit_session.add(
         ActionNode(
-            name="action",
+            id=SEED_ACTION_ID,
+            name="Seed: Issue triage",
             position_x=0,
             position_y=0,
+            enabled=True,
+            sync_status="enabled",
             automation_id="automation-1",
         )
     )
@@ -164,6 +204,16 @@ def test_reset_terminates_upstream_sessions(
         Invocation(
             session_id="mirrored",
             automation_id="automation-1",
+            action_node_id=uuid4(),
+            status="running",
+            session_created_at=datetime.now(UTC),
+            session_updated_at=datetime.now(UTC),
+        )
+    )
+    unit_session.add(
+        Invocation(
+            session_id="unrelated",
+            automation_id="automation-2",
             action_node_id=uuid4(),
             status="running",
             session_created_at=datetime.now(UTC),
@@ -194,7 +244,7 @@ def test_reset_terminates_upstream_sessions(
             seed_playbook_id="playbook-1",
         ),
     )
-    monkeypatch.setattr(reset, "seed", _seed_enabled_action)
+    monkeypatch.setattr(reset, "seed", lambda session, **kwargs: None)
     terminated: list[str] = []
 
     class FakeClient:
@@ -220,6 +270,103 @@ def test_reset_terminates_upstream_sessions(
         devin_client=cast(Any, FakeClient()),
     )
     assert terminated == ["mirrored", "upstream"]
+
+
+def test_reset_syncs_displaced_action(
+    tmp_path: Path,
+    unit_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scenario = load_scenario(SCENARIO_PATH)
+    reset.repo_dir(tmp_path).mkdir(parents=True)
+    unit_session.add_all(
+        [
+            TriggerNode(
+                id=SEED_TRIGGER_ID,
+                position_x=100,
+                position_y=0,
+                event_action="opened",
+                repository_full_name=scenario.repository,
+            ),
+            ActionNode(
+                id=SEED_ACTION_ID,
+                name="Seed: Issue triage",
+                position_x=450,
+                position_y=0,
+                enabled=True,
+                sync_status="enabled",
+                automation_id="seed-automation",
+                playbook_id="playbook-1",
+            ),
+            ActionNode(
+                name="Displaced",
+                position_x=0,
+                position_y=0,
+                enabled=True,
+                sync_status="enabled",
+                automation_id="displaced-automation",
+                playbook_id="playbook-1",
+            ),
+        ]
+    )
+    unit_session.commit()
+    displaced = unit_session.exec(
+        select(ActionNode).where(ActionNode.name == "Displaced")
+    ).one()
+    unit_session.add(
+        Edge(
+            source_id=SEED_TRIGGER_ID,
+            source_kind="trigger",
+            target_id=displaced.id,
+            target_kind="action",
+        )
+    )
+    unit_session.commit()
+    monkeypatch.setattr(
+        reset,
+        "get_settings",
+        lambda: Settings(
+            devin_api_token="token",
+            devin_org_id="org",
+            seed_playbook_id="playbook-1",
+        ),
+    )
+    monkeypatch.setattr(github, "require_admin", lambda repo: None)
+    monkeypatch.setattr(github, "enable_issues", lambda repo: None)
+    monkeypatch.setattr(github, "list_issue_node_ids", lambda repo: [])
+    monkeypatch.setattr(github, "list_open_prs", lambda repo: [])
+    monkeypatch.setattr(reset, "_git_branches", lambda scenario, work_dir: [])
+    monkeypatch.setattr(
+        reset,
+        "_git",
+        lambda work_dir, *args: (
+            "https://github.com/xlm/superset.git"
+            if args[:3] == ("config", "--get", "remote.origin.url")
+            else "sha"
+        ),
+    )
+    monkeypatch.setattr(automations, "sync_action", REAL_SYNC_ACTION)
+    updates: list[tuple[str, bool | None]] = []
+
+    class FakeClient:
+        def list_sessions(self, **kwargs: Any) -> list[DevinSession]:
+            return []
+
+        def update_automation(self, automation_id: str, update: Any) -> Automation:
+            updates.append((automation_id, update.enabled))
+            return Automation(
+                automation_id=automation_id,
+                name="seed",
+                enabled=bool(update.enabled),
+            )
+
+    reset.reset(
+        scenario,
+        work_dir=tmp_path,
+        session=unit_session,
+        devin_client=cast(Any, FakeClient()),
+    )
+    assert ("displaced-automation", False) in updates
 
 
 def test_reset_rejects_checkout_for_different_repository(
@@ -258,6 +405,44 @@ def test_reset_rejects_checkout_for_different_repository(
             devin_client=cast(Any, SimpleNamespace()),
         )
     assert calls == ["admin"]
+
+
+def test_reset_rejects_scenario_for_different_seed_repository(
+    tmp_path: Path,
+    unit_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    scenario = load_scenario(SCENARIO_PATH)
+    calls: list[str] = []
+    monkeypatch.setattr(
+        reset,
+        "get_settings",
+        lambda: Settings(
+            devin_api_token="token",
+            devin_org_id="org",
+            seed_playbook_id="playbook-1",
+            seed_repository_full_name="other/repository",
+        ),
+    )
+    monkeypatch.setattr(
+        github,
+        "require_admin",
+        lambda repo: calls.append("admin"),
+    )
+    with pytest.raises(
+        RuntimeError,
+        match=(
+            "scenario repository xlm/superset does not match "
+            "SEED_REPOSITORY_FULL_NAME other/repository"
+        ),
+    ):
+        reset.reset(
+            scenario,
+            work_dir=tmp_path,
+            session=unit_session,
+            devin_client=cast(Any, SimpleNamespace()),
+        )
+    assert calls == []
 
 
 def test_reset_rejects_checkout_without_origin(
@@ -610,9 +795,22 @@ def test_reset_handles_session_termination_without_wiping(
             seed_playbook_id="playbook-1",
         ),
     )
-    monkeypatch.setattr(reset, "seed", _seed_enabled_action)
+    unit_session.add(
+        ActionNode(
+            id=SEED_ACTION_ID,
+            name="Seed: Issue triage",
+            position_x=450,
+            position_y=0,
+            enabled=True,
+            sync_status="enabled",
+            automation_id="auto",
+        )
+    )
+    unit_session.commit()
+    monkeypatch.setattr(reset, "seed", lambda session, **kwargs: None)
     client = SimpleNamespace(
-        terminate_session=lambda session_id: terminated.append(session_id)
+        list_sessions=lambda **kwargs: [],
+        terminate_session=lambda session_id: terminated.append(session_id),
     )
     assert (
         reset.reset(
