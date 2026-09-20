@@ -222,6 +222,7 @@ def test_reset_cleans_state_and_wipes_connected_flow(
         "delete",
         delete_spy,
     )
+    pre_poll_time = datetime.now()
     result = reset.reset(
         scenario,
         work_dir=tmp_path,
@@ -247,7 +248,12 @@ def test_reset_cleans_state_and_wipes_connected_flow(
     )
     poller_state = invocations.get_poller_state(unit_session)
     assert poller_state.last_success_at is not None
-    assert poller_state.last_success_at > datetime.now()
+    post_poll_time = datetime.now()
+    assert (
+        pre_poll_time + invocations.SAFETY_MARGIN
+        <= poller_state.last_success_at
+        <= post_poll_time + invocations.SAFETY_MARGIN
+    )
     assert calls.index(("admin", scenario.repository)) < calls.index(
         ("terminate", "seed-session")
     )

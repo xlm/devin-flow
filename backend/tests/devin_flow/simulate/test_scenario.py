@@ -81,7 +81,7 @@ def test_scenario_rejects_phase_and_duplicate_rules() -> None:
     ).model_dump()
     scenario["issues"][0]["id"] = "missing-poison"
     scenario["issues"] = scenario["issues"][:6]
-    with pytest.raises(ValueError, match="fixed originals"):
+    with pytest.raises(ValueError, match="fixed issues require"):
         Scenario.model_validate(scenario)
 
     scenario = load_scenario(
@@ -123,6 +123,16 @@ def test_packaged_scenario_uses_default_repository() -> None:
     scenario = load_scenario(SCENARIO_PATH, default_repository="me/superset")
 
     assert scenario.repository == "me/superset"
+
+
+def test_scenario_rejects_fixed_filler() -> None:
+    scenario = load_scenario(
+        SCENARIO_PATH, default_repository="xlm/superset"
+    ).model_dump()
+    scenario["issues"][3]["expected_outcome"] = "fixed"
+
+    with pytest.raises(ValueError, match="fixed issues must be originals"):
+        Scenario.model_validate(scenario)
 
 
 def test_scenario_repository_overrides_default(tmp_path: Path) -> None:
