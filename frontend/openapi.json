@@ -202,6 +202,128 @@
         "title": "ActionNodeRead",
         "type": "object"
       },
+      "ArchivedActionRead": {
+        "properties": {
+          "archived_at": {
+            "format": "date-time",
+            "title": "Archived At",
+            "type": "string"
+          },
+          "automation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Automation Id"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "invocation_count": {
+            "default": 0,
+            "title": "Invocation Count",
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "trigger",
+              "action",
+              "outcome"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OutcomeRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "playbook_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Playbook Id"
+          },
+          "position": {
+            "$ref": "#/components/schemas/Position"
+          },
+          "prompt": {
+            "title": "Prompt",
+            "type": "string"
+          },
+          "sync_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sync Error"
+          },
+          "sync_status": {
+            "enum": [
+              "unprovisioned",
+              "pending",
+              "enabled",
+              "disabled",
+              "error"
+            ],
+            "title": "Sync Status",
+            "type": "string"
+          },
+          "trigger": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TriggerRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "position",
+          "name",
+          "playbook_id",
+          "prompt",
+          "enabled",
+          "sync_status",
+          "sync_error",
+          "automation_id",
+          "archived_at"
+        ],
+        "title": "ArchivedActionRead",
+        "type": "object"
+      },
       "CanvasRead": {
         "properties": {
           "action_nodes": {
@@ -955,6 +1077,22 @@
         "title": "Repository",
         "type": "object"
       },
+      "RestoreAction": {
+        "properties": {
+          "position": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Position"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "RestoreAction",
+        "type": "object"
+      },
       "SessionCreate": {
         "properties": {
           "prompt": {
@@ -1182,6 +1320,28 @@
         "summary": "Get Canvas"
       }
     },
+    "/api/canvas/archived-actions": {
+      "get": {
+        "operationId": "list_archived_actions_api_canvas_archived_actions_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ArchivedActionRead"
+                  },
+                  "title": "Response List Archived Actions Api Canvas Archived Actions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Archived Actions"
+      }
+    },
     "/api/canvas/edges": {
       "post": {
         "operationId": "create_edge_api_canvas_edges_post",
@@ -1291,6 +1451,83 @@
           }
         },
         "summary": "Delete Edge"
+      }
+    },
+    "/api/canvas/nodes/action/{node_id}/restore": {
+      "post": {
+        "operationId": "restore_action_api_canvas_nodes_action__node_id__restore_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "node_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Node Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/RestoreAction"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActionNodeRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Canvas object not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Canvas conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Restore Action"
       }
     },
     "/api/canvas/nodes/{kind}": {

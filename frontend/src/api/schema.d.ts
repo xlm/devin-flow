@@ -38,6 +38,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/canvas/archived-actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Archived Actions */
+        get: operations["list_archived_actions_api_canvas_archived_actions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/canvas/edges": {
         parameters: {
             query?: never;
@@ -67,6 +84,23 @@ export interface paths {
         post?: never;
         /** Delete Edge */
         delete: operations["delete_edge_api_canvas_edges__edge_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/canvas/nodes/action/{node_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore Action */
+        post: operations["restore_action_api_canvas_nodes_action__node_id__restore_post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -242,6 +276,49 @@ export interface components {
         };
         /** ActionNodeRead */
         ActionNodeRead: {
+            /** Automation Id */
+            automation_id: string | null;
+            /** Enabled */
+            enabled: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Invocation Count
+             * @default 0
+             */
+            invocation_count: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "trigger" | "action" | "outcome";
+            /** Name */
+            name: string;
+            outcome?: components["schemas"]["OutcomeRead"] | null;
+            /** Playbook Id */
+            playbook_id: string | null;
+            position: components["schemas"]["Position"];
+            /** Prompt */
+            prompt: string;
+            /** Sync Error */
+            sync_error: string | null;
+            /**
+             * Sync Status
+             * @enum {string}
+             */
+            sync_status: "unprovisioned" | "pending" | "enabled" | "disabled" | "error";
+            trigger?: components["schemas"]["TriggerRead"] | null;
+        };
+        /** ArchivedActionRead */
+        ArchivedActionRead: {
+            /**
+             * Archived At
+             * Format: date-time
+             */
+            archived_at: string;
             /** Automation Id */
             automation_id: string | null;
             /** Enabled */
@@ -503,6 +580,10 @@ export interface components {
             /** Repo Path */
             repo_path: string;
         };
+        /** RestoreAction */
+        RestoreAction: {
+            position?: components["schemas"]["Position"] | null;
+        };
         /** SessionCreate */
         SessionCreate: {
             /** Prompt */
@@ -611,6 +692,26 @@ export interface operations {
             };
         };
     };
+    list_archived_actions_api_canvas_archived_actions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArchivedActionRead"][];
+                };
+            };
+        };
+    };
     create_edge_api_canvas_edges_post: {
         parameters: {
             query?: never;
@@ -679,6 +780,59 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Canvas object not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Canvas conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_action_api_canvas_nodes_action__node_id__restore_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                node_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RestoreAction"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ActionNodeRead"];
+                };
             };
             /** @description Canvas object not found */
             404: {
